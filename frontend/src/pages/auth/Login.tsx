@@ -32,9 +32,11 @@ export default function Login() {
     setSubmitting(true);
     try {
       const res = await authApi.login(email, password);
-      if (res.requiresMfa) {
+      if (res.requiresMfa && res.userId) {
+        sessionStorage.setItem('mfa_login_user_id', res.userId);
         navigate('/auth/totp');
-      } else if (res.requiresMfaSetup) {
+      } else if (res.requiresMfaSetup && res.userId) {
+        sessionStorage.setItem('mfa_setup_user_id', res.userId);
         navigate('/auth/setup-totp');
       } else {
         // Backend may return token directly (no MFA)

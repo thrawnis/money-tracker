@@ -101,3 +101,9 @@
 .link a:hover {
   text-decoration: underline;
 }
+
+.hint {
+  font-size: 11px;
+  color: #888;
+  margin-top: 3px;
+}

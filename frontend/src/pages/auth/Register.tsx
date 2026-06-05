@@ -1,13 +1,10 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import * as authApi from '../../api/auth';
-import { setAccessToken } from '../../api/client';
-import { useAuth } from '../../contexts/AuthContext';
 import styles from './Login.module.css';
 
 export default function Register() {
   const navigate = useNavigate();
-  const { setTokenAndUser } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -19,7 +16,11 @@ export default function Register() {
     const e: Record<string, string> = {};
     if (!email) e.email = 'Email is required';
     if (!password) e.password = 'Password is required';
-    else if (password.length < 8) e.password = 'Password must be at least 8 characters';
+    else if (password.length < 12) e.password = 'Password must be at least 12 characters';
+    else if (!/[A-Z]/.test(password)) e.password = 'Password must contain an uppercase letter';
+    else if (!/[a-z]/.test(password)) e.password = 'Password must contain a lowercase letter';
+    else if (!/[0-9]/.test(password)) e.password = 'Password must contain a number';
+    else if (!/[^A-Za-z0-9]/.test(password)) e.password = 'Password must contain a special character';
     if (!confirm) e.confirm = 'Please confirm your password';
     else if (confirm !== password) e.confirm = 'Passwords do not match';
     setErrors(e);
@@ -33,14 +34,12 @@ export default function Register() {
     setSubmitting(true);
     try {
       const res = await authApi.register(email, password);
-      if (res.accessToken) {
-        setAccessToken(res.accessToken);
-        setTokenAndUser(res.accessToken, { id: '', email, role: res.role });
-      }
+      // Store userId so the TOTP setup page can use it
+      sessionStorage.setItem('mfa_setup_user_id', res.userId);
       navigate('/auth/setup-totp');
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
-      setGlobalError(msg ?? 'Registration failed. Please try again.');
+      const data = (err as { response?: { data?: { message?: string } } })?.response?.data;
+      setGlobalError(data?.message ?? 'Registration failed. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -76,6 +75,7 @@ export default function Register() {
               autoComplete="new-password"
             />
             {errors.password && <div className={styles.error}>{errors.password}</div>}
+            <div className={styles.hint}>Min 12 chars · uppercase · lowercase · number · special character</div>
           </div>
           <div className={styles.field}>
             <label className={styles.label} htmlFor="confirm">Confirm Password</label>

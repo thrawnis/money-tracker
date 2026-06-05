@@ -17,15 +17,22 @@ export default function SetupTotp() {
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  const userId = sessionStorage.getItem('mfa_setup_user_id') ?? '';
+
   useEffect(() => {
-    authApi.setupTotp()
+    if (!userId) {
+      setLoadError('Session expired. Please register again.');
+      setLoading(false);
+      return;
+    }
+    authApi.setupTotp(userId)
       .then(data => {
         setSharedKey(data.sharedKey);
         setAuthenticatorUri(data.authenticatorUri);
       })
       .catch(() => setLoadError('Failed to load TOTP setup. Please try again.'))
       .finally(() => setLoading(false));
-  }, []);
+  }, [userId]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -36,15 +43,10 @@ export default function SetupTotp() {
     setError('');
     setSubmitting(true);
     try {
-      await authApi.enrollTotp(code);
-      // After enrollment, try to get a fresh token
-      try {
-        const token = await authApi.refreshTokens();
-        setAccessToken(token.accessToken);
-        setTokenAndUser(token.accessToken, { id: '', email: '', role: token.role });
-      } catch {
-        // ignore refresh errors
-      }
+      const res = await authApi.enrollTotp(userId, code);
+      sessionStorage.removeItem('mfa_setup_user_id');
+      setAccessToken(res.accessToken);
+      setTokenAndUser(res.accessToken, { id: userId, email: '', role: res.role });
       navigate('/');
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;

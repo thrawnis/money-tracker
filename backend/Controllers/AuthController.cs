@@ -42,12 +42,12 @@ public class AuthController(
 
         var result = await userManager.CreateAsync(user, request.Password);
         if (!result.Succeeded)
-            return BadRequest(result.Errors.Select(e => e.Description));
+            return BadRequest(new { message = string.Join(" ", result.Errors.Select(e => e.Description)) });
 
         await EnsureRolesExistAsync();
         await userManager.AddToRoleAsync(user, Roles.Standard);
 
-        return Ok(new { message = "Account created. Please set up MFA to continue." });
+        return Ok(new { userId = user.Id, requiresMfaSetup = true });
     }
 
     // ── Login (step 1 — password) ────────────────────────────────────────────

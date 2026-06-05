@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as authApi from '../../api/auth';
+import { setAccessToken } from '../../api/client';
 import { useAuth } from '../../contexts/AuthContext';
 import styles from './Login.module.css';
 
@@ -11,17 +12,25 @@ export default function TotpVerify() {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  const userId = sessionStorage.getItem('mfa_login_user_id') ?? '';
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!code || code.length !== 6) {
       setError('Please enter a 6-digit code');
       return;
     }
+    if (!userId) {
+      setError('Session expired. Please sign in again.');
+      return;
+    }
     setError('');
     setSubmitting(true);
     try {
-      const res = await authApi.verifyTotp(code);
-      setTokenAndUser(res.accessToken, { id: '', email: '', role: res.role });
+      const res = await authApi.verifyTotp(userId, code);
+      sessionStorage.removeItem('mfa_login_user_id');
+      setAccessToken(res.accessToken);
+      setTokenAndUser(res.accessToken, { id: userId, email: '', role: res.role });
       navigate('/');
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
