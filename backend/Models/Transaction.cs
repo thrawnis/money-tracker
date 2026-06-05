@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace MoneyTracker.Models;
 
 public enum TransactionStatus
@@ -14,13 +16,17 @@ public class Transaction
     public Account Account { get; set; } = null!;
 
     public DateOnly Date { get; set; }
+
+    [MaxLength(20)]
     public string? CheckNumber { get; set; }
+
     public int? PayeeId { get; set; }
     public Payee? Payee { get; set; }
 
     public int? CategoryId { get; set; }
     public Category? Category { get; set; }
 
+    [MaxLength(500)]
     public string? Memo { get; set; }
 
     // Positive = deposit/credit, Negative = withdrawal/debit

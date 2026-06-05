@@ -65,6 +65,8 @@ public class TransactionsController(AppDbContext db) : ControllerBase
         var tx = await db.Transactions.FirstOrDefaultAsync(t => t.Id == id && t.AccountId == accountId);
         if (tx is null) return NotFound();
 
+        int? previousPayeeId = tx.PayeeId != updated.PayeeId ? tx.PayeeId : null;
+
         tx.Date = updated.Date;
         tx.CheckNumber = updated.CheckNumber;
         tx.PayeeId = updated.PayeeId;
@@ -75,6 +77,22 @@ public class TransactionsController(AppDbContext db) : ControllerBase
         tx.UpdatedAt = DateTime.UtcNow;
 
         await db.SaveChangesAsync();
+
+        // If the payee was changed, remove the old one if it is now orphaned
+        if (previousPayeeId.HasValue)
+        {
+            bool payeeStillInUse = await db.Transactions.AnyAsync(t => t.PayeeId == previousPayeeId);
+            if (!payeeStillInUse)
+            {
+                var payee = await db.Payees.FindAsync(previousPayeeId.Value);
+                if (payee is not null)
+                {
+                    db.Payees.Remove(payee);
+                    await db.SaveChangesAsync();
+                }
+            }
+        }
+
         return Ok(tx);
     }
 
@@ -84,8 +102,26 @@ public class TransactionsController(AppDbContext db) : ControllerBase
         var tx = await db.Transactions.FirstOrDefaultAsync(t => t.Id == id && t.AccountId == accountId);
         if (tx is null) return NotFound();
 
+        int? payeeId = tx.PayeeId;
+
         db.Transactions.Remove(tx);
         await db.SaveChangesAsync();
+
+        // Remove the payee if it is no longer referenced by any transaction
+        if (payeeId.HasValue)
+        {
+            bool payeeStillInUse = await db.Transactions.AnyAsync(t => t.PayeeId == payeeId);
+            if (!payeeStillInUse)
+            {
+                var payee = await db.Payees.FindAsync(payeeId.Value);
+                if (payee is not null)
+                {
+                    db.Payees.Remove(payee);
+                    await db.SaveChangesAsync();
+                }
+            }
+        }
+
         return NoContent();
     }
 }

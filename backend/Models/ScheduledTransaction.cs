@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace MoneyTracker.Models;
 
 public enum RecurrenceFrequency
@@ -15,6 +17,8 @@ public enum RecurrenceFrequency
 public class ScheduledTransaction
 {
     public int Id { get; set; }
+
+    [Required, MaxLength(100)]
     public string Name { get; set; } = string.Empty;
 
     public int AccountId { get; set; }
@@ -26,7 +30,9 @@ public class ScheduledTransaction
     public int? CategoryId { get; set; }
     public Category? Category { get; set; }
 
+    [MaxLength(500)]
     public string? Memo { get; set; }
+
     public decimal Amount { get; set; }
 
     public RecurrenceFrequency Frequency { get; set; }
