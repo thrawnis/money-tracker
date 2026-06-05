@@ -1,0 +1,7 @@
+"Date","Account","CheckNumber","Payee","Category","SubCategory","Memo","Amount","Status"
+"2025-01-15","Checking","","Grocery Store","Food","Groceries","Weekly shop","-85.42","Cleared"
+"2025-01-16","Checking","1042","Electric Company","Utilities","Electric","January bill","-120.00","Cleared"
+"2025-01-20","Checking","","Employer","Income","Salary","Bi-weekly pay","2500.00","Cleared"
+"2025-01-22","Savings","","Transfer","Transfer","","Move to savings","-500.00","Cleared"
+"2025-01-22","Checking","","Gas Station","Auto","Fuel","","-45.00","Uncleared"
+"2025-02-01","Credit Card","","Online Retailer","Shopping","Clothing","Winter jacket","-89.99","Uncleared"
