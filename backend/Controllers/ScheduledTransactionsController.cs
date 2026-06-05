@@ -67,7 +67,11 @@ public class ScheduledTransactionsController(
     }
 
     [HttpGet("upcoming")]
-    public async Task<IActionResult> GetUpcoming([FromQuery] int days = 14)
+    public async Task<IActionResult> GetUpcoming(
+        [FromQuery] int  days      = 14,
+        [FromQuery] int? accountId = null,
+        [FromQuery] int  limit     = 5,
+        [FromQuery] int  skip      = 0)
     {
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
@@ -75,14 +79,22 @@ public class ScheduledTransactionsController(
         var user = await userManager.FindByIdAsync(userId);
         if (user is null) return Unauthorized();
 
-        var cutoff = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(days));
+        var from   = DateOnly.FromDateTime(DateTime.UtcNow);
+        var cutoff = from.AddDays(days);
 
-        var items = await db.ScheduledTransactions
-            .Where(s => s.UserId == userId && s.IsActive && s.NextDueDate <= cutoff)
+        var query = db.ScheduledTransactions
+            .Where(s => s.UserId == userId && s.IsActive && s.NextDueDate >= from && s.NextDueDate <= cutoff);
+
+        if (accountId.HasValue)
+            query = query.Where(s => s.AccountId == accountId.Value);
+
+        var items = await query
             .Include(s => s.Payee)
             .Include(s => s.Category)
             .Include(s => s.Account)
             .OrderBy(s => s.NextDueDate)
+            .Skip(skip)
+            .Take(limit)
             .ToListAsync();
 
         return Ok(items.Select(s => MapScheduled(s, user.EncryptedDataKey)));

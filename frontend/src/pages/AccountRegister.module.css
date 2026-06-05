@@ -3,6 +3,7 @@
   display: flex;
   flex-direction: column;
   height: 100%;
+  overflow: hidden;
 }
 
 .pageHeader {
@@ -12,6 +13,7 @@
   margin-bottom: 10px;
   border-bottom: 2px solid #336699;
   padding-bottom: 8px;
+  flex-shrink: 0;
 }
 
 .pageTitle {
@@ -29,15 +31,13 @@
 .headerActions {
   display: flex;
   gap: 8px;
+  align-items: center;
 }
 
-.errorMsg {
-  color: #cc0000;
-}
+.errorMsg { color: #cc0000; }
+.loadingMsg { color: #555; }
 
-.loadingMsg {
-  color: #555;
-}
+/* ── Buttons ──────────────────────────────────────────────────────────────── */
 
 .btnPrimary {
   padding: 5px 14px;
@@ -48,7 +48,6 @@
   font-size: 12px;
   cursor: pointer;
 }
-
 .btnPrimary:hover { background: #004488; }
 .btnPrimary:disabled { background: #999; cursor: not-allowed; }
 
@@ -61,17 +60,35 @@
   font-size: 12px;
   cursor: pointer;
 }
-
 .btnSecondary:hover { background: #d0d0d0; }
 .btnSecondary:disabled { opacity: 0.5; cursor: not-allowed; }
 
-/* Filter panel */
+.btnToggleFuture {
+  padding: 5px 12px;
+  background: #f0f8f0;
+  color: #006600;
+  border: 1px solid #80c080;
+  border-radius: 2px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.btnToggleFuture:hover { background: #e0f4e0; }
+.btnToggleFutureActive {
+  background: #d0ecd0;
+  border-color: #009900;
+  font-weight: 600;
+}
+
+/* ── Filter panel ─────────────────────────────────────────────────────────── */
+
 .filterPanel {
   background: #eef3f8;
   border: 1px solid #b0c4d8;
   border-radius: 3px;
   padding: 10px 12px;
   margin-bottom: 8px;
+  flex-shrink: 0;
 }
 
 .filterRow {
@@ -107,12 +124,21 @@
   margin-top: 8px;
 }
 
-/* Table */
+/* ── Scrollable table wrapper ─────────────────────────────────────────────── */
+
+.tableWrapper {
+  flex: 1;
+  overflow-y: auto;
+  border: 1px solid #d0d8e0;
+  border-radius: 2px;
+}
+
+/* ── Table ────────────────────────────────────────────────────────────────── */
+
 .table {
   width: 100%;
   border-collapse: collapse;
   font-size: 12px;
-  flex: 1;
 }
 
 .table th {
@@ -123,6 +149,9 @@
   border-bottom: 2px solid #b0c4d8;
   text-align: left;
   white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 
 .table td {
@@ -130,24 +159,19 @@
   border-bottom: 1px solid #e8e8e8;
 }
 
-.txRow:hover {
-  background: #f0f6ff;
-}
+.txRow:hover { background: #f0f6ff; }
 
-.right {
-  text-align: right;
-}
+.right { text-align: right; }
 
-.debit { color: #cc0000; font-weight: 600; }
+.debit  { color: #cc0000; font-weight: 600; }
 .credit { color: #006600; font-weight: 600; }
 
-.statusUncleared { color: #888; font-size: 11px; }
-.statusCleared { color: #006600; font-size: 11px; font-weight: 600; }
+.statusUncleared  { color: #888; font-size: 11px; }
+.statusCleared    { color: #006600; font-size: 11px; font-weight: 600; }
 .statusReconciled { color: #003366; font-size: 11px; font-weight: 700; }
+.statusScheduled  { color: #996600; font-size: 11px; font-style: italic; }
 
-.actions {
-  white-space: nowrap;
-}
+.actions { white-space: nowrap; }
 
 .btnEdit, .btnDelete {
   padding: 2px 8px;
@@ -157,22 +181,51 @@
   margin-right: 3px;
   border: 1px solid transparent;
 }
-
-.btnEdit {
-  background: #e8f0f8;
-  color: #003366;
-  border-color: #b0c4d8;
-}
-
-.btnEdit:hover { background: #d0e4f4; }
-
-.btnDelete {
-  background: #fff0f0;
-  color: #cc0000;
-  border-color: #f0c0c0;
-}
-
+.btnEdit  { background: #e8f0f8; color: #003366; border-color: #b0c4d8; }
+.btnEdit:hover  { background: #d0e4f4; }
+.btnDelete { background: #fff0f0; color: #cc0000; border-color: #f0c0c0; }
 .btnDelete:hover { background: #ffe0e0; }
+
+/* ── Today divider ────────────────────────────────────────────────────────── */
+
+.todayRow td {
+  padding: 0;
+  border-bottom: none;
+}
+
+.todayDivider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  background: #fffbe6;
+  border-top: 2px solid #ccaa00;
+  border-bottom: 2px solid #ccaa00;
+}
+
+.todayLabel {
+  font-size: 11px;
+  font-weight: 700;
+  color: #885500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* ── Future (scheduled) rows ─────────────────────────────────────────────── */
+
+.futureTxRow td {
+  opacity: 0.55;
+  font-style: italic;
+  background: #f8fbf8;
+}
+
+.futureTxRow:hover td {
+  opacity: 0.8;
+  background: #f0f8f0;
+}
+
+/* ── Misc ─────────────────────────────────────────────────────────────────── */
 
 .emptyMsg {
   text-align: center;
@@ -181,12 +234,26 @@
   font-style: italic;
 }
 
-.pagination {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
-  padding: 10px 0;
-  font-size: 12px;
-  color: #555;
+.noUpcoming {
+  text-align: center;
+  color: #888;
+  padding: 12px;
+  font-style: italic;
+  opacity: 0.7;
+}
+
+.sentinelCell {
+  padding: 4px 8px !important;
+  border-bottom: none !important;
+  text-align: center;
+}
+
+.sentinel {
+  height: 1px;
+}
+
+.loadingMore {
+  font-size: 11px;
+  color: #888;
+  font-style: italic;
 }
