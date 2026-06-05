@@ -138,3 +138,5 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 app.Run();
+// Expose Program for WebApplicationFactory in tests
+public partial class Program { }

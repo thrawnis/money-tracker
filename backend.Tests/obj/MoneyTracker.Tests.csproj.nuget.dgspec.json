@@ -149,10 +149,6 @@
               "target": "Package",
               "version": "[3.7.0, )"
             },
-            "Fido2NetLib": {
-              "target": "Package",
-              "version": "[3.0.0, )"
-            },
             "Microsoft.AspNetCore.Authentication.JwtBearer": {
               "target": "Package",
               "version": "[8.0.0, )"
@@ -170,6 +166,10 @@
               "suppressParent": "All",
               "target": "Package",
               "version": "[8.0.0, )"
+            },
+            "NPOI": {
+              "target": "Package",
+              "version": "[2.7.1, )"
             },
             "Npgsql.EntityFrameworkCore.PostgreSQL": {
               "target": "Package",
