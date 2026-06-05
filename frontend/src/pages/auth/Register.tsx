@@ -38,8 +38,21 @@ export default function Register() {
       sessionStorage.setItem('mfa_setup_user_id', res.userId);
       navigate('/auth/setup-totp');
     } catch (err: unknown) {
-      const data = (err as { response?: { data?: { message?: string } } })?.response?.data;
-      setGlobalError(data?.message ?? 'Registration failed. Please try again.');
+      const response = (err as { response?: { status?: number; data?: unknown } })?.response;
+      const data = response?.data;
+      let msg = 'Registration failed.';
+      if (typeof data === 'string' && data) {
+        msg = data;
+      } else if (Array.isArray(data)) {
+        msg = data.join(' ');
+      } else if (data && typeof data === 'object' && 'message' in data) {
+        msg = String((data as { message: unknown }).message);
+      } else if (data && typeof data === 'object') {
+        msg = JSON.stringify(data);
+      } else if (response?.status) {
+        msg = `Registration failed (HTTP ${response.status}).`;
+      }
+      setGlobalError(msg);
     } finally {
       setSubmitting(false);
     }
