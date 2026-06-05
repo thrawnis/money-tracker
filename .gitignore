@@ -2,9 +2,9 @@
 .env
 
 # .NET
-backend/bin/
-backend/obj/
-backend/*.user
+**/bin/
+**/obj/
+**/*.user
 
 # Node
 frontend/node_modules/
