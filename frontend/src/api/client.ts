@@ -1,8 +1,11 @@
 import axios from 'axios';
 
-const client = axios.create({
-  baseURL: import.meta.env.VITE_API_URL ?? 'http://localhost:5000',
-  headers: { 'Content-Type': 'application/json' },
-});
+let _accessToken: string | null = null;
+export const setAccessToken = (t: string | null) => { _accessToken = t; };
 
-export default client;
+const api = axios.create({ baseURL: import.meta.env.VITE_API_URL ?? '/api' });
+api.interceptors.request.use(cfg => {
+  if (_accessToken) cfg.headers.Authorization = `Bearer ${_accessToken}`;
+  return cfg;
+});
+export default api;

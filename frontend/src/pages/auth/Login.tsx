@@ -1,0 +1,104 @@
+import { useState, type FormEvent } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
+import * as authApi from '../../api/auth';
+import { setAccessToken } from '../../api/client';
+import styles from './Login.module.css';
+
+export default function Login() {
+  const navigate = useNavigate();
+  const { setTokenAndUser } = useAuth();
+
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [emailError, setEmailError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [globalError, setGlobalError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const validate = () => {
+    let ok = true;
+    setEmailError('');
+    setPasswordError('');
+    if (!email) { setEmailError('Email is required'); ok = false; }
+    if (!password) { setPasswordError('Password is required'); ok = false; }
+    return ok;
+  };
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!validate()) return;
+    setGlobalError('');
+    setSubmitting(true);
+    try {
+      const res = await authApi.login(email, password);
+      if (res.requiresMfa) {
+        navigate('/auth/totp');
+      } else if (res.requiresMfaSetup) {
+        navigate('/auth/setup-totp');
+      } else {
+        // Backend may return token directly (no MFA)
+        // Try refresh to get token
+        try {
+          const token = await authApi.refreshTokens();
+          setAccessToken(token.accessToken);
+          setTokenAndUser(token.accessToken, {
+            id: '',
+            email,
+            role: token.role,
+          });
+          navigate('/');
+        } catch {
+          navigate('/');
+        }
+      }
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setGlobalError(msg ?? 'Login failed. Please check your credentials.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className={styles.page}>
+      <div className={styles.card}>
+        <h1 className={styles.title}>Money Tracker — Sign In</h1>
+        {globalError && <div className={styles.globalError}>{globalError}</div>}
+        <form onSubmit={handleSubmit} noValidate>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="email">Email</label>
+            <input
+              id="email"
+              type="email"
+              className={styles.input}
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              autoComplete="email"
+              autoFocus
+            />
+            {emailError && <div className={styles.error}>{emailError}</div>}
+          </div>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="password">Password</label>
+            <input
+              id="password"
+              type="password"
+              className={styles.input}
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              autoComplete="current-password"
+            />
+            {passwordError && <div className={styles.error}>{passwordError}</div>}
+          </div>
+          <button type="submit" className={styles.btn} disabled={submitting}>
+            {submitting ? 'Signing in…' : 'Sign In'}
+          </button>
+        </form>
+        <div className={styles.link}>
+          Don't have an account? <Link to="/auth/register">Register</Link>
+        </div>
+      </div>
+    </div>
+  );
+}
