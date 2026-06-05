@@ -17,6 +17,10 @@ public class Account
 {
     public int Id { get; set; }
 
+    [Required]
+    public string UserId { get; set; } = null!;
+    public ApplicationUser User { get; set; } = null!;
+
     [Required, MaxLength(100)]
     public string Name { get; set; } = string.Empty;
 
@@ -25,11 +29,11 @@ public class Account
     public int? InstitutionId { get; set; }
     public Institution? Institution { get; set; }
 
-    [MaxLength(50)]
-    public string? AccountNumber { get; set; }
+    // Stored encrypted
+    public string? AccountNumberEncrypted { get; set; }
 
-    [MaxLength(500)]
-    public string? Notes { get; set; }
+    // Stored encrypted
+    public string? NotesEncrypted { get; set; }
 
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

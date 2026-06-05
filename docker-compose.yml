@@ -23,6 +23,7 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       ConnectionStrings__Default: "Host=db;Database=moneytracker;Username=moneytracker;Password=${DB_PASSWORD}"
       Jwt__Key: ${JWT_KEY}
+      EncryptionKey: ${ENCRYPTION_KEY}
       Fido2__Domain: ${FIDO2_DOMAIN}
       Fido2__Origin: ${FIDO2_ORIGIN}
     ports:

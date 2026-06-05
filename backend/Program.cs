@@ -93,6 +93,7 @@ builder.Services.AddFido2(options =>
 
 builder.Services.AddScoped<IPasskeyService, PasskeyService>();
 builder.Services.AddSingleton<JwtService>();
+builder.Services.AddSingleton<IEncryptionService, EncryptionService>();
 builder.Services.AddSingleton(HtmlEncoder.Default as UrlEncoder
     ?? throw new InvalidOperationException("UrlEncoder not available."));
 

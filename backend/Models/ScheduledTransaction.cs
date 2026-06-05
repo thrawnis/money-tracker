@@ -18,6 +18,10 @@ public class ScheduledTransaction
 {
     public int Id { get; set; }
 
+    [Required]
+    public string UserId { get; set; } = null!;
+    public ApplicationUser User { get; set; } = null!;
+
     [Required, MaxLength(100)]
     public string Name { get; set; } = string.Empty;
 
@@ -30,8 +34,8 @@ public class ScheduledTransaction
     public int? CategoryId { get; set; }
     public Category? Category { get; set; }
 
-    [MaxLength(500)]
-    public string? Memo { get; set; }
+    // Stored encrypted
+    public string? MemoEncrypted { get; set; }
 
     public decimal Amount { get; set; }
 

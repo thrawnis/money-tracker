@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace MoneyTracker.Models;
 
@@ -17,8 +18,8 @@ public class Transaction
 
     public DateOnly Date { get; set; }
 
-    [MaxLength(20)]
-    public string? CheckNumber { get; set; }
+    // Stored encrypted (AES-256-GCM); no MaxLength since ciphertext is longer than plaintext
+    public string? CheckNumberEncrypted { get; set; }
 
     public int? PayeeId { get; set; }
     public Payee? Payee { get; set; }
@@ -26,9 +27,10 @@ public class Transaction
     public int? CategoryId { get; set; }
     public Category? Category { get; set; }
 
-    [MaxLength(500)]
-    public string? Memo { get; set; }
+    // Stored encrypted
+    public string? MemoEncrypted { get; set; }
 
+    // Kept as plaintext decimal for SQL aggregation (balance, reports)
     // Positive = deposit/credit, Negative = withdrawal/debit
     public decimal Amount { get; set; }
 

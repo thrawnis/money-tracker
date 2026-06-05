@@ -21,6 +21,7 @@ public class AuthController(
     RoleManager<IdentityRole>       roleManager,
     JwtService                      jwtService,
     IPasskeyService                 passkeyService,
+    IEncryptionService              encryption,
     AppDbContext                    db,
     UrlEncoder                      urlEncoder) : ControllerBase
 {
@@ -34,8 +35,9 @@ public class AuthController(
 
         var user = new ApplicationUser
         {
-            UserName = request.Email,
-            Email    = request.Email,
+            UserName         = request.Email,
+            Email            = request.Email,
+            EncryptedDataKey = encryption.GenerateEncryptedDek(),
         };
 
         var result = await userManager.CreateAsync(user, request.Password);
