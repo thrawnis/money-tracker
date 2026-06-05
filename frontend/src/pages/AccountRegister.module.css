@@ -1,28 +1,192 @@
 .page {
-  padding: 16px 20px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
 
-.header {
+.pageHeader {
   display: flex;
-  align-items: baseline;
-  gap: 12px;
-  margin-bottom: 16px;
-  border-bottom: 2px solid var(--ms-header);
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 10px;
+  border-bottom: 2px solid #336699;
   padding-bottom: 8px;
 }
 
-.title {
+.pageTitle {
   margin: 0;
   font-size: 16px;
-  color: var(--ms-navy);
+  color: #003366;
 }
 
-.accountId {
+.accountMeta {
   font-size: 12px;
-  color: #666;
+  color: #555;
+  margin-top: 3px;
 }
 
-.placeholder {
-  color: #666;
+.headerActions {
+  display: flex;
+  gap: 8px;
+}
+
+.errorMsg {
+  color: #cc0000;
+}
+
+.loadingMsg {
+  color: #555;
+}
+
+.btnPrimary {
+  padding: 5px 14px;
+  background: #003366;
+  color: #fff;
+  border: none;
+  border-radius: 2px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.btnPrimary:hover { background: #004488; }
+.btnPrimary:disabled { background: #999; cursor: not-allowed; }
+
+.btnSecondary {
+  padding: 5px 12px;
+  background: #e0e0e0;
+  color: #333;
+  border: 1px solid #b0b0b0;
+  border-radius: 2px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.btnSecondary:hover { background: #d0d0d0; }
+.btnSecondary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Filter panel */
+.filterPanel {
+  background: #eef3f8;
+  border: 1px solid #b0c4d8;
+  border-radius: 3px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+}
+
+.filterRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.filterField {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.filterField label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #333;
+}
+
+.filterField input, .filterField select {
+  padding: 4px 6px;
+  border: 1px solid #b0b0b0;
+  border-radius: 2px;
+  font-size: 12px;
+  height: 24px;
+}
+
+.filterActions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+/* Table */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  flex: 1;
+}
+
+.table th {
+  background: #dce8f0;
+  color: #003366;
+  font-weight: 700;
+  padding: 6px 8px;
+  border-bottom: 2px solid #b0c4d8;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.table td {
+  padding: 5px 8px;
+  border-bottom: 1px solid #e8e8e8;
+}
+
+.txRow:hover {
+  background: #f0f6ff;
+}
+
+.right {
+  text-align: right;
+}
+
+.debit { color: #cc0000; font-weight: 600; }
+.credit { color: #006600; font-weight: 600; }
+
+.statusUncleared { color: #888; font-size: 11px; }
+.statusCleared { color: #006600; font-size: 11px; font-weight: 600; }
+.statusReconciled { color: #003366; font-size: 11px; font-weight: 700; }
+
+.actions {
+  white-space: nowrap;
+}
+
+.btnEdit, .btnDelete {
+  padding: 2px 8px;
+  font-size: 11px;
+  border-radius: 2px;
+  cursor: pointer;
+  margin-right: 3px;
+  border: 1px solid transparent;
+}
+
+.btnEdit {
+  background: #e8f0f8;
+  color: #003366;
+  border-color: #b0c4d8;
+}
+
+.btnEdit:hover { background: #d0e4f4; }
+
+.btnDelete {
+  background: #fff0f0;
+  color: #cc0000;
+  border-color: #f0c0c0;
+}
+
+.btnDelete:hover { background: #ffe0e0; }
+
+.emptyMsg {
+  text-align: center;
+  color: #888;
+  padding: 20px;
   font-style: italic;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 10px 0;
+  font-size: 12px;
+  color: #555;
 }

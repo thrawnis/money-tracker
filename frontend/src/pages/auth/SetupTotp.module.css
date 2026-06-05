@@ -1,0 +1,46 @@
+.instructions {
+  font-size: 13px;
+  color: #333;
+  margin-bottom: 16px;
+}
+
+.keyBox {
+  background: #f5f5f5;
+  border: 1px solid #c0c0c0;
+  border-radius: 3px;
+  padding: 12px;
+  margin-bottom: 16px;
+}
+
+.uriBox {
+  background: #f5f5f5;
+  border: 1px solid #c0c0c0;
+  border-radius: 3px;
+  padding: 12px;
+  margin-bottom: 16px;
+}
+
+.keyLabel {
+  font-size: 11px;
+  font-weight: 700;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+.keyValue {
+  font-family: monospace;
+  font-size: 16px;
+  font-weight: 700;
+  color: #003366;
+  letter-spacing: 2px;
+  word-break: break-all;
+}
+
+.uriValue {
+  font-family: monospace;
+  font-size: 11px;
+  color: #333;
+  word-break: break-all;
+}

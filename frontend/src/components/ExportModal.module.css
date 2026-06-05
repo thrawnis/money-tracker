@@ -1,0 +1,150 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal {
+  background: #fff;
+  border-radius: 4px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+  width: 380px;
+  max-width: 95vw;
+}
+
+.modalHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  background: #003366;
+  color: #fff;
+  border-radius: 4px 4px 0 0;
+}
+
+.modalTitle {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.closeBtn {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 2px 6px;
+  line-height: 1;
+}
+
+.closeBtn:hover { opacity: 0.8; }
+
+.modalBody {
+  padding: 18px;
+}
+
+.authHint {
+  font-size: 13px;
+  color: #333;
+  margin: 0 0 14px;
+}
+
+.authToggle {
+  display: flex;
+  margin-bottom: 14px;
+  border: 1px solid #b0b0b0;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.toggleBtn {
+  flex: 1;
+  padding: 6px;
+  background: #f0f0f0;
+  border: none;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.toggleActive {
+  background: #003366;
+  color: #fff;
+  font-weight: 700;
+}
+
+.field {
+  margin-bottom: 14px;
+}
+
+.label {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.input {
+  width: 100%;
+  padding: 7px 9px;
+  border: 1px solid #c0c0c0;
+  border-radius: 3px;
+  font-size: 13px;
+  box-sizing: border-box;
+}
+
+.input:focus {
+  outline: none;
+  border-color: #006666;
+}
+
+.error {
+  color: #cc0000;
+  font-size: 12px;
+  margin-bottom: 10px;
+}
+
+.btnPrimary {
+  width: 100%;
+  padding: 8px;
+  background: #003366;
+  color: #fff;
+  border: none;
+  border-radius: 3px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btnPrimary:hover { background: #004488; }
+.btnPrimary:disabled { background: #999; cursor: not-allowed; }
+
+.formatBtns {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.formatBtn {
+  padding: 12px 8px;
+  background: #e8f0f8;
+  color: #003366;
+  border: 2px solid #b0c4d8;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: center;
+}
+
+.formatBtn:hover {
+  background: #003366;
+  color: #fff;
+  border-color: #003366;
+}
