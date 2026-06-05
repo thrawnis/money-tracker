@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using MoneyTracker.Auth;
 using MoneyTracker.Auth.Dtos;
 using MoneyTracker.Auth.Services;
 using MoneyTracker.Data;
