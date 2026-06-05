@@ -11,12 +11,18 @@ public class AccountsController(AppDbContext db) : ControllerBase
 {
     [HttpGet]
     public async Task<IActionResult> GetAll() =>
-        Ok(await db.Accounts.Where(a => a.IsActive).OrderBy(a => a.Name).ToListAsync());
+        Ok(await db.Accounts
+            .Where(a => a.IsActive)
+            .Include(a => a.Institution)
+            .OrderBy(a => a.Name)
+            .ToListAsync());
 
     [HttpGet("{id}")]
     public async Task<IActionResult> GetById(int id)
     {
-        var account = await db.Accounts.FindAsync(id);
+        var account = await db.Accounts
+            .Include(a => a.Institution)
+            .FirstOrDefaultAsync(a => a.Id == id);
         return account is null ? NotFound() : Ok(account);
     }
 
@@ -26,6 +32,7 @@ public class AccountsController(AppDbContext db) : ControllerBase
         account.CreatedAt = DateTime.UtcNow;
         db.Accounts.Add(account);
         await db.SaveChangesAsync();
+        await db.Entry(account).Reference(a => a.Institution).LoadAsync();
         return CreatedAtAction(nameof(GetById), new { id = account.Id }, account);
     }
 
@@ -37,11 +44,12 @@ public class AccountsController(AppDbContext db) : ControllerBase
 
         account.Name = updated.Name;
         account.Type = updated.Type;
-        account.Institution = updated.Institution;
+        account.InstitutionId = updated.InstitutionId;
         account.AccountNumber = updated.AccountNumber;
         account.Notes = updated.Notes;
 
         await db.SaveChangesAsync();
+        await db.Entry(account).Reference(a => a.Institution).LoadAsync();
         return Ok(account);
     }
 

@@ -6,6 +6,7 @@ namespace MoneyTracker.Data;
 public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
 {
     public DbSet<Account> Accounts => Set<Account>();
+    public DbSet<Institution> Institutions => Set<Institution>();
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<Payee> Payees => Set<Payee>();
     public DbSet<Transaction> Transactions => Set<Transaction>();
@@ -16,6 +17,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
         modelBuilder.Entity<Account>(e =>
         {
             e.Property(a => a.OpeningBalance).HasPrecision(18, 2);
+
+            e.HasOne(a => a.Institution)
+             .WithMany(i => i.Accounts)
+             .HasForeignKey(a => a.InstitutionId)
+             .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<Transaction>(e =>

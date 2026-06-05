@@ -17,7 +17,8 @@ public class Account
     public string Name { get; set; } = string.Empty;
     public AccountType Type { get; set; }
     public decimal OpeningBalance { get; set; }
-    public string? Institution { get; set; }
+    public int? InstitutionId { get; set; }
+    public Institution? Institution { get; set; }
     public string? AccountNumber { get; set; }
     public string? Notes { get; set; }
     public bool IsActive { get; set; } = true;

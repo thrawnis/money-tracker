@@ -1,3 +1,8 @@
+export interface Institution {
+  id: number;
+  name: string;
+}
+
 export type AccountType =
   | 'Checking'
   | 'Savings'
@@ -12,7 +17,8 @@ export interface Account {
   name: string;
   type: AccountType;
   openingBalance: number;
-  institution?: string;
+  institutionId?: number;
+  institution?: Institution;
   accountNumber?: string;
   notes?: string;
   isActive: boolean;
