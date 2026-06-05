@@ -27,7 +27,7 @@ services:
       Fido2__Domain: ${FIDO2_DOMAIN}
       Fido2__Origin: ${FIDO2_ORIGIN}
     ports:
-      - "5000:8080"
+      - "5012:8080"
     depends_on:
       db:
         condition: service_healthy
