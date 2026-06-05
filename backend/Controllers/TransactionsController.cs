@@ -68,7 +68,6 @@ public class TransactionsController(AppDbContext db) : ControllerBase
         tx.Date = updated.Date;
         tx.CheckNumber = updated.CheckNumber;
         tx.PayeeId = updated.PayeeId;
-        tx.PayeeText = updated.PayeeText;
         tx.CategoryId = updated.CategoryId;
         tx.Memo = updated.Memo;
         tx.Amount = updated.Amount;

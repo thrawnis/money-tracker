@@ -34,7 +34,6 @@ export interface Transaction {
   checkNumber?: string;
   payeeId?: number;
   payee?: Payee;
-  payeeText?: string;
   categoryId?: number;
   category?: Category;
   memo?: string;

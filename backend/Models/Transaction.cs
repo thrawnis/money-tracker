@@ -18,9 +18,6 @@ public class Transaction
     public int? PayeeId { get; set; }
     public Payee? Payee { get; set; }
 
-    // Null when manually typed rather than linked to a Payee record
-    public string? PayeeText { get; set; }
-
     public int? CategoryId { get; set; }
     public Category? Category { get; set; }
 
