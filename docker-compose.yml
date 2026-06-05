@@ -38,7 +38,7 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     ports:
-      - "3000:80"
+      - "3012:80"
     depends_on:
       - api
 
