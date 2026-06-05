@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using MoneyTracker.Data;
@@ -6,6 +7,7 @@ using MoneyTracker.Models;
 namespace MoneyTracker.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("api/accounts/{accountId}/transactions")]
 public class TransactionsController(AppDbContext db) : ControllerBase
 {
