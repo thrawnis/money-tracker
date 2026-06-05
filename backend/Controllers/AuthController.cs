@@ -1,4 +1,3 @@
-using Fido2NetLib;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -135,9 +134,9 @@ public class AuthController(
         var user = await userManager.FindByIdAsync(userId);
         if (user is null) return NotFound();
 
-        var options = await passkeyService.BeginRegistrationAsync(user);
-        HttpContext.Session.SetString("passkeyRegOptions", options.ToJson());
-        return Ok(options);
+        var optionsJson = await passkeyService.BeginRegistrationAsync(user);
+        HttpContext.Session.SetString("passkeyRegOptions", optionsJson);
+        return Content(optionsJson, "application/json");
     }
 
     [HttpPost("passkey/register/complete")]
@@ -150,9 +149,8 @@ public class AuthController(
         var optionsJson = HttpContext.Session.GetString("passkeyRegOptions");
         if (optionsJson is null) return BadRequest("Registration session expired.");
 
-        var options    = CredentialCreateOptions.FromJson(optionsJson);
         var credential = await passkeyService.CompleteRegistrationAsync(
-            request.AttestationResponse, options, request.DeviceName);
+            request.AttestationResponseJson, optionsJson, request.DeviceName);
 
         credential.UserId = user.Id;
         db.PasskeyCredentials.Add(credential);
@@ -173,9 +171,9 @@ public class AuthController(
         var user = await userManager.FindByIdAsync(userId);
         if (user is null) return NotFound();
 
-        var options = await passkeyService.BeginAuthenticationAsync(user.Email!);
-        HttpContext.Session.SetString("passkeyAuthOptions", options.ToJson());
-        return Ok(options);
+        var optionsJson = await passkeyService.BeginAuthenticationAsync(user.Email!);
+        HttpContext.Session.SetString("passkeyAuthOptions", optionsJson);
+        return Content(optionsJson, "application/json");
     }
 
     [HttpPost("passkey/login/complete")]
@@ -185,8 +183,8 @@ public class AuthController(
         var optionsJson = HttpContext.Session.GetString("passkeyAuthOptions");
         if (optionsJson is null) return BadRequest("Authentication session expired.");
 
-        var options    = AssertionOptions.FromJson(optionsJson);
-        var credential = await passkeyService.CompleteAuthenticationAsync(request.AssertionResponse, options);
+        var credential = await passkeyService.CompleteAuthenticationAsync(
+            request.AssertionResponseJson, optionsJson);
 
         await db.SaveChangesAsync();
 
@@ -306,7 +304,7 @@ public record TotpEnrollRequest(string UserId, string Code);
 public record TotpLoginRequest(string UserId, string Code);
 public record PasskeyRegisterCompleteRequest(
     string UserId,
-    AuthenticatorAttestationRawResponse AttestationResponse,
+    string AttestationResponseJson,
     string? DeviceName);
 public record PasskeyLoginCompleteRequest(
-    AuthenticatorAssertionRawResponse AssertionResponse);
+    string AssertionResponseJson);

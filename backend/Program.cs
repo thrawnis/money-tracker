@@ -1,6 +1,5 @@
 using System.Text;
 using System.Text.Encodings.Web;
-using Fido2NetLib;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -74,8 +73,9 @@ builder.Services.AddSession(options =>
     options.Cookie.SameSite    = SameSiteMode.Strict;
 });
 
-// ── Passkeys (Fido2NetLib) ────────────────────────────────────────────────────
+// ── Passkeys (Fido2NetLib — only registered when built with FIDO2_AVAILABLE) ──
 
+#if FIDO2_AVAILABLE
 builder.Services.AddFido2(options =>
 {
     options.ServerDomain = builder.Configuration["Fido2:Domain"] ?? "localhost";
@@ -84,12 +84,13 @@ builder.Services.AddFido2(options =>
     {
         builder.Configuration["Fido2:Origin"] ?? "https://localhost:3000"
     };
-    options.TimestampDriftTolerance = 300_000; // ms
+    options.TimestampDriftTolerance = 300_000;
 })
 .AddCachedMetadataService(c =>
 {
     c.AddStaticMetadataRepository();
 });
+#endif
 
 builder.Services.AddScoped<IPasskeyService, PasskeyService>();
 builder.Services.AddSingleton<JwtService>();

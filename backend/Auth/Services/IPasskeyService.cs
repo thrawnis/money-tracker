@@ -1,24 +1,28 @@
-using Fido2NetLib;
 using MoneyTracker.Models;
 
 namespace MoneyTracker.Auth.Services;
 
 /// <summary>
-/// Wraps Fido2NetLib to handle WebAuthn credential registration and authentication.
-/// Requires Fido2NetLib >= 3.0.0.
+/// Wraps WebAuthn (passkey) credential registration and authentication.
+/// All Fido2NetLib types are kept internal to the implementation;
+/// the interface communicates via JSON strings so it has no library dependency.
 /// </summary>
 public interface IPasskeyService
 {
-    Task<CredentialCreateOptions> BeginRegistrationAsync(ApplicationUser user);
+    /// <summary>Returns JSON options to send to the browser's navigator.credentials.create().</summary>
+    Task<string> BeginRegistrationAsync(ApplicationUser user);
 
+    /// <summary>Verifies the browser attestation and returns a credential ready to persist.</summary>
     Task<UserPasskeyCredential> CompleteRegistrationAsync(
-        AuthenticatorAttestationRawResponse response,
-        CredentialCreateOptions options,
+        string attestationResponseJson,
+        string optionsJson,
         string? deviceName);
 
-    Task<AssertionOptions> BeginAuthenticationAsync(string email);
+    /// <summary>Returns JSON options to send to the browser's navigator.credentials.get().</summary>
+    Task<string> BeginAuthenticationAsync(string email);
 
+    /// <summary>Verifies the browser assertion and returns the updated credential.</summary>
     Task<UserPasskeyCredential> CompleteAuthenticationAsync(
-        AuthenticatorAssertionRawResponse response,
-        AssertionOptions options);
+        string assertionResponseJson,
+        string optionsJson);
 }

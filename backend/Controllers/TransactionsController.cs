@@ -1,6 +1,9 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using MoneyTracker.Auth.Services;
 using MoneyTracker.Data;
 using MoneyTracker.Models;
 
@@ -9,8 +12,42 @@ namespace MoneyTracker.Controllers;
 [ApiController]
 [Authorize]
 [Route("api/accounts/{accountId}/transactions")]
-public class TransactionsController(AppDbContext db) : ControllerBase
+public class TransactionsController(
+    AppDbContext db,
+    IEncryptionService encryption,
+    UserManager<ApplicationUser> userManager) : ControllerBase
 {
+    private string? GetUserId() => User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+    private async Task<bool> AccountBelongsToUser(int accountId, string userId) =>
+        await db.Accounts.AnyAsync(a => a.Id == accountId && a.UserId == userId);
+
+    private object MapTransaction(Transaction tx, string dek) => new
+    {
+        id                    = tx.Id,
+        accountId             = tx.AccountId,
+        date                  = tx.Date,
+        checkNumber           = encryption.Decrypt(tx.CheckNumberEncrypted, dek),
+        payeeId               = tx.PayeeId,
+        payee                 = tx.Payee is null ? null : new
+        {
+            id   = tx.Payee.Id,
+            name = encryption.Decrypt(tx.Payee.NameEncrypted, dek),
+        },
+        categoryId            = tx.CategoryId,
+        category              = tx.Category is null ? null : new
+        {
+            id   = tx.Category.Id,
+            name = encryption.Decrypt(tx.Category.NameEncrypted, dek),
+        },
+        memo                  = encryption.Decrypt(tx.MemoEncrypted, dek),
+        amount                = tx.Amount,
+        status                = tx.Status,
+        transferTransactionId = tx.TransferTransactionId,
+        createdAt             = tx.CreatedAt,
+        updatedAt             = tx.UpdatedAt,
+    };
+
     [HttpGet]
     public async Task<IActionResult> GetByAccount(
         int accountId,
@@ -19,6 +56,14 @@ public class TransactionsController(AppDbContext db) : ControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50)
     {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+
+        if (!await AccountBelongsToUser(accountId, userId)) return NotFound();
+
+        var user = await userManager.FindByIdAsync(userId);
+        if (user is null) return Unauthorized();
+
         var query = db.Transactions
             .Where(t => t.AccountId == accountId)
             .Include(t => t.Payee)
@@ -36,51 +81,98 @@ public class TransactionsController(AppDbContext db) : ControllerBase
             .Take(pageSize)
             .ToListAsync();
 
-        return Ok(new { total, page, pageSize, items });
+        return Ok(new
+        {
+            total,
+            page,
+            pageSize,
+            items = items.Select(t => MapTransaction(t, user.EncryptedDataKey)),
+        });
     }
 
     [HttpGet("{id}")]
     public async Task<IActionResult> GetById(int accountId, int id)
     {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+
+        if (!await AccountBelongsToUser(accountId, userId)) return NotFound();
+
+        var user = await userManager.FindByIdAsync(userId);
+        if (user is null) return Unauthorized();
+
         var tx = await db.Transactions
             .Include(t => t.Payee)
             .Include(t => t.Category)
             .FirstOrDefaultAsync(t => t.Id == id && t.AccountId == accountId);
 
-        return tx is null ? NotFound() : Ok(tx);
+        return tx is null ? NotFound() : Ok(MapTransaction(tx, user.EncryptedDataKey));
     }
 
     [HttpPost]
-    public async Task<IActionResult> Create(int accountId, Transaction transaction)
+    public async Task<IActionResult> Create(int accountId, TransactionDto dto)
     {
-        transaction.AccountId = accountId;
-        transaction.CreatedAt = DateTime.UtcNow;
-        transaction.UpdatedAt = DateTime.UtcNow;
-        db.Transactions.Add(transaction);
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+
+        if (!await AccountBelongsToUser(accountId, userId)) return NotFound();
+
+        var user = await userManager.FindByIdAsync(userId);
+        if (user is null) return Unauthorized();
+
+        var tx = new Transaction
+        {
+            AccountId             = accountId,
+            Date                  = dto.Date,
+            CheckNumberEncrypted  = encryption.Encrypt(dto.CheckNumber, user.EncryptedDataKey),
+            PayeeId               = dto.PayeeId,
+            CategoryId            = dto.CategoryId,
+            MemoEncrypted         = encryption.Encrypt(dto.Memo, user.EncryptedDataKey),
+            Amount                = dto.Amount,
+            Status                = dto.Status,
+            TransferTransactionId = dto.TransferTransactionId,
+            CreatedAt             = DateTime.UtcNow,
+            UpdatedAt             = DateTime.UtcNow,
+        };
+
+        db.Transactions.Add(tx);
         await db.SaveChangesAsync();
-        return CreatedAtAction(nameof(GetById), new { accountId, id = transaction.Id }, transaction);
+
+        await db.Entry(tx).Reference(t => t.Payee).LoadAsync();
+        await db.Entry(tx).Reference(t => t.Category).LoadAsync();
+
+        return CreatedAtAction(nameof(GetById), new { accountId, id = tx.Id },
+            MapTransaction(tx, user.EncryptedDataKey));
     }
 
     [HttpPut("{id}")]
-    public async Task<IActionResult> Update(int accountId, int id, Transaction updated)
+    public async Task<IActionResult> Update(int accountId, int id, TransactionDto dto)
     {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+
+        if (!await AccountBelongsToUser(accountId, userId)) return NotFound();
+
         var tx = await db.Transactions.FirstOrDefaultAsync(t => t.Id == id && t.AccountId == accountId);
         if (tx is null) return NotFound();
 
-        int? previousPayeeId = tx.PayeeId != updated.PayeeId ? tx.PayeeId : null;
+        var user = await userManager.FindByIdAsync(userId);
+        if (user is null) return Unauthorized();
 
-        tx.Date = updated.Date;
-        tx.CheckNumber = updated.CheckNumber;
-        tx.PayeeId = updated.PayeeId;
-        tx.CategoryId = updated.CategoryId;
-        tx.Memo = updated.Memo;
-        tx.Amount = updated.Amount;
-        tx.Status = updated.Status;
-        tx.UpdatedAt = DateTime.UtcNow;
+        int? previousPayeeId = tx.PayeeId != dto.PayeeId ? tx.PayeeId : null;
+
+        tx.Date                 = dto.Date;
+        tx.CheckNumberEncrypted = encryption.Encrypt(dto.CheckNumber, user.EncryptedDataKey);
+        tx.PayeeId              = dto.PayeeId;
+        tx.CategoryId           = dto.CategoryId;
+        tx.MemoEncrypted        = encryption.Encrypt(dto.Memo, user.EncryptedDataKey);
+        tx.Amount               = dto.Amount;
+        tx.Status               = dto.Status;
+        tx.UpdatedAt            = DateTime.UtcNow;
 
         await db.SaveChangesAsync();
 
-        // If the payee was changed, remove the old one if it is now orphaned
+        // Remove old payee if it is now orphaned
         if (previousPayeeId.HasValue)
         {
             bool payeeStillInUse = await db.Transactions.AnyAsync(t => t.PayeeId == previousPayeeId);
@@ -95,12 +187,20 @@ public class TransactionsController(AppDbContext db) : ControllerBase
             }
         }
 
-        return Ok(tx);
+        await db.Entry(tx).Reference(t => t.Payee).LoadAsync();
+        await db.Entry(tx).Reference(t => t.Category).LoadAsync();
+
+        return Ok(MapTransaction(tx, user.EncryptedDataKey));
     }
 
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(int accountId, int id)
     {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+
+        if (!await AccountBelongsToUser(accountId, userId)) return NotFound();
+
         var tx = await db.Transactions.FirstOrDefaultAsync(t => t.Id == id && t.AccountId == accountId);
         if (tx is null) return NotFound();
 
@@ -127,3 +227,13 @@ public class TransactionsController(AppDbContext db) : ControllerBase
         return NoContent();
     }
 }
+
+public record TransactionDto(
+    DateOnly Date,
+    string? CheckNumber,
+    int? PayeeId,
+    int? CategoryId,
+    string? Memo,
+    decimal Amount,
+    TransactionStatus Status,
+    int? TransferTransactionId);
