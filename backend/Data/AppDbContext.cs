@@ -13,6 +13,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<Payee> Payees => Set<Payee>();
     public DbSet<Transaction> Transactions => Set<Transaction>();
     public DbSet<ScheduledTransaction> ScheduledTransactions => Set<ScheduledTransaction>();
+    public DbSet<SavedReport> SavedReports => Set<SavedReport>();
+    public DbSet<ExportToken> ExportTokens => Set<ExportToken>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<UserPasskeyCredential> PasskeyCredentials => Set<UserPasskeyCredential>();
 
@@ -56,6 +58,17 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         {
             e.Property(s => s.Amount).HasPrecision(18, 2);
             e.HasOne(s => s.User).WithMany().HasForeignKey(s => s.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<SavedReport>(e =>
+        {
+            e.HasOne(r => r.User).WithMany().HasForeignKey(r => r.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ExportToken>(e =>
+        {
+            e.HasOne(t => t.User).WithMany().HasForeignKey(t => t.UserId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(t => t.Token).IsUnique();
         });
 
         // ── Auth ──────────────────────────────────────────────────────────────

@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using MoneyTracker.Auth.Services;
 using MoneyTracker.Data;
+using MoneyTracker.Export;
 using MoneyTracker.Models;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -96,6 +97,7 @@ builder.Services.AddScoped<IPasskeyService, PasskeyService>();
 builder.Services.AddSingleton<JwtService>();
 builder.Services.AddSingleton<IEncryptionService, EncryptionService>();
 builder.Services.AddSingleton(UrlEncoder.Default);
+builder.Services.AddScoped<ExportService>();
 
 // ── MVC & Swagger ─────────────────────────────────────────────────────────────
 

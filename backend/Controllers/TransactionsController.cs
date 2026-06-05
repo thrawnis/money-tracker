@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -37,8 +38,9 @@ public class TransactionsController(
         categoryId            = tx.CategoryId,
         category              = tx.Category is null ? null : new
         {
-            id   = tx.Category.Id,
-            name = encryption.Decrypt(tx.Category.NameEncrypted, dek),
+            id       = tx.Category.Id,
+            name     = encryption.Decrypt(tx.Category.NameEncrypted, dek),
+            parentId = tx.Category.ParentId,
         },
         memo                  = encryption.Decrypt(tx.MemoEncrypted, dek),
         amount                = tx.Amount,
@@ -51,43 +53,80 @@ public class TransactionsController(
     [HttpGet]
     public async Task<IActionResult> GetByAccount(
         int accountId,
-        [FromQuery] DateOnly? from,
-        [FromQuery] DateOnly? to,
-        [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 50)
+        [FromQuery] DateOnly?  from,
+        [FromQuery] DateOnly?  to,
+        [FromQuery] decimal?   amountMin,
+        [FromQuery] decimal?   amountMax,
+        [FromQuery] int?       payeeId,
+        [FromQuery] string?    payeeName,     // wildcard: * and ? supported
+        [FromQuery] int?       categoryId,    // matches category or any child subcategory
+        [FromQuery] string?    memo,          // wildcard
+        [FromQuery] string?    checkNumber,   // wildcard
+        [FromQuery] bool?      uncategorized, // true = no category assigned
+        [FromQuery] int        page     = 1,
+        [FromQuery] int        pageSize = 50)
     {
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
-
         if (!await AccountBelongsToUser(accountId, userId)) return NotFound();
 
         var user = await userManager.FindByIdAsync(userId);
         if (user is null) return Unauthorized();
+        var dek = user.EncryptedDataKey;
 
+        // ── SQL filters (plaintext columns) ───────────────────────────────────
         var query = db.Transactions
             .Where(t => t.AccountId == accountId)
             .Include(t => t.Payee)
             .Include(t => t.Category)
             .AsQueryable();
 
-        if (from.HasValue) query = query.Where(t => t.Date >= from.Value);
-        if (to.HasValue)   query = query.Where(t => t.Date <= to.Value);
+        if (from.HasValue)        query = query.Where(t => t.Date >= from.Value);
+        if (to.HasValue)          query = query.Where(t => t.Date <= to.Value);
+        if (amountMin.HasValue)   query = query.Where(t => t.Amount >= amountMin.Value);
+        if (amountMax.HasValue)   query = query.Where(t => t.Amount <= amountMax.Value);
+        if (payeeId.HasValue)     query = query.Where(t => t.PayeeId == payeeId.Value);
+        if (categoryId.HasValue)  query = query.Where(t =>
+            t.CategoryId == categoryId.Value || t.Category!.ParentId == categoryId.Value);
+        if (uncategorized == true) query = query.Where(t => t.CategoryId == null);
 
-        var total = await query.CountAsync();
-        var items = await query
+        // Fetch into memory — needed for encrypted-field filtering
+        var loaded = await query
             .OrderByDescending(t => t.Date)
             .ThenByDescending(t => t.Id)
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
             .ToListAsync();
 
-        return Ok(new
+        // ── In-memory filters (encrypted columns) ─────────────────────────────
+        if (!string.IsNullOrWhiteSpace(payeeName))
         {
-            total,
-            page,
-            pageSize,
-            items = items.Select(t => MapTransaction(t, user.EncryptedDataKey)),
-        });
+            var rx = BuildPattern(payeeName);
+            loaded = loaded.Where(t =>
+                t.Payee is not null &&
+                rx.IsMatch(encryption.Decrypt(t.Payee.NameEncrypted, dek) ?? "")).ToList();
+        }
+
+        if (!string.IsNullOrWhiteSpace(memo))
+        {
+            var rx = BuildPattern(memo);
+            loaded = loaded.Where(t =>
+                rx.IsMatch(encryption.Decrypt(t.MemoEncrypted, dek) ?? "")).ToList();
+        }
+
+        if (!string.IsNullOrWhiteSpace(checkNumber))
+        {
+            var rx = BuildPattern(checkNumber);
+            loaded = loaded.Where(t =>
+                rx.IsMatch(encryption.Decrypt(t.CheckNumberEncrypted, dek) ?? "")).ToList();
+        }
+
+        var total = loaded.Count;
+        var items = loaded
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(t => MapTransaction(t, dek))
+            .ToList();
+
+        return Ok(new { total, page, pageSize, items });
     }
 
     [HttpGet("{id}")]
@@ -95,7 +134,6 @@ public class TransactionsController(
     {
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
-
         if (!await AccountBelongsToUser(accountId, userId)) return NotFound();
 
         var user = await userManager.FindByIdAsync(userId);
@@ -114,7 +152,6 @@ public class TransactionsController(
     {
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
-
         if (!await AccountBelongsToUser(accountId, userId)) return NotFound();
 
         var user = await userManager.FindByIdAsync(userId);
@@ -137,7 +174,6 @@ public class TransactionsController(
 
         db.Transactions.Add(tx);
         await db.SaveChangesAsync();
-
         await db.Entry(tx).Reference(t => t.Payee).LoadAsync();
         await db.Entry(tx).Reference(t => t.Category).LoadAsync();
 
@@ -150,7 +186,6 @@ public class TransactionsController(
     {
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
-
         if (!await AccountBelongsToUser(accountId, userId)) return NotFound();
 
         var tx = await db.Transactions.FirstOrDefaultAsync(t => t.Id == id && t.AccountId == accountId);
@@ -172,18 +207,13 @@ public class TransactionsController(
 
         await db.SaveChangesAsync();
 
-        // Remove old payee if it is now orphaned
         if (previousPayeeId.HasValue)
         {
             bool payeeStillInUse = await db.Transactions.AnyAsync(t => t.PayeeId == previousPayeeId);
             if (!payeeStillInUse)
             {
                 var payee = await db.Payees.FindAsync(previousPayeeId.Value);
-                if (payee is not null)
-                {
-                    db.Payees.Remove(payee);
-                    await db.SaveChangesAsync();
-                }
+                if (payee is not null) { db.Payees.Remove(payee); await db.SaveChangesAsync(); }
             }
         }
 
@@ -198,42 +228,52 @@ public class TransactionsController(
     {
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
-
         if (!await AccountBelongsToUser(accountId, userId)) return NotFound();
 
         var tx = await db.Transactions.FirstOrDefaultAsync(t => t.Id == id && t.AccountId == accountId);
         if (tx is null) return NotFound();
 
         int? payeeId = tx.PayeeId;
-
         db.Transactions.Remove(tx);
         await db.SaveChangesAsync();
 
-        // Remove the payee if it is no longer referenced by any transaction
         if (payeeId.HasValue)
         {
             bool payeeStillInUse = await db.Transactions.AnyAsync(t => t.PayeeId == payeeId);
             if (!payeeStillInUse)
             {
                 var payee = await db.Payees.FindAsync(payeeId.Value);
-                if (payee is not null)
-                {
-                    db.Payees.Remove(payee);
-                    await db.SaveChangesAsync();
-                }
+                if (payee is not null) { db.Payees.Remove(payee); await db.SaveChangesAsync(); }
             }
         }
 
         return NoContent();
     }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Builds a case-insensitive regex from a user pattern.
+    /// * matches any sequence of characters; ? matches exactly one character.
+    /// Plain text with no wildcards is treated as a substring (contains) search.
+    /// </summary>
+    private static Regex BuildPattern(string pattern)
+    {
+        bool hasWildcard = pattern.Contains('*') || pattern.Contains('?');
+        string regexStr = hasWildcard
+            ? "^" + Regex.Escape(pattern).Replace(@"\*", ".*").Replace(@"\?", ".") + "$"
+            : Regex.Escape(pattern); // substring match — IsMatch finds it anywhere
+
+        return new Regex(regexStr, RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    }
 }
 
 public record TransactionDto(
-    DateOnly Date,
-    string? CheckNumber,
-    int? PayeeId,
-    int? CategoryId,
-    string? Memo,
-    decimal Amount,
+    DateOnly          Date,
+    string?           CheckNumber,
+    int?              PayeeId,
+    int?              CategoryId,
+    string?           Memo,
+    decimal           Amount,
     TransactionStatus Status,
-    int? TransferTransactionId);
+    int?              TransferTransactionId);
