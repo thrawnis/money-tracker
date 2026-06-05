@@ -1,5 +1,6 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { QRCodeSVG } from 'qrcode.react';
 import * as authApi from '../../api/auth';
 import { setAccessToken } from '../../api/client';
 import { useAuth } from '../../contexts/AuthContext';
@@ -66,16 +67,15 @@ export default function SetupTotp() {
         <p className={localStyles.instructions}>
           Add your account to an authenticator app (e.g. Google Authenticator, Authy) using the key below.
         </p>
-        <div className={localStyles.keyBox}>
-          <div className={localStyles.keyLabel}>Manual Entry Key</div>
-          <div className={localStyles.keyValue}>{sharedKey}</div>
-        </div>
         {authenticatorUri && (
-          <div className={localStyles.uriBox}>
-            <div className={localStyles.keyLabel}>Authenticator URI</div>
-            <div className={localStyles.uriValue}>{authenticatorUri}</div>
+          <div className={localStyles.qrBox}>
+            <QRCodeSVG value={authenticatorUri} size={180} />
           </div>
         )}
+        <div className={localStyles.keyBox}>
+          <div className={localStyles.keyLabel}>Or enter key manually</div>
+          <div className={localStyles.keyValue}>{sharedKey}</div>
+        </div>
         <form onSubmit={handleSubmit} noValidate>
           <div className={styles.field}>
             <label className={styles.label} htmlFor="totp-code">Enter 6-digit code to confirm</label>
