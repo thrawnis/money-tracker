@@ -8,10 +8,10 @@ import {
 import { getAccounts } from '../api/accounts';
 import { getCategories } from '../api/categories';
 import { getPayees, createPayee } from '../api/payees';
-import type { ScheduledTransaction, Account, Category, Payee, RecurrenceFrequency } from '../types';
+import type { ScheduledTransaction, Account, Category, Payee, FrequencyUnit } from '../types';
 import styles from './BillsReminders.module.css';
 
-const FREQUENCIES: RecurrenceFrequency[] = ['Once', 'Weekly', 'BiWeekly', 'Monthly', 'BiMonthly', 'Quarterly', 'SemiAnnually', 'Annually'];
+const FREQUENCY_UNITS: FrequencyUnit[] = ['Days', 'Weeks', 'Months', 'Years'];
 
 function formatCurrency(n: number) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
@@ -19,6 +19,13 @@ function formatCurrency(n: number) {
 
 function formatDate(d: string) {
   return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
+}
+
+function formatFrequency(interval: number, unit: FrequencyUnit): string {
+  if (interval === 1) {
+    return `Every ${unit.slice(0, -1)}`; // "Every Month", "Every Week", etc.
+  }
+  return `Every ${interval} ${unit}`;
 }
 
 interface FormState {
@@ -29,7 +36,8 @@ interface FormState {
   categoryId: string;
   memo: string;
   amount: string;
-  frequency: RecurrenceFrequency;
+  frequencyInterval: string;
+  frequencyUnit: FrequencyUnit;
   nextDueDate: string;
   reminderDays: string;
   isActive: boolean;
@@ -43,7 +51,8 @@ const emptyForm = (): FormState => ({
   categoryId: '',
   memo: '',
   amount: '',
-  frequency: 'Monthly',
+  frequencyInterval: '1',
+  frequencyUnit: 'Months',
   nextDueDate: new Date().toISOString().slice(0, 10),
   reminderDays: '3',
   isActive: true,
@@ -102,6 +111,8 @@ export default function BillsReminders() {
     if (!form.accountId) e.accountId = 'Account required';
     if (!form.amount || isNaN(Number(form.amount))) e.amount = 'Valid amount required';
     if (!form.nextDueDate) e.nextDueDate = 'Due date required';
+    const interval = Number(form.frequencyInterval);
+    if (!Number.isInteger(interval) || interval < 1) e.frequencyInterval = 'Must be a whole number ≥ 1';
     setFormErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -140,7 +151,8 @@ export default function BillsReminders() {
         categoryId: form.categoryId ? Number(form.categoryId) : undefined,
         memo: form.memo || undefined,
         amount: Number(form.amount),
-        frequency: form.frequency,
+        frequencyInterval: Number(form.frequencyInterval),
+        frequencyUnit: form.frequencyUnit,
         nextDueDate: form.nextDueDate,
         reminderDays: Number(form.reminderDays) || 0,
         isActive: form.isActive,
@@ -172,7 +184,8 @@ export default function BillsReminders() {
       categoryId: item.categoryId ? String(item.categoryId) : '',
       memo: item.memo ?? '',
       amount: String(item.amount),
-      frequency: item.frequency,
+      frequencyInterval: String(item.frequencyInterval),
+      frequencyUnit: item.frequencyUnit,
       nextDueDate: item.nextDueDate.slice(0, 10),
       reminderDays: String(item.reminderDays),
       isActive: item.isActive,
@@ -252,9 +265,24 @@ export default function BillsReminders() {
             </div>
             <div className={styles.formField}>
               <label>Frequency</label>
-              <select value={form.frequency} onChange={e => setForm(f => ({ ...f, frequency: e.target.value as RecurrenceFrequency }))}>
-                {FREQUENCIES.map(fr => <option key={fr} value={fr}>{fr}</option>)}
-              </select>
+              <div className={styles.frequencyRow}>
+                <span className={styles.frequencyEvery}>Every</span>
+                <input
+                  type="number"
+                  min="1"
+                  className={styles.frequencyInterval}
+                  value={form.frequencyInterval}
+                  onChange={e => setForm(f => ({ ...f, frequencyInterval: e.target.value }))}
+                />
+                <select
+                  className={styles.frequencyUnit}
+                  value={form.frequencyUnit}
+                  onChange={e => setForm(f => ({ ...f, frequencyUnit: e.target.value as FrequencyUnit }))}
+                >
+                  {FREQUENCY_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+                </select>
+              </div>
+              {formErrors.frequencyInterval && <span className={styles.fieldError}>{formErrors.frequencyInterval}</span>}
             </div>
             <div className={styles.formField}>
               <label>Next Due Date *</label>
@@ -316,7 +344,7 @@ export default function BillsReminders() {
                     <td>{item.payee?.name ?? '—'}</td>
                     <td>{item.account?.name ?? accounts.find(a => a.id === item.accountId)?.name ?? '—'}</td>
                     <td className={styles.amount}>{formatCurrency(item.amount)}</td>
-                    <td>{item.frequency}</td>
+                    <td>{formatFrequency(item.frequencyInterval, item.frequencyUnit)}</td>
                     <td>{formatDate(item.nextDueDate)}</td>
                     <td className={days < 0 ? styles.overdueText : ''}>{days < 0 ? 'Overdue' : `${days}d`}</td>
                     <td>{item.isActive ? 'Yes' : 'No'}</td>

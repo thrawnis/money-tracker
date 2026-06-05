@@ -64,15 +64,7 @@ export interface Payee {
   defaultCategoryId?: number;
 }
 
-export type RecurrenceFrequency =
-  | 'Once'
-  | 'Weekly'
-  | 'BiWeekly'
-  | 'Monthly'
-  | 'BiMonthly'
-  | 'Quarterly'
-  | 'SemiAnnually'
-  | 'Annually';
+export type FrequencyUnit = 'Days' | 'Weeks' | 'Months' | 'Years';
 
 export interface ScheduledTransaction {
   id: number;
@@ -85,7 +77,8 @@ export interface ScheduledTransaction {
   category?: Category;
   memo?: string;
   amount: number;
-  frequency: RecurrenceFrequency;
+  frequencyInterval: number;
+  frequencyUnit: FrequencyUnit;
   nextDueDate: string;
   reminderDays: number;
   isActive: boolean;

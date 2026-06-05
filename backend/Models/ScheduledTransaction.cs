@@ -2,16 +2,12 @@ using System.ComponentModel.DataAnnotations;
 
 namespace MoneyTracker.Models;
 
-public enum RecurrenceFrequency
+public enum FrequencyUnit
 {
-    Once,
-    Weekly,
-    BiWeekly,
-    Monthly,
-    BiMonthly,
-    Quarterly,
-    SemiAnnually,
-    Annually
+    Days,
+    Weeks,
+    Months,
+    Years,
 }
 
 public class ScheduledTransaction
@@ -39,7 +35,9 @@ public class ScheduledTransaction
 
     public decimal Amount { get; set; }
 
-    public RecurrenceFrequency Frequency { get; set; }
+    // e.g. every 2 weeks → FrequencyInterval=2, FrequencyUnit=Weeks
+    public int FrequencyInterval { get; set; } = 1;
+    public FrequencyUnit FrequencyUnit { get; set; } = FrequencyUnit.Months;
     public DateOnly NextDueDate { get; set; }
 
     // How many days before due date to show the reminder

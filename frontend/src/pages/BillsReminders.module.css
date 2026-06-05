@@ -192,3 +192,20 @@
   padding: 20px;
   font-style: italic;
 }
+
+.frequencyRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.frequencyEvery {
+  font-size: 0.85rem;
+  color: var(--ms-text-muted);
+  white-space: nowrap;
+}
+.frequencyInterval {
+  width: 60px;
+}
+.frequencyUnit {
+  flex: 1;
+}

@@ -38,9 +38,10 @@ public class ScheduledTransactionsController(
             name = encryption.Decrypt(s.Category.NameEncrypted, dek),
         },
         memo         = encryption.Decrypt(s.MemoEncrypted, dek),
-        amount       = s.Amount,
-        frequency    = s.Frequency,
-        nextDueDate  = s.NextDueDate,
+        amount              = s.Amount,
+        frequencyInterval   = s.FrequencyInterval,
+        frequencyUnit       = s.FrequencyUnit,
+        nextDueDate         = s.NextDueDate,
         reminderDays = s.ReminderDays,
         isActive     = s.IsActive,
         createdAt    = s.CreatedAt,
@@ -103,10 +104,11 @@ public class ScheduledTransactionsController(
             AccountId     = dto.AccountId,
             PayeeId       = dto.PayeeId,
             CategoryId    = dto.CategoryId,
-            MemoEncrypted = encryption.Encrypt(dto.Memo, user.EncryptedDataKey),
-            Amount        = dto.Amount,
-            Frequency     = dto.Frequency,
-            NextDueDate   = dto.NextDueDate,
+            MemoEncrypted      = encryption.Encrypt(dto.Memo, user.EncryptedDataKey),
+            Amount             = dto.Amount,
+            FrequencyInterval  = dto.FrequencyInterval,
+            FrequencyUnit      = dto.FrequencyUnit,
+            NextDueDate        = dto.NextDueDate,
             ReminderDays  = dto.ReminderDays,
             CreatedAt     = DateTime.UtcNow,
         };
@@ -136,9 +138,10 @@ public class ScheduledTransactionsController(
         scheduled.PayeeId       = dto.PayeeId;
         scheduled.CategoryId    = dto.CategoryId;
         scheduled.MemoEncrypted = encryption.Encrypt(dto.Memo, user.EncryptedDataKey);
-        scheduled.Amount        = dto.Amount;
-        scheduled.Frequency     = dto.Frequency;
-        scheduled.NextDueDate   = dto.NextDueDate;
+        scheduled.Amount            = dto.Amount;
+        scheduled.FrequencyInterval = dto.FrequencyInterval;
+        scheduled.FrequencyUnit     = dto.FrequencyUnit;
+        scheduled.NextDueDate       = dto.NextDueDate;
         scheduled.ReminderDays  = dto.ReminderDays;
 
         await db.SaveChangesAsync();
@@ -169,6 +172,7 @@ public record ScheduledTransactionDto(
     int? CategoryId,
     string? Memo,
     decimal Amount,
-    RecurrenceFrequency Frequency,
+    int FrequencyInterval,
+    FrequencyUnit FrequencyUnit,
     DateOnly NextDueDate,
     int ReminderDays);
