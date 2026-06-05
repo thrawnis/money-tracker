@@ -1,0 +1,20 @@
+.page {
+  padding: 16px 20px;
+}
+
+.header {
+  margin-bottom: 16px;
+  border-bottom: 2px solid var(--ms-header);
+  padding-bottom: 8px;
+}
+
+.title {
+  margin: 0;
+  font-size: 16px;
+  color: var(--ms-navy);
+}
+
+.placeholder {
+  color: #666;
+  font-style: italic;
+}

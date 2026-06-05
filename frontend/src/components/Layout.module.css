@@ -1,0 +1,97 @@
+/* MS Money-faithful colour palette */
+:root {
+  --ms-navy: #003366;
+  --ms-teal: #006666;
+  --ms-teal-hover: #007a7a;
+  --ms-sidebar-text: #cce0f0;
+  --ms-sidebar-active: #ffffff;
+  --ms-sidebar-active-bg: #006666;
+  --ms-header: #336699;
+  --ms-bg: #f0f4f8;
+  --ms-white: #ffffff;
+  --ms-border: #b0c4d8;
+  --ms-debit: #cc0000;
+  --ms-credit: #006600;
+}
+
+.shell {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+  font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+  font-size: 13px;
+}
+
+.sidebar {
+  width: 200px;
+  min-width: 200px;
+  background: var(--ms-navy);
+  color: var(--ms-sidebar-text);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+.logo {
+  background: var(--ms-header);
+  padding: 12px 14px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ms-white);
+  letter-spacing: 0.3px;
+  border-bottom: 2px solid var(--ms-teal);
+}
+
+.navSection {
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.navHeader {
+  padding: 8px 14px 4px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: rgba(204, 224, 240, 0.6);
+}
+
+.navItem {
+  display: block;
+  padding: 6px 14px;
+  color: var(--ms-sidebar-text);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.navItem:hover {
+  background: var(--ms-teal-hover);
+  color: var(--ms-white);
+}
+
+.navItemActive {
+  background: var(--ms-teal) !important;
+  color: var(--ms-sidebar-active) !important;
+  font-weight: 600;
+}
+
+.navItemAdd {
+  color: rgba(204, 224, 240, 0.6);
+  font-style: italic;
+}
+
+.accountName {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.content {
+  flex: 1;
+  background: var(--ms-bg);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
