@@ -1,0 +1,238 @@
+.page {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
+  animation: fadeUp 0.18s ease both;
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 768px) { .page { padding: 10px; } }
+
+.pageHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #c5d4e0;
+  flex-shrink: 0;
+}
+
+.pageTitle {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: #002a52;
+}
+
+.loading { color: #777; }
+.errorMsg { color: #c0392b; font-size: 12px; margin-bottom: 10px; }
+.empty { color: #aaa; font-style: italic; font-size: 12px; padding: 12px 0; }
+
+/* ── Add row ── */
+
+.addRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  background: #f0f5fb;
+  border: 1.5px solid #c5d4e0;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+/* ── List ── */
+
+.list {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.categoryGroup {
+  background: #fff;
+  border: 1.5px solid #c5d4e0;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+  overflow: hidden;
+}
+
+.categoryRow {
+  display: flex;
+  align-items: center;
+  padding: 9px 12px;
+  background: linear-gradient(to right, #edf4fb, #f5f8fc);
+  border-bottom: 1px solid #e8eef5;
+  gap: 10px;
+  min-height: 38px;
+}
+
+.categoryName {
+  font-size: 13px;
+  font-weight: 700;
+  color: #002a52;
+  flex: 1;
+}
+
+.subRow {
+  display: flex;
+  align-items: center;
+  padding: 7px 12px 7px 24px;
+  border-bottom: 1px solid #f2f5f8;
+  gap: 10px;
+  min-height: 34px;
+}
+
+.subRow:last-child { border-bottom: none; }
+
+.subName {
+  font-size: 12.5px;
+  color: #334;
+  flex: 1;
+}
+
+.subPrefix {
+  font-size: 12.5px;
+  color: #778;
+  white-space: nowrap;
+}
+
+.addSubRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px 7px 24px;
+  background: #f8fafb;
+  border-top: 1px dashed #c5d4e0;
+}
+
+.movePanel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  flex-wrap: wrap;
+}
+
+.rowActions {
+  display: flex;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+/* ── Inputs ── */
+
+.input {
+  padding: 5px 8px;
+  border: 1.5px solid #c5d4e0;
+  border-radius: 4px;
+  font-size: 12px;
+  background: #fff;
+  transition: border-color 0.15s;
+  flex: 1;
+  min-width: 120px;
+}
+
+.input:focus {
+  outline: none;
+  border-color: #005f5f;
+  box-shadow: 0 0 0 3px rgba(0,95,95,0.1);
+}
+
+.select {
+  padding: 4px 8px;
+  border: 1.5px solid #c5d4e0;
+  border-radius: 4px;
+  font-size: 12px;
+  background: #fafbfc;
+}
+
+/* ── Buttons ── */
+
+.btnPrimary {
+  padding: 6px 14px;
+  background: linear-gradient(135deg, #002a52, #005f5f);
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(0,42,82,0.2);
+  transition: opacity 0.15s;
+}
+.btnPrimary:hover { opacity: 0.88; }
+
+.btnSecondary {
+  padding: 5px 12px;
+  background: #fff;
+  color: #334;
+  border: 1.5px solid #c5d4e0;
+  border-radius: 5px;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+.btnSecondary:hover { background: #f0f4f8; }
+
+.btnSm {
+  padding: 3px 9px;
+  background: #edf4fb;
+  color: #002a52;
+  border: 1.5px solid #c5d4e0;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s;
+}
+.btnSm:hover { background: #d8eaf8; }
+
+.btnSmSecondary {
+  padding: 3px 9px;
+  background: #f5f5f5;
+  color: #556;
+  border: 1.5px solid #ddd;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btnSmSecondary:hover { background: #eee; }
+
+.btnSmAdd {
+  padding: 3px 9px;
+  background: #f0faf5;
+  color: #1a6640;
+  border: 1.5px solid #a8d5b5;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s;
+}
+.btnSmAdd:hover { background: #e0f5e8; }
+
+.btnSmDelete {
+  padding: 3px 9px;
+  background: #fdf0ef;
+  color: #c0392b;
+  border: 1.5px solid #f0c8c4;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s;
+}
+.btnSmDelete:hover { background: #fce0de; }

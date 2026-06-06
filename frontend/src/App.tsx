@@ -8,6 +8,7 @@ import AccountForm from './pages/AccountForm';
 import BillsReminders from './pages/BillsReminders';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
+import Categories from './pages/Categories';
 import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
 import SetupTotp from './pages/auth/SetupTotp';
@@ -47,6 +48,7 @@ function AppRoutes() {
           <Route path="accounts/:id" element={<AccountRegister />} />
           <Route path="bills" element={<BillsReminders />} />
           <Route path="reports" element={<Reports />} />
+          <Route path="categories" element={<Categories />} />
           <Route path="settings" element={<Settings />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>

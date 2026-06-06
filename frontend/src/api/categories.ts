@@ -7,7 +7,7 @@ export const getCategories = () =>
 export const createCategory = (data: { name: string; parentId?: number }) =>
   api.post<Category>('/categories', data).then(r => r.data);
 
-export const updateCategory = (id: number, data: Partial<Category>) =>
+export const updateCategory = (id: number, data: { name?: string; parentId?: number | null }) =>
   api.put<Category>(`/categories/${id}`, data).then(r => r.data);
 
 export const deleteCategory = (id: number) =>
