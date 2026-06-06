@@ -46,7 +46,27 @@ public class CategoriesController(
             .Include(c => c.SubCategories)
             .ToListAsync();
 
-        return Ok(categories.Select(c => MapCategory(c, user.EncryptedDataKey)));
+        // Last transaction date per category id (including subcategories)
+        var allIds = categories.SelectMany(c => new[] { c.Id }.Concat(c.SubCategories.Select(s => s.Id))).ToList();
+        var lastUsed = await db.Transactions
+            .Where(t => t.Account.UserId == userId && t.CategoryId != null && allIds.Contains(t.CategoryId!.Value))
+            .GroupBy(t => t.CategoryId!.Value)
+            .Select(g => new { CategoryId = g.Key, LastDate = g.Max(t => t.Date) })
+            .ToDictionaryAsync(x => x.CategoryId, x => x.LastDate);
+
+        return Ok(categories.Select(c => new
+        {
+            id   = c.Id,
+            name = encryption.Decrypt(c.NameEncrypted, user.EncryptedDataKey),
+            lastUsed = lastUsed.TryGetValue(c.Id, out var d) ? d : (DateOnly?)null,
+            subCategories = c.SubCategories.Select(s => new
+            {
+                id       = s.Id,
+                name     = encryption.Decrypt(s.NameEncrypted, user.EncryptedDataKey),
+                parentId = s.ParentId,
+                lastUsed = lastUsed.TryGetValue(s.Id, out var sd) ? sd : (DateOnly?)null,
+            }),
+        }));
     }
 
     [HttpPost]

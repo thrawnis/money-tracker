@@ -69,6 +69,15 @@ export default function Layout({ accounts, onLogout }: Props) {
             Bills &amp; Reminders
           </NavLink>
           <NavLink
+            to="/payees"
+            className={({ isActive }) =>
+              `${styles.navItem} ${isActive ? styles.navItemActive : ''}`
+            }
+            onClick={closeSidebar}
+          >
+            Payees
+          </NavLink>
+          <NavLink
             to="/categories"
             className={({ isActive }) =>
               `${styles.navItem} ${isActive ? styles.navItemActive : ''}`

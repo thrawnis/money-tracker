@@ -56,12 +56,14 @@ export interface Category {
   name: string;
   parentId?: number;
   subCategories?: Category[];
+  lastUsed?: string;
 }
 
 export interface Payee {
   id: number;
   name: string;
   defaultCategoryId?: number;
+  lastUsed?: string;
 }
 
 export type FrequencyUnit = 'Days' | 'Weeks' | 'Months' | 'Years';

@@ -1,11 +1,18 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { getCategories, createCategory, updateCategory, deleteCategory } from '../api/categories';
 import { usePageTitle } from '../hooks/usePageTitle';
 import type { Category } from '../types';
 import styles from './Categories.module.css';
 
+function fmt(d?: string) {
+  if (!d) return null;
+  return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
+}
+
 export default function Categories() {
   usePageTitle('Categories');
+  const navigate = useNavigate();
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -145,7 +152,12 @@ export default function Categories() {
                 </>
               ) : (
                 <>
-                  <span className={styles.categoryName}>{cat.name}</span>
+                  <span
+                    className={styles.categoryName}
+                    onDoubleClick={() => navigate(`/transactions?categoryId=${cat.id}&label=${encodeURIComponent(cat.name)}`)}
+                    title="Double-click to view transactions"
+                  >{cat.name}</span>
+                  {cat.lastUsed && <span className={styles.lastUsed}>Last: {fmt(cat.lastUsed)}</span>}
                   <div className={styles.rowActions}>
                     <button className={styles.btnSm} onClick={() => { setRenamingId(cat.id); setRenameValue(cat.name); }}>Rename</button>
                     <button className={styles.btnSmAdd} onClick={() => { setAddingSubFor(cat.id); setNewSubName(''); }}>+ Sub</button>
@@ -188,7 +200,12 @@ export default function Categories() {
                   </div>
                 ) : (
                   <>
-                    <span className={styles.subName}>{cat.name}: {sub.name}</span>
+                    <span
+                      className={styles.subName}
+                      onDoubleClick={() => navigate(`/transactions?categoryId=${sub.id}&label=${encodeURIComponent(`${cat.name}: ${sub.name}`)}`)}
+                      title="Double-click to view transactions"
+                    >{cat.name}: {sub.name}</span>
+                    {sub.lastUsed && <span className={styles.lastUsed}>Last: {fmt(sub.lastUsed)}</span>}
                     <div className={styles.rowActions}>
                       <button className={styles.btnSm} onClick={() => { setRenamingId(sub.id); setRenameValue(sub.name); }}>Rename</button>
                       <button className={styles.btnSm} onClick={() => { setMovingId(sub.id); setMoveTarget(''); }}>Move</button>

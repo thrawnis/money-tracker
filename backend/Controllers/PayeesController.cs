@@ -32,12 +32,20 @@ public class PayeesController(
             .Where(p => p.UserId == userId)
             .ToListAsync();
 
+        var payeeIds = payees.Select(p => p.Id).ToList();
+        var lastUsed = await db.Transactions
+            .Where(t => t.Account.UserId == userId && t.PayeeId != null && payeeIds.Contains(t.PayeeId!.Value))
+            .GroupBy(t => t.PayeeId!.Value)
+            .Select(g => new { PayeeId = g.Key, LastDate = g.Max(t => t.Date) })
+            .ToDictionaryAsync(x => x.PayeeId, x => x.LastDate);
+
         var result = payees
             .Select(p => new
             {
                 id                = p.Id,
                 name              = encryption.Decrypt(p.NameEncrypted, user.EncryptedDataKey),
                 defaultCategoryId = p.DefaultCategoryId,
+                lastUsed          = lastUsed.TryGetValue(p.Id, out var d) ? d : (DateOnly?)null,
             })
             .OrderBy(p => p.name);
 

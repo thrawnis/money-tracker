@@ -1,0 +1,152 @@
+.page {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
+  animation: fadeUp 0.18s ease both;
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 768px) { .page { padding: 10px; } }
+
+.pageHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #c5d4e0;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pageTitle {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: #002a52;
+}
+
+.hint { font-size: 11px; color: #99a; font-style: italic; }
+.loading { color: #777; }
+.errorMsg { color: #c0392b; font-size: 12px; margin-bottom: 10px; }
+.empty { text-align: center; color: #aaa; font-style: italic; padding: 24px; }
+
+.tableWrapper {
+  flex: 1;
+  overflow-x: auto;
+  overflow-y: auto;
+  border: 1.5px solid #c5d4e0;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.table th {
+  background: linear-gradient(to bottom, #e8f0f8, #dde8f2);
+  color: #002a52;
+  font-weight: 700;
+  padding: 8px 10px;
+  border-bottom: 2px solid #c5d4e0;
+  text-align: left;
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  font-size: 11px;
+}
+
+.table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid #eef2f7;
+  vertical-align: middle;
+}
+
+.row { transition: background 0.1s; cursor: default; }
+.row:hover { background: #f2f7fd; }
+
+.payeeName { font-weight: 500; }
+.catLabel { color: #556; font-size: 12px; }
+.lastUsed { color: #99a; font-size: 11.5px; white-space: nowrap; }
+
+.inlineEdit {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rowActions {
+  display: flex;
+  gap: 5px;
+  justify-content: flex-end;
+}
+
+.input {
+  padding: 4px 7px;
+  border: 1.5px solid #c5d4e0;
+  border-radius: 4px;
+  font-size: 12px;
+  background: #fff;
+  flex: 1;
+  min-width: 100px;
+}
+.input:focus { outline: none; border-color: #005f5f; box-shadow: 0 0 0 3px rgba(0,95,95,0.1); }
+
+.select {
+  padding: 4px 7px;
+  border: 1.5px solid #c5d4e0;
+  border-radius: 4px;
+  font-size: 12px;
+  background: #fafbfc;
+}
+
+.btnSm {
+  padding: 3px 9px;
+  background: #edf4fb;
+  color: #002a52;
+  border: 1.5px solid #c5d4e0;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s;
+}
+.btnSm:hover { background: #d8eaf8; }
+
+.btnSmSecondary {
+  padding: 3px 9px;
+  background: #f5f5f5;
+  color: #556;
+  border: 1.5px solid #ddd;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btnSmSecondary:hover { background: #eee; }
+
+.btnSmDelete {
+  padding: 3px 9px;
+  background: #fdf0ef;
+  color: #c0392b;
+  border: 1.5px solid #f0c8c4;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s;
+}
+.btnSmDelete:hover { background: #fce0de; }

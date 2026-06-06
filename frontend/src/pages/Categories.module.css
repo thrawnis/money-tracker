@@ -123,6 +123,15 @@
   flex-wrap: wrap;
 }
 
+.lastUsed {
+  font-size: 10.5px;
+  color: #99a;
+  white-space: nowrap;
+  margin-right: 4px;
+}
+
+.categoryName, .subName { cursor: default; }
+
 .rowActions {
   display: flex;
   gap: 5px;
