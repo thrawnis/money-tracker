@@ -67,6 +67,9 @@ public class AuthController(
         if (!result.Succeeded)
             return Unauthorized("Invalid credentials.");
 
+        // Stash rememberMe so IssueTokensAsync can read it after MFA completes
+        HttpContext.Session.SetString("rememberMe", request.RememberMe ? "1" : "0");
+
         if (!user.MfaEnrolled)
             return Ok(new { requiresMfaSetup = true });
 
@@ -214,18 +217,22 @@ public class AuthController(
         var role  = roles.Contains(Roles.Admin) ? Roles.Admin : Roles.Standard;
 
         var (accessToken, expiry) = jwtService.GenerateAccessToken(stored.User, role);
-        var (newRefresh, refreshExpiry) = jwtService.GenerateRefreshToken();
+
+        // Preserve remember-me duration: if old token lived > 2 days it was a remember-me token
+        bool wasRememberMe   = (stored.ExpiresAt - stored.CreatedAt).TotalDays > 2;
+        var newExpiry        = wasRememberMe ? DateTime.UtcNow.AddDays(14) : DateTime.UtcNow.AddDays(1);
+        var (newRefresh, _)  = jwtService.GenerateRefreshToken(newExpiry);
 
         db.RefreshTokens.Add(new RefreshToken
         {
             UserId    = stored.User.Id,
             Token     = newRefresh,
-            ExpiresAt = refreshExpiry,
+            ExpiresAt = newExpiry,
         });
 
         await db.SaveChangesAsync();
 
-        SetRefreshCookie(newRefresh, refreshExpiry);
+        SetRefreshCookie(newRefresh, wasRememberMe ? newExpiry : null);
         return Ok(new TokenResponse(accessToken, expiry, role, stored.User.MfaEnrolled));
     }
 
@@ -268,33 +275,39 @@ public class AuthController(
 
     private async Task<IActionResult> IssueTokensAsync(ApplicationUser user)
     {
-        var roles = await userManager.GetRolesAsync(user);
-        var role  = roles.Contains(Roles.Admin) ? Roles.Admin : Roles.Standard;
+        var roles      = await userManager.GetRolesAsync(user);
+        var role       = roles.Contains(Roles.Admin) ? Roles.Admin : Roles.Standard;
+        var rememberMe = HttpContext.Session.GetString("rememberMe") == "1";
 
-        var (accessToken, expiry)         = jwtService.GenerateAccessToken(user, role);
-        var (refreshToken, refreshExpiry) = jwtService.GenerateRefreshToken();
+        var (accessToken, expiry) = jwtService.GenerateAccessToken(user, role);
+
+        // Remember Me: 14-day persistent cookie; otherwise session cookie (closes with browser)
+        DateTime? refreshExpiry = rememberMe ? DateTime.UtcNow.AddDays(14) : DateTime.UtcNow.AddDays(1);
+        var refreshToken = jwtService.GenerateRefreshToken(refreshExpiry.Value).token;
 
         db.RefreshTokens.Add(new RefreshToken
         {
             UserId    = user.Id,
             Token     = refreshToken,
-            ExpiresAt = refreshExpiry,
+            ExpiresAt = refreshExpiry.Value,
         });
         await db.SaveChangesAsync();
 
-        SetRefreshCookie(refreshToken, refreshExpiry);
+        SetRefreshCookie(refreshToken, rememberMe ? refreshExpiry : null);
         return Ok(new TokenResponse(accessToken, expiry, role, user.MfaEnrolled));
     }
 
-    private void SetRefreshCookie(string token, DateTime expiry)
+    private void SetRefreshCookie(string token, DateTime? expires)
     {
-        Response.Cookies.Append("refreshToken", token, new CookieOptions
+        var options = new CookieOptions
         {
-            HttpOnly  = true,
-            Secure    = true,
-            SameSite  = SameSiteMode.Strict,
-            Expires   = expiry,
-        });
+            HttpOnly = true,
+            Secure   = true,
+            SameSite = SameSiteMode.Strict,
+        };
+        // Persistent cookie only when Remember Me was checked
+        if (expires.HasValue) options.Expires = expires.Value;
+        Response.Cookies.Append("refreshToken", token, options);
     }
 
     private string GenerateTotpUri(string email, string key)

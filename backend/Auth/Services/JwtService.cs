@@ -41,11 +41,10 @@ public class JwtService(IConfiguration config)
         return (new JwtSecurityTokenHandler().WriteToken(token), expiry);
     }
 
-    public (string token, DateTime expiry) GenerateRefreshToken()
+    public (string token, DateTime expiry) GenerateRefreshToken(DateTime? expiry = null)
     {
-        var token  = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
-        var expiry = DateTime.UtcNow.AddDays(_refreshDays);
-        return (token, expiry);
+        var token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
+        return (token, expiry ?? DateTime.UtcNow.AddDays(_refreshDays));
     }
 
     public ClaimsPrincipal? ValidateAccessToken(string token)

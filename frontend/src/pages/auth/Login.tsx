@@ -11,6 +11,7 @@ export default function Login() {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [emailError, setEmailError] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [globalError, setGlobalError] = useState('');
@@ -31,7 +32,7 @@ export default function Login() {
     setGlobalError('');
     setSubmitting(true);
     try {
-      const res = await authApi.login(email, password);
+      const res = await authApi.login(email, password, rememberMe);
       if (res.requiresMfa && res.userId) {
         sessionStorage.setItem('mfa_login_user_id', res.userId);
         navigate('/auth/totp');
@@ -39,16 +40,10 @@ export default function Login() {
         sessionStorage.setItem('mfa_setup_user_id', res.userId);
         navigate('/auth/setup-totp');
       } else {
-        // Backend may return token directly (no MFA)
-        // Try refresh to get token
         try {
           const token = await authApi.refreshTokens();
           setAccessToken(token.accessToken);
-          setTokenAndUser(token.accessToken, {
-            id: '',
-            email,
-            role: token.role,
-          });
+          setTokenAndUser(token.accessToken, { id: '', email, role: token.role });
           navigate('/');
         } catch {
           navigate('/');
@@ -92,6 +87,17 @@ export default function Login() {
               autoComplete="current-password"
             />
             {passwordError && <div className={styles.error}>{passwordError}</div>}
+          </div>
+          <div className={styles.rememberRow}>
+            <label className={styles.rememberLabel}>
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={e => setRememberMe(e.target.checked)}
+                className={styles.rememberCheck}
+              />
+              Remember me for 2 weeks
+            </label>
           </div>
           <button type="submit" className={styles.btn} disabled={submitting}>
             {submitting ? 'Signing in…' : 'Sign In'}
