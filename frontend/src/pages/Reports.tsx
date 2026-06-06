@@ -4,6 +4,7 @@ import {
   getCategoryReport,
   getSavedReports,
   createSavedReport,
+  updateSavedReport,
   deleteSavedReport,
   type MonthlyReport,
   type CategoryReport,
@@ -25,7 +26,7 @@ function formatDate(d: string) {
 
 const now = new Date();
 
-function presetRange(preset: string): { fromYear: number; fromMonth: number; toYear: number; toMonth: number } {
+function presetRange(preset: string) {
   const y = now.getFullYear();
   const m = now.getMonth() + 1;
   if (preset === 'thisYear') return { fromYear: y, fromMonth: 1, toYear: y, toMonth: 12 };
@@ -54,8 +55,11 @@ function exportCsv(headers: string[], rows: (string | number)[][], filename: str
   URL.revokeObjectURL(url);
 }
 
+type ReportType = 'monthly' | 'category';
+
 export default function Reports() {
-  const [tab, setTab] = useState<'monthly' | 'category'>('monthly');
+  const [reportType, setReportType] = useState<ReportType>('monthly');
+  const [activeSavedId, setActiveSavedId] = useState<number | null>(null);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [payees, setPayees] = useState<Payee[]>([]);
@@ -63,7 +67,6 @@ export default function Reports() {
   const [saveReportName, setSaveReportName] = useState('');
   const [savingReport, setSavingReport] = useState(false);
 
-  // Monthly state
   const defaultRange = presetRange('last6');
   const [mFromYear, setMFromYear] = useState(defaultRange.fromYear);
   const [mFromMonth, setMFromMonth] = useState(defaultRange.fromMonth);
@@ -75,7 +78,6 @@ export default function Reports() {
   const [monthlyLoading, setMonthlyLoading] = useState(false);
   const [monthlyError, setMonthlyError] = useState('');
 
-  // Category state
   const [cCategoryId, setCCategoryId] = useState('');
   const [cFrom, setCFrom] = useState('');
   const [cTo, setCTo] = useState('');
@@ -102,6 +104,37 @@ export default function Reports() {
       }
     }
   }
+
+  const loadSavedReport = (r: SavedReport) => {
+    setActiveSavedId(r.id);
+    setSaveReportName(r.name);
+    setReportType(r.type);
+    setMonthlyReport(null);
+    setCatReport(null);
+    const p = r.params as Record<string, unknown>;
+    if (r.type === 'monthly') {
+      if (p.fromYear) setMFromYear(Number(p.fromYear));
+      if (p.fromMonth) setMFromMonth(Number(p.fromMonth));
+      if (p.toYear) setMToYear(Number(p.toYear));
+      if (p.toMonth) setMToMonth(Number(p.toMonth));
+      setMAccounts(Array.isArray(p.accountIds) ? p.accountIds.map(Number) : []);
+      setMCategories(Array.isArray(p.categoryIds) ? p.categoryIds.map(Number) : []);
+    } else {
+      setCCategoryId(p.categoryId ? String(p.categoryId) : '');
+      setCFrom(typeof p.from === 'string' ? p.from : '');
+      setCTo(typeof p.to === 'string' ? p.to : '');
+      setCAccounts(Array.isArray(p.accountIds) ? p.accountIds.map(Number) : []);
+      setCPayees(Array.isArray(p.payeeIds) ? p.payeeIds.map(Number) : []);
+    }
+  };
+
+  const selectReportType = (t: ReportType) => {
+    setReportType(t);
+    setActiveSavedId(null);
+    setSaveReportName('');
+    setMonthlyReport(null);
+    setCatReport(null);
+  };
 
   const runMonthly = async () => {
     setMonthlyLoading(true); setMonthlyError('');
@@ -138,16 +171,22 @@ export default function Reports() {
     setMToYear(r.toYear); setMToMonth(r.toMonth);
   };
 
+  const currentParams = () => reportType === 'monthly'
+    ? { fromYear: mFromYear, fromMonth: mFromMonth, toYear: mToYear, toMonth: mToMonth, accountIds: mAccounts, categoryIds: mCategories }
+    : { categoryId: cCategoryId, from: cFrom, to: cTo, accountIds: cAccounts, payeeIds: cPayees };
+
   const handleSaveReport = async () => {
     if (!saveReportName) return;
     setSavingReport(true);
     try {
-      const params = tab === 'monthly'
-        ? { fromYear: mFromYear, fromMonth: mFromMonth, toYear: mToYear, toMonth: mToMonth, accountIds: mAccounts, categoryIds: mCategories }
-        : { categoryId: cCategoryId, from: cFrom, to: cTo, accountIds: cAccounts, payeeIds: cPayees };
-      const saved = await createSavedReport({ name: saveReportName, type: tab, params });
-      setSavedReports(prev => [...prev, saved]);
-      setSaveReportName('');
+      if (activeSavedId !== null) {
+        const updated = await updateSavedReport(activeSavedId, { name: saveReportName, params: currentParams() });
+        setSavedReports(prev => prev.map(r => r.id === activeSavedId ? updated : r));
+      } else {
+        const saved = await createSavedReport({ name: saveReportName, type: reportType, params: currentParams() });
+        setSavedReports(prev => [...prev, saved]);
+        setActiveSavedId(saved.id);
+      }
     } catch { /* ignore */ }
     finally { setSavingReport(false); }
   };
@@ -155,14 +194,16 @@ export default function Reports() {
   const handleDeleteSaved = async (id: number) => {
     await deleteSavedReport(id);
     setSavedReports(prev => prev.filter(r => r.id !== id));
+    if (activeSavedId === id) {
+      setActiveSavedId(null);
+      setSaveReportName('');
+    }
   };
 
   const handleExportCsv = () => {
     if (!catReport) return;
     const headers = ['Date', 'Account', 'Payee', 'Memo', 'Amount'];
-    const rows = catReport.items.map(item => [
-      item.date, item.accountName, item.payee ?? '', item.memo ?? '', item.amount,
-    ]);
+    const rows = catReport.items.map(item => [item.date, item.accountName, item.payee ?? '', item.memo ?? '', item.amount]);
     exportCsv(headers, rows, 'category-report.csv');
   };
 
@@ -175,85 +216,154 @@ export default function Reports() {
 
   return (
     <div className={styles.page}>
-      <div className={styles.pageHeader}>
-        <h2 className={styles.pageTitle}>Reports</h2>
-      </div>
+      <div className={styles.layout}>
 
-      <div className={styles.tabs}>
-        <button className={`${styles.tab} ${tab === 'monthly' ? styles.tabActive : ''}`} onClick={() => setTab('monthly')}>
-          Monthly Income/Expense
-        </button>
-        <button className={`${styles.tab} ${tab === 'category' ? styles.tabActive : ''}`} onClick={() => setTab('category')}>
-          Transactions by Category
-        </button>
-      </div>
-
-      {tab === 'monthly' && (
-        <div>
-          <div className={styles.controls}>
-            <div className={styles.controlRow}>
-              <span className={styles.controlLabel}>Presets:</span>
-              {[['thisYear','This Year'],['lastYear','Last Year'],['last3','Last 3M'],['last6','Last 6M'],['last12','Last 12M']].map(([k, l]) => (
-                <button key={k} className={styles.presetBtn} onClick={() => applyPreset(k)}>{l}</button>
-              ))}
-            </div>
-            <div className={styles.controlRow}>
-              <label className={styles.controlLabel}>From:</label>
-              <select value={mFromYear} onChange={e => setMFromYear(Number(e.target.value))}>
-                {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
-              </select>
-              <select value={mFromMonth} onChange={e => setMFromMonth(Number(e.target.value))}>
-                {MONTHS.map(([n, l]) => <option key={n} value={n}>{l}</option>)}
-              </select>
-              <label className={styles.controlLabel}>To:</label>
-              <select value={mToYear} onChange={e => setMToYear(Number(e.target.value))}>
-                {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
-              </select>
-              <select value={mToMonth} onChange={e => setMToMonth(Number(e.target.value))}>
-                {MONTHS.map(([n, l]) => <option key={n} value={n}>{l}</option>)}
-              </select>
-            </div>
-            <div className={styles.controlRow}>
-              <label className={styles.controlLabel}>Accounts:</label>
-              <select multiple size={3} value={mAccounts.map(String)} onChange={e => setMAccounts(Array.from(e.target.selectedOptions, o => Number(o.value)))} className={styles.multiSelect}>
-                {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-              </select>
-              <label className={styles.controlLabel}>Categories:</label>
-              <select multiple size={3} value={mCategories.map(String)} onChange={e => setMCategories(Array.from(e.target.selectedOptions, o => Number(o.value)))} className={styles.multiSelect}>
-                {allCategories.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
-              </select>
-            </div>
-            <div className={styles.controlRow}>
-              <button className={styles.btnPrimary} onClick={runMonthly} disabled={monthlyLoading}>
-                {monthlyLoading ? 'Loading…' : 'Run Report'}
-              </button>
-              <input
-                className={styles.saveInput}
-                placeholder="Report name…"
-                value={saveReportName}
-                onChange={e => setSaveReportName(e.target.value)}
-              />
-              <button className={styles.btnSecondary} onClick={handleSaveReport} disabled={savingReport || !saveReportName}>
-                Save Report
-              </button>
-            </div>
+        {/* ── Left sidebar list ── */}
+        <div className={styles.sidebar}>
+          <div className={styles.sidebarSection}>
+            <div className={styles.sidebarHeading}>Report Types</div>
+            <button
+              className={`${styles.listItem} ${reportType === 'monthly' && activeSavedId === null ? styles.listItemActive : ''}`}
+              onClick={() => selectReportType('monthly')}
+            >
+              📊 Monthly Income/Expense
+            </button>
+            <button
+              className={`${styles.listItem} ${reportType === 'category' && activeSavedId === null ? styles.listItemActive : ''}`}
+              onClick={() => selectReportType('category')}
+            >
+              🏷️ Transactions by Category
+            </button>
           </div>
 
-          {savedReports.filter(r => r.type === 'monthly').length > 0 && (
-            <div className={styles.savedList}>
-              <span className={styles.controlLabel}>Saved:</span>
-              {savedReports.filter(r => r.type === 'monthly').map(r => (
-                <span key={r.id} className={styles.savedChip}>
-                  {r.name}
-                  <button onClick={() => handleDeleteSaved(r.id)} className={styles.chipDelete}>x</button>
-                </span>
+          {savedReports.length > 0 && (
+            <div className={styles.sidebarSection}>
+              <div className={styles.sidebarHeading}>Saved Reports</div>
+              {savedReports.map(r => (
+                <div key={r.id} className={`${styles.savedItem} ${activeSavedId === r.id ? styles.savedItemActive : ''}`}>
+                  <button className={styles.savedItemBtn} onClick={() => loadSavedReport(r)}>
+                    {r.type === 'monthly' ? '📊' : '🏷️'} {r.name}
+                  </button>
+                  <button className={styles.savedItemDelete} onClick={() => handleDeleteSaved(r.id)} title="Delete">✕</button>
+                </div>
               ))}
             </div>
           )}
+        </div>
+
+        {/* ── Main content ── */}
+        <div className={styles.main}>
+          <div className={styles.mainHeader}>
+            <h2 className={styles.pageTitle}>
+              {activeSavedId !== null
+                ? saveReportName
+                : reportType === 'monthly' ? 'Monthly Income/Expense' : 'Transactions by Category'}
+            </h2>
+          </div>
+
+          <div className={styles.controls}>
+            {reportType === 'monthly' && (
+              <>
+                <div className={styles.controlRow}>
+                  <span className={styles.controlLabel}>Presets:</span>
+                  {[['thisYear','This Year'],['lastYear','Last Year'],['last3','Last 3M'],['last6','Last 6M'],['last12','Last 12M']].map(([k,l]) => (
+                    <button key={k} className={styles.presetBtn} onClick={() => applyPreset(k)}>{l}</button>
+                  ))}
+                </div>
+                <div className={styles.controlRow}>
+                  <label className={styles.controlLabel}>From:</label>
+                  <select value={mFromYear} onChange={e => setMFromYear(Number(e.target.value))}>
+                    {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+                  </select>
+                  <select value={mFromMonth} onChange={e => setMFromMonth(Number(e.target.value))}>
+                    {MONTHS.map(([n,l]) => <option key={n} value={n}>{l}</option>)}
+                  </select>
+                  <label className={styles.controlLabel}>To:</label>
+                  <select value={mToYear} onChange={e => setMToYear(Number(e.target.value))}>
+                    {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+                  </select>
+                  <select value={mToMonth} onChange={e => setMToMonth(Number(e.target.value))}>
+                    {MONTHS.map(([n,l]) => <option key={n} value={n}>{l}</option>)}
+                  </select>
+                </div>
+                <div className={styles.controlRow}>
+                  <label className={styles.controlLabel}>Accounts:</label>
+                  <select multiple size={3} value={mAccounts.map(String)} onChange={e => setMAccounts(Array.from(e.target.selectedOptions, o => Number(o.value)))} className={styles.multiSelect}>
+                    {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                  </select>
+                  <label className={styles.controlLabel}>Categories:</label>
+                  <select multiple size={3} value={mCategories.map(String)} onChange={e => setMCategories(Array.from(e.target.selectedOptions, o => Number(o.value)))} className={styles.multiSelect}>
+                    {allCategories.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                  </select>
+                </div>
+              </>
+            )}
+
+            {reportType === 'category' && (
+              <>
+                <div className={styles.controlRow}>
+                  <label className={styles.controlLabel}>Category:</label>
+                  <select value={cCategoryId} onChange={e => setCCategoryId(e.target.value)}>
+                    <option value="">All</option>
+                    {allCategories.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                  </select>
+                  <label className={styles.controlLabel}>From:</label>
+                  <input type="date" value={cFrom} onChange={e => setCFrom(e.target.value)} />
+                  <label className={styles.controlLabel}>To:</label>
+                  <input type="date" value={cTo} onChange={e => setCTo(e.target.value)} />
+                </div>
+                <div className={styles.controlRow}>
+                  <label className={styles.controlLabel}>Accounts:</label>
+                  <select multiple size={3} value={cAccounts.map(String)} onChange={e => setCAccounts(Array.from(e.target.selectedOptions, o => Number(o.value)))} className={styles.multiSelect}>
+                    {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                  </select>
+                  <label className={styles.controlLabel}>Payees:</label>
+                  <select multiple size={3} value={cPayees.map(String)} onChange={e => setCPayees(Array.from(e.target.selectedOptions, o => Number(o.value)))} className={styles.multiSelect}>
+                    {payees.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </div>
+                <div className={styles.controlRow}>
+                  <span className={styles.controlLabel}>Columns:</span>
+                  {(['date','account','payee','memo','amount'] as const).map(col => (
+                    <label key={col} className={styles.colToggle}>
+                      <input type="checkbox" checked={visibleCols[col]} onChange={e => setVisibleCols(v => ({ ...v, [col]: e.target.checked }))} />
+                      {' '}{col.charAt(0).toUpperCase() + col.slice(1)}
+                    </label>
+                  ))}
+                </div>
+              </>
+            )}
+
+            <div className={styles.controlRow}>
+              <button className={styles.btnPrimary} onClick={reportType === 'monthly' ? runMonthly : runCategory} disabled={monthlyLoading || catLoading}>
+                {(monthlyLoading || catLoading) ? 'Loading…' : 'Run Report'}
+              </button>
+              {reportType === 'category' && catReport && (
+                <button className={styles.btnSecondary} onClick={handleExportCsv}>Export CSV</button>
+              )}
+              <div className={styles.saveGroup}>
+                <input
+                  className={styles.saveInput}
+                  placeholder="Report name…"
+                  value={saveReportName}
+                  onChange={e => setSaveReportName(e.target.value)}
+                />
+                <button className={styles.btnSave} onClick={handleSaveReport} disabled={savingReport || !saveReportName}>
+                  {activeSavedId !== null ? 'Update' : 'Save'}
+                </button>
+                {activeSavedId !== null && (
+                  <button className={styles.btnSecondary} onClick={() => { setActiveSavedId(null); setSaveReportName(''); }}>
+                    Save as New
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
 
           {monthlyError && <div className={styles.errorMsg}>{monthlyError}</div>}
+          {catError && <div className={styles.errorMsg}>{catError}</div>}
 
-          {monthlyReport && (
+          {reportType === 'monthly' && monthlyReport && (
             <div className={styles.tableWrapper}>
               <table className={styles.reportTable}>
                 <thead>
@@ -292,55 +402,8 @@ export default function Reports() {
               </table>
             </div>
           )}
-        </div>
-      )}
 
-      {tab === 'category' && (
-        <div>
-          <div className={styles.controls}>
-            <div className={styles.controlRow}>
-              <label className={styles.controlLabel}>Category:</label>
-              <select value={cCategoryId} onChange={e => setCCategoryId(e.target.value)}>
-                <option value="">All</option>
-                {allCategories.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
-              </select>
-              <label className={styles.controlLabel}>From:</label>
-              <input type="date" value={cFrom} onChange={e => setCFrom(e.target.value)} />
-              <label className={styles.controlLabel}>To:</label>
-              <input type="date" value={cTo} onChange={e => setCTo(e.target.value)} />
-            </div>
-            <div className={styles.controlRow}>
-              <label className={styles.controlLabel}>Accounts:</label>
-              <select multiple size={3} value={cAccounts.map(String)} onChange={e => setCAccounts(Array.from(e.target.selectedOptions, o => Number(o.value)))} className={styles.multiSelect}>
-                {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-              </select>
-              <label className={styles.controlLabel}>Payees:</label>
-              <select multiple size={3} value={cPayees.map(String)} onChange={e => setCPayees(Array.from(e.target.selectedOptions, o => Number(o.value)))} className={styles.multiSelect}>
-                {payees.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-            </div>
-            <div className={styles.controlRow}>
-              <button className={styles.btnPrimary} onClick={runCategory} disabled={catLoading}>
-                {catLoading ? 'Loading…' : 'Run Report'}
-              </button>
-              {catReport && (
-                <button className={styles.btnSecondary} onClick={handleExportCsv}>Export CSV</button>
-              )}
-            </div>
-            <div className={styles.controlRow}>
-              <span className={styles.controlLabel}>Columns:</span>
-              {(['date','account','payee','memo','amount'] as const).map(col => (
-                <label key={col} className={styles.colToggle}>
-                  <input type="checkbox" checked={visibleCols[col]} onChange={e => setVisibleCols(v => ({ ...v, [col]: e.target.checked }))} />
-                  {' '}{col.charAt(0).toUpperCase() + col.slice(1)}
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {catError && <div className={styles.errorMsg}>{catError}</div>}
-
-          {catReport && (
+          {reportType === 'category' && catReport && (
             <>
               <div className={styles.catSummary}>
                 {catReport.count} transaction{catReport.count !== 1 ? 's' : ''} &bull; Total: <strong>{formatCurrency(catReport.total)}</strong>
@@ -376,7 +439,7 @@ export default function Reports() {
             </>
           )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
