@@ -7,7 +7,7 @@ services:
       POSTGRES_USER: moneytracker
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
-      - db_data:/var/lib/postgresql/data
+      - ./data/postgres:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U moneytracker"]
       interval: 10s
@@ -42,5 +42,3 @@ services:
     depends_on:
       - api
 
-volumes:
-  db_data:

@@ -1,6 +1,9 @@
 # Environment
 .env
 
+# Runtime data (postgres, logs, etc.)
+data/
+
 # .NET
 **/bin/
 **/obj/

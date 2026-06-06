@@ -14,6 +14,9 @@ git fetch origin "$BRANCH"
 git checkout "$BRANCH"
 git reset --hard "origin/$BRANCH"
 
+echo "==> Ensuring data directories exist"
+mkdir -p "$REPO_DIR/data/postgres"
+
 echo "==> Building and restarting containers (no cache on code changes)"
 docker compose build --pull
 docker compose up -d --force-recreate --remove-orphans
