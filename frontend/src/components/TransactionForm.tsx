@@ -14,11 +14,6 @@ interface Props {
   onCancel: () => void;
 }
 
-// Build flat label for a category: "Parent" or "Parent: Sub"
-function categoryLabel(cat: Category, parent?: Category): string {
-  return parent ? `${parent.name}: ${cat.name}` : cat.name;
-}
-
 // Flatten category tree into searchable entries
 function flattenCategories(categories: Category[]): { id: number; label: string }[] {
   const flat: { id: number; label: string }[] = [];
