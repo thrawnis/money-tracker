@@ -19,22 +19,18 @@ mkdir -p "$REPO_DIR/data/postgres"
 mkdir -p "$REPO_DIR/data/ollama"
 
 # ── Determine Ollama profile ──────────────────────────────────────────────────
-# Load .env to inspect OLLAMA_EXTERNAL_URL and RECEIPT_PROVIDER.
-# We parse it manually to avoid bash choking on comment-only lines or unicode.
+# Read only the two variables we need from .env using grep — avoids bash
+# choking on unicode or special characters in comment lines.
+_env_get() {
+  local key="$1"
+  grep -m1 "^${key}=" "$REPO_DIR/.env" 2>/dev/null \
+    | cut -d= -f2- \
+    | sed "s/[[:space:]]*#.*//; s/^['\"]//; s/['\"]$//"
+}
+
 if [ -f "$REPO_DIR/.env" ]; then
-  while IFS='=' read -r key value; do
-    # Skip blank lines and comments
-    [[ "$key" =~ ^[[:space:]]*# ]] && continue
-    [[ -z "$key" ]] && continue
-    # Strip inline comments and surrounding quotes from value
-    value="${value%%#*}"
-    value="${value%\"}"
-    value="${value#\"}"
-    value="${value%\'}"
-    value="${value#\'}"
-    value="${value// /}"
-    export "$key=$value" 2>/dev/null || true
-  done < "$REPO_DIR/.env"
+  RECEIPT_PROVIDER="$(_env_get RECEIPT_PROVIDER)"
+  OLLAMA_EXTERNAL_URL="$(_env_get OLLAMA_EXTERNAL_URL)"
 fi
 
 OLLAMA_PROFILE=""
