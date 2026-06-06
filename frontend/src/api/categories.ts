@@ -4,7 +4,7 @@ import type { Category } from '../types';
 export const getCategories = () =>
   api.get<Category[]>('/categories').then(r => r.data);
 
-export const createCategory = (data: Omit<Category, 'id' | 'subCategories'>) =>
+export const createCategory = (data: { name: string; parentId?: number }) =>
   api.post<Category>('/categories', data).then(r => r.data);
 
 export const updateCategory = (id: number, data: Partial<Category>) =>

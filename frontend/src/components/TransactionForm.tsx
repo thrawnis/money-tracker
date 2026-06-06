@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, type FormEvent } from 'react';
 import type { Transaction, Category, Payee, Account } from '../types';
-import { getCategories } from '../api/categories';
+import { getCategories, createCategory } from '../api/categories';
 import { getPayees, createPayee } from '../api/payees';
 import styles from './TransactionForm.module.css';
 
@@ -12,46 +12,127 @@ interface Props {
   onCancel: () => void;
 }
 
+// Build flat label for a category: "Parent" or "Parent: Sub"
+function categoryLabel(cat: Category, parent?: Category): string {
+  return parent ? `${parent.name}: ${cat.name}` : cat.name;
+}
+
+// Flatten category tree into searchable entries
+function flattenCategories(categories: Category[]): { id: number; label: string }[] {
+  const flat: { id: number; label: string }[] = [];
+  for (const cat of categories) {
+    flat.push({ id: cat.id, label: cat.name });
+    if (cat.subCategories) {
+      for (const sub of cat.subCategories) {
+        flat.push({ id: sub.id, label: `${cat.name}: ${sub.name}` });
+      }
+    }
+  }
+  return flat;
+}
+
+// Given a label like "Food: Groceries", resolve or create the category ID
+async function resolveCategory(
+  input: string,
+  categories: Category[],
+  setCategories: (fn: (prev: Category[]) => Category[]) => void,
+): Promise<number | undefined> {
+  const trimmed = input.trim();
+  if (!trimmed) return undefined;
+
+  const flat = flattenCategories(categories);
+  const match = flat.find(c => c.label.toLowerCase() === trimmed.toLowerCase());
+  if (match) return match.id;
+
+  // Parse "Parent: Sub" or plain "Name"
+  const colonIdx = trimmed.indexOf(':');
+  if (colonIdx > 0) {
+    const parentName = trimmed.slice(0, colonIdx).trim();
+    const subName = trimmed.slice(colonIdx + 1).trim();
+
+    // Find or create parent
+    let parent = categories.find(c => c.name.toLowerCase() === parentName.toLowerCase());
+    if (!parent) {
+      parent = await createCategory({ name: parentName, parentId: undefined });
+      setCategories(prev => [...prev, { ...parent!, subCategories: [] }]);
+    }
+
+    // Find or create sub under parent
+    const existingSub = parent.subCategories?.find(s => s.name.toLowerCase() === subName.toLowerCase());
+    if (existingSub) return existingSub.id;
+
+    const newSub = await createCategory({ name: subName, parentId: parent.id });
+    setCategories(prev => prev.map(c =>
+      c.id === parent!.id
+        ? { ...c, subCategories: [...(c.subCategories ?? []), newSub] }
+        : c
+    ));
+    return newSub.id;
+  } else {
+    // Plain category
+    const newCat = await createCategory({ name: trimmed, parentId: undefined });
+    setCategories(prev => [...prev, { ...newCat, subCategories: [] }]);
+    return newCat.id;
+  }
+}
+
 export default function TransactionForm({ accountId: _accountId, accounts, initial, onSave, onCancel }: Props) {
   const today = new Date().toISOString().slice(0, 10);
   const [date, setDate] = useState(initial?.date ?? today);
   const [payeeInput, setPayeeInput] = useState(initial?.payee?.name ?? '');
   const [payeeId, setPayeeId] = useState<number | undefined>(initial?.payeeId);
-  const [categoryId, setCategoryId] = useState<number | undefined>(initial?.categoryId);
-  const [subCategoryId, setSubCategoryId] = useState<number | undefined>(undefined);
   const [memo, setMemo] = useState(initial?.memo ?? '');
   const [amount, setAmount] = useState(initial?.amount?.toString() ?? '');
   const [status] = useState<Transaction['status']>(initial?.status ?? 'Uncleared');
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [payees, setPayees] = useState<Payee[]>([]);
+
+  // Category autocomplete
+  const [categoryInput, setCategoryInput] = useState('');
+  const [categorySuggestions, setCategorySuggestions] = useState<{ id: number; label: string }[]>([]);
+  const [showCatSuggestions, setShowCatSuggestions] = useState(false);
+  const categoryRef = useRef<HTMLInputElement>(null);
+
+  // Payee autocomplete
   const [payeeSuggestions, setPayeeSuggestions] = useState<Payee[]>([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [showPayeeSuggestions, setShowPayeeSuggestions] = useState(false);
+  const payeeRef = useRef<HTMLInputElement>(null);
 
   const [targetAccountId, setTargetAccountId] = useState<number | undefined>(undefined);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
-  const payeeRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    getCategories().then(setCategories).catch(console.error);
-    getPayees().then(setPayees).catch(console.error);
+    Promise.all([getCategories(), getPayees()]).then(([cats, pays]) => {
+      setCategories(cats);
+      setPayees(pays);
+      // Pre-fill category input if editing
+      if (initial?.categoryId) {
+        const flat = flattenCategories(cats);
+        const found = flat.find(c => c.id === initial.categoryId);
+        if (found) setCategoryInput(found.label);
+      }
+    }).catch(console.error);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Flatten categories for dropdown
-  const allCategories: { id: number; label: string; parentId?: number }[] = [];
-  for (const cat of categories) {
-    allCategories.push({ id: cat.id, label: cat.name });
-    if (cat.subCategories) {
-      for (const sub of cat.subCategories) {
-        allCategories.push({ id: sub.id, label: `  ${cat.name} : ${sub.name}`, parentId: cat.id });
-      }
+  const handleCategoryInput = (val: string) => {
+    setCategoryInput(val);
+    if (val.length >= 1) {
+      const flat = flattenCategories(categories);
+      const filtered = flat.filter(c => c.label.toLowerCase().includes(val.toLowerCase()));
+      setCategorySuggestions(filtered.slice(0, 10));
+      setShowCatSuggestions(true);
+    } else {
+      setShowCatSuggestions(false);
     }
-  }
+  };
 
-  const topCategories = categories;
-  const selectedParent = topCategories.find(c => c.id === categoryId);
-  const subCategories = selectedParent?.subCategories ?? [];
+  const selectCategory = (entry: { id: number; label: string }) => {
+    setCategoryInput(entry.label);
+    setShowCatSuggestions(false);
+  };
 
   const handlePayeeInput = (val: string) => {
     setPayeeInput(val);
@@ -59,9 +140,9 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
     if (val.length >= 1) {
       const filtered = payees.filter(p => p.name.toLowerCase().includes(val.toLowerCase()));
       setPayeeSuggestions(filtered.slice(0, 8));
-      setShowSuggestions(true);
+      setShowPayeeSuggestions(true);
     } else {
-      setShowSuggestions(false);
+      setShowPayeeSuggestions(false);
     }
   };
 
@@ -69,17 +150,11 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
     setPayeeInput(p.name);
     setPayeeId(p.id);
     if (p.defaultCategoryId) {
-      const parent = categories.find(c => c.id === p.defaultCategoryId || c.subCategories?.some(s => s.id === p.defaultCategoryId));
-      if (parent) {
-        if (parent.id === p.defaultCategoryId) {
-          setCategoryId(p.defaultCategoryId);
-        } else {
-          setCategoryId(parent.id);
-          setSubCategoryId(p.defaultCategoryId);
-        }
-      }
+      const flat = flattenCategories(categories);
+      const found = flat.find(c => c.id === p.defaultCategoryId);
+      if (found) setCategoryInput(found.label);
     }
-    setShowSuggestions(false);
+    setShowPayeeSuggestions(false);
   };
 
   const validate = () => {
@@ -95,26 +170,21 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
     if (!validate()) return;
     setSubmitting(true);
 
-    let resolvedPayeeId = payeeId;
-    if (payeeInput && !resolvedPayeeId) {
-      // silently create payee
-      try {
-        const newPayee = await createPayee(payeeInput);
+    try {
+      let resolvedPayeeId = payeeId;
+      if (payeeInput.trim() && !resolvedPayeeId) {
+        const newPayee = await createPayee(payeeInput.trim());
         resolvedPayeeId = newPayee.id;
         setPayees(prev => [...prev, newPayee]);
         setPayeeId(newPayee.id);
-      } catch {
-        // ignore
       }
-    }
 
-    const effectiveCategoryId = subCategoryId ?? categoryId;
+      const resolvedCategoryId = await resolveCategory(categoryInput, categories, setCategories);
 
-    try {
       await onSave({
         date,
         payeeId: resolvedPayeeId,
-        categoryId: effectiveCategoryId,
+        categoryId: resolvedCategoryId,
         memo: memo || undefined,
         amount: Number(amount),
         status,
@@ -123,12 +193,6 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
     } finally {
       setSubmitting(false);
     }
-  };
-
-  const handleCategoryChange = async (val: string) => {
-    const num = val ? Number(val) : undefined;
-    setCategoryId(num);
-    setSubCategoryId(undefined);
   };
 
   return (
@@ -155,11 +219,11 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
             className={styles.input}
             value={payeeInput}
             onChange={e => handlePayeeInput(e.target.value)}
-            onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+            onBlur={() => setTimeout(() => setShowPayeeSuggestions(false), 150)}
             tabIndex={2}
             autoComplete="off"
           />
-          {showSuggestions && payeeSuggestions.length > 0 && (
+          {showPayeeSuggestions && payeeSuggestions.length > 0 && (
             <ul className={styles.suggestions}>
               {payeeSuggestions.map(p => (
                 <li key={p.id} onMouseDown={() => selectPayee(p)} className={styles.suggestion}>
@@ -170,37 +234,29 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
           )}
         </div>
 
-        <div className={styles.field}>
+        <div className={styles.fieldRelative}>
           <label className={styles.label}>Category</label>
-          <select
-            className={styles.select}
-            value={categoryId ?? ''}
-            onChange={e => handleCategoryChange(e.target.value)}
+          <input
+            ref={categoryRef}
+            type="text"
+            className={styles.input}
+            value={categoryInput}
+            onChange={e => handleCategoryInput(e.target.value)}
+            onBlur={() => setTimeout(() => setShowCatSuggestions(false), 150)}
             tabIndex={3}
-          >
-            <option value="">— None —</option>
-            {topCategories.map(cat => (
-              <option key={cat.id} value={cat.id}>{cat.name}</option>
-            ))}
-          </select>
-        </div>
-
-        {subCategories.length > 0 && (
-          <div className={styles.field}>
-            <label className={styles.label}>Sub-Category</label>
-            <select
-              className={styles.select}
-              value={subCategoryId ?? ''}
-              onChange={e => setSubCategoryId(e.target.value ? Number(e.target.value) : undefined)}
-              tabIndex={4}
-            >
-              <option value="">— None —</option>
-              {subCategories.map(sub => (
-                <option key={sub.id} value={sub.id}>{sub.name}</option>
+            autoComplete="off"
+            placeholder="e.g. Food or Food: Groceries"
+          />
+          {showCatSuggestions && categorySuggestions.length > 0 && (
+            <ul className={styles.suggestions}>
+              {categorySuggestions.map(c => (
+                <li key={c.id} onMouseDown={() => selectCategory(c)} className={styles.suggestion}>
+                  {c.label}
+                </li>
               ))}
-            </select>
-          </div>
-        )}
+            </ul>
+          )}
+        </div>
 
         <div className={styles.field}>
           <label className={styles.label}>Memo</label>
@@ -209,7 +265,7 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
             className={styles.input}
             value={memo}
             onChange={e => setMemo(e.target.value)}
-            tabIndex={5}
+            tabIndex={4}
           />
         </div>
 
@@ -221,7 +277,7 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
             className={styles.input}
             value={amount}
             onChange={e => setAmount(e.target.value)}
-            tabIndex={6}
+            tabIndex={5}
           />
           {errors.amount && <span className={styles.error}>{errors.amount}</span>}
         </div>
@@ -244,10 +300,10 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
       )}
 
       <div className={styles.actions}>
-        <button type="submit" className={styles.btnSave} disabled={submitting} tabIndex={7}>
+        <button type="submit" className={styles.btnSave} disabled={submitting} tabIndex={6}>
           {submitting ? 'Saving…' : 'Save'}
         </button>
-        <button type="button" className={styles.btnCancel} onClick={onCancel} tabIndex={8}>
+        <button type="button" className={styles.btnCancel} onClick={onCancel} tabIndex={7}>
           Cancel
         </button>
       </div>
