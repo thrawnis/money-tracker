@@ -15,7 +15,7 @@
   background: #fff;
   border-radius: 10px;
   padding: 36px 42px 32px;
-  width: 380px;
+  width: min(380px, 94vw);
   box-shadow: 0 8px 40px rgba(0,0,0,0.35);
   animation: cardIn 0.25s ease both;
 }

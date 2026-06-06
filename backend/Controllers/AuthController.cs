@@ -202,11 +202,15 @@ public class AuthController(
     // ── Token refresh ─────────────────────────────────────────────────────────
 
     [HttpPost("refresh")]
-    public async Task<IActionResult> Refresh(RefreshRequest request)
+    public async Task<IActionResult> Refresh()
     {
+        var tokenValue = Request.Cookies["refreshToken"];
+        if (string.IsNullOrEmpty(tokenValue))
+            return Unauthorized("No refresh token.");
+
         var stored = await db.RefreshTokens
             .Include(r => r.User)
-            .FirstOrDefaultAsync(r => r.Token == request.RefreshToken && !r.IsRevoked);
+            .FirstOrDefaultAsync(r => r.Token == tokenValue && !r.IsRevoked);
 
         if (stored is null || stored.ExpiresAt < DateTime.UtcNow)
             return Unauthorized("Refresh token is invalid or expired.");

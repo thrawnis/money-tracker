@@ -160,6 +160,7 @@
 .tableWrapper {
   flex: 1;
   overflow-y: auto;
+  overflow-x: auto;
   border: 1.5px solid #c5d4e0;
   border-radius: 6px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.06);

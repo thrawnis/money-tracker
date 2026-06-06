@@ -9,6 +9,9 @@ body {
   font-size: 13px;
   background: #eef2f7;
   color: #1a1a2e;
+  /* Prevent any overflowing child from expanding the viewport width on mobile */
+  overflow-x: hidden;
+  max-width: 100vw;
 }
 
 #root {

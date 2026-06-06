@@ -54,8 +54,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [applyToken]);
 
+  // Silent refresh on mount
   useEffect(() => {
     refreshToken().finally(() => setLoading(false));
+  }, [refreshToken]);
+
+  // Re-authenticate when the tab becomes visible again after being hidden
+  // (access token is in-memory only; this restores it after long idle or tab switch)
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        refreshToken();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, [refreshToken]);
 
   const login = useCallback(async (email: string, password: string) => {
