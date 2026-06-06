@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { usePageTitle } from '../hooks/usePageTitle';
 import api from '../api/client';
 import { getTemplate, previewImport, importWithDuplicates } from '../api/import';
 import styles from './Settings.module.css';
@@ -462,6 +463,7 @@ function ImportTab() {
 // ── Settings page ────────────────────────────────────────────────────────────
 
 export default function Settings() {
+  usePageTitle('Settings');
   const [tab, setTab] = useState<Tab>('password');
 
   return (

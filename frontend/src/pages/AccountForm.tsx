@@ -1,5 +1,6 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { usePageTitle } from '../hooks/usePageTitle';
 import { createAccount } from '../api/accounts';
 import { getInstitutions, createInstitution } from '../api/institutions';
 import type { AccountType, Institution } from '../types';
@@ -14,6 +15,7 @@ const ACCOUNT_TYPES: AccountType[] = [
 ];
 
 export default function AccountForm({ onCreated }: Props) {
+  usePageTitle('Add Account');
   const navigate = useNavigate();
   const [name, setName] = useState('');
   const [type, setType] = useState<AccountType>('Checking');

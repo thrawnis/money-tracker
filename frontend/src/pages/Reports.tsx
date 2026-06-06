@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { usePageTitle } from '../hooks/usePageTitle';
 import {
   getMonthlyReport,
   getCategoryReport,
@@ -58,6 +59,7 @@ function exportCsv(headers: string[], rows: (string | number)[][], filename: str
 type ReportType = 'monthly' | 'category';
 
 export default function Reports() {
+  usePageTitle('Reports');
   const [reportType, setReportType] = useState<ReportType>('monthly');
   const [activeSavedId, setActiveSavedId] = useState<number | null>(null);
   const [accounts, setAccounts] = useState<Account[]>([]);

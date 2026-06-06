@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
+import { usePageTitle } from '../hooks/usePageTitle';
 import {
   getScheduledTransactions,
   createScheduledTransaction,
@@ -59,6 +60,7 @@ const emptyForm = (): FormState => ({
 });
 
 export default function BillsReminders() {
+  usePageTitle('Bills & Reminders');
   const [items, setItems] = useState<ScheduledTransaction[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);

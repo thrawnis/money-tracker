@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getDashboard, type DashboardData, type DashboardAccount } from '../api/dashboard';
+import { usePageTitle } from '../hooks/usePageTitle';
 import styles from './Dashboard.module.css';
 
 const ACCOUNT_TYPE_ORDER = ['Checking', 'Savings', 'CreditCard', 'Cash', 'Investment', 'Loan', 'Other'];
@@ -78,6 +79,7 @@ function PieChart({ accounts }: { accounts: DashboardAccount[] }) {
 }
 
 export default function Dashboard() {
+  usePageTitle('Dashboard');
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');

@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
+import { usePageTitle } from '../hooks/usePageTitle';
 import { getAccount } from '../api/accounts';
 import { getTransactions, createTransaction, updateTransaction, deleteTransaction } from '../api/transactions';
 import { getUpcoming } from '../api/scheduledTransactions';
@@ -26,6 +27,7 @@ export default function AccountRegister() {
   const accountId = Number(id);
 
   const [account, setAccount] = useState<Account | null>(null);
+  usePageTitle(account?.name ?? 'Account');
   const [categories, setCategories] = useState<Category[]>([]);
   const [error, setError] = useState('');
   const [initialLoading, setInitialLoading] = useState(true);
