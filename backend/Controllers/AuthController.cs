@@ -229,6 +229,23 @@ public class AuthController(
         return Ok(new TokenResponse(accessToken, expiry, role, stored.User.MfaEnrolled));
     }
 
+    // ── Change Password ───────────────────────────────────────────────────────
+
+    [HttpPost("change-password")]
+    [Authorize]
+    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var user = await userManager.FindByIdAsync(userId!);
+        if (user is null) return Unauthorized();
+
+        var result = await userManager.ChangePasswordAsync(user, request.CurrentPassword, request.NewPassword);
+        if (!result.Succeeded)
+            return BadRequest(new { message = string.Join(" ", result.Errors.Select(e => e.Description)) });
+
+        return Ok(new { message = "Password changed successfully." });
+    }
+
     // ── Logout ────────────────────────────────────────────────────────────────
 
     [HttpPost("logout")]
@@ -309,3 +326,4 @@ public record PasskeyRegisterCompleteRequest(
     string? DeviceName);
 public record PasskeyLoginCompleteRequest(
     string AssertionResponseJson);
+public record ChangePasswordRequest(string CurrentPassword, string NewPassword);

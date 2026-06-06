@@ -1,0 +1,289 @@
+.page {
+  padding: 24px;
+  max-width: 700px;
+}
+
+.pageHeader {
+  margin-bottom: 16px;
+}
+
+.pageTitle {
+  font-size: 20px;
+  font-weight: 700;
+  color: #003366;
+  margin: 0;
+}
+
+.tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 2px solid #b0c4d8;
+  margin-bottom: 24px;
+}
+
+.tab {
+  padding: 8px 20px;
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  cursor: pointer;
+  font-size: 13px;
+  color: #336699;
+  margin-bottom: -2px;
+}
+
+.tab:hover {
+  color: #003366;
+}
+
+.tabActive {
+  border-bottom-color: #006666;
+  color: #003366;
+  font-weight: 600;
+}
+
+.tabContent {
+  /* container for tab panels */
+}
+
+.tabSection {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.tabForm {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 400px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #336699;
+}
+
+.input {
+  padding: 6px 8px;
+  border: 1px solid #b0c4d8;
+  border-radius: 3px;
+  font-size: 13px;
+  width: 100%;
+}
+
+.input:focus {
+  outline: none;
+  border-color: #006666;
+}
+
+.hint {
+  font-size: 12px;
+  color: #666;
+  margin: 0;
+}
+
+.error {
+  color: #cc0000;
+  font-size: 12px;
+}
+
+.success {
+  color: #006600;
+  font-size: 12px;
+}
+
+.btnPrimary {
+  padding: 7px 18px;
+  background: #006666;
+  color: #fff;
+  border: none;
+  border-radius: 3px;
+  font-size: 13px;
+  cursor: pointer;
+  align-self: flex-start;
+}
+
+.btnPrimary:hover:not(:disabled) {
+  background: #007a7a;
+}
+
+.btnPrimary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btnSecondary {
+  padding: 7px 18px;
+  background: transparent;
+  color: #336699;
+  border: 1px solid #b0c4d8;
+  border-radius: 3px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.btnSecondary:hover {
+  background: #e8f0f8;
+}
+
+.btnLink {
+  background: none;
+  border: none;
+  color: #006666;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0;
+  text-decoration: underline;
+  align-self: flex-start;
+}
+
+.toggleRow {
+  display: flex;
+  gap: 8px;
+}
+
+.toggleBtn {
+  padding: 5px 14px;
+  background: transparent;
+  border: 1px solid #b0c4d8;
+  border-radius: 3px;
+  font-size: 12px;
+  cursor: pointer;
+  color: #336699;
+}
+
+.toggleActive {
+  background: #006666;
+  color: #fff;
+  border-color: #006666;
+}
+
+.formatBtns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.formatBtn {
+  padding: 8px 20px;
+  background: #003366;
+  color: #fff;
+  border: none;
+  border-radius: 3px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.formatBtn:hover {
+  background: #006666;
+}
+
+.dropZone {
+  border: 2px dashed #b0c4d8;
+  border-radius: 6px;
+  padding: 32px;
+  text-align: center;
+  cursor: pointer;
+  background: #f8fbff;
+  transition: border-color 0.15s;
+}
+
+.dropZone:hover, .dragging {
+  border-color: #006666;
+  background: #e8f4f4;
+}
+
+.dropPrompt {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: #666;
+}
+
+.dropIcon {
+  font-size: 32px;
+  color: #b0c4d8;
+}
+
+.fileName {
+  font-weight: 600;
+  color: #003366;
+}
+
+.fileSize {
+  font-size: 11px;
+  color: #888;
+}
+
+.dupTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.dupTable th, .dupTable td {
+  padding: 5px 8px;
+  border: 1px solid #e0e8f0;
+  text-align: left;
+}
+
+.dupTable th {
+  background: #e8f0f8;
+  font-weight: 600;
+  color: #336699;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.resultSuccess {
+  background: #e8f8e8;
+  border: 1px solid #006600;
+  border-radius: 4px;
+  padding: 12px 16px;
+  color: #006600;
+  font-weight: 600;
+}
+
+.resultErrors {
+  background: #fff8e8;
+  border: 1px solid #cc8800;
+  border-radius: 4px;
+  padding: 12px 16px;
+}
+
+.resultErrorTitle {
+  font-weight: 600;
+  color: #cc8800;
+  margin-bottom: 6px;
+}
+
+.templateSection {
+  border-top: 1px solid #e0e8f0;
+  padding-top: 16px;
+}
+
+.sectionTitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: #336699;
+  margin-bottom: 8px;
+}
+
+.templateBtns {
+  display: flex;
+  gap: 8px;
+}

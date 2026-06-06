@@ -1,0 +1,130 @@
+.page {
+  padding: 14px 16px;
+  max-width: 540px;
+}
+
+.pageHeader {
+  margin-bottom: 16px;
+  border-bottom: 2px solid #336699;
+  padding-bottom: 8px;
+}
+
+.pageTitle {
+  margin: 0;
+  font-size: 16px;
+  color: #003366;
+}
+
+.form {
+  background: #fff;
+  border: 1px solid #c0c0c0;
+  border-radius: 3px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #333;
+}
+
+.input, .select {
+  padding: 6px 8px;
+  border: 1px solid #b0c4d8;
+  border-radius: 2px;
+  font-size: 13px;
+  color: #222;
+  background: #fff;
+}
+
+.input:focus, .select:focus {
+  outline: 2px solid #006666;
+  outline-offset: 0;
+}
+
+.textarea {
+  padding: 6px 8px;
+  border: 1px solid #b0c4d8;
+  border-radius: 2px;
+  font-size: 13px;
+  color: #222;
+  background: #fff;
+  resize: vertical;
+}
+
+.textarea:focus {
+  outline: 2px solid #006666;
+  outline-offset: 0;
+}
+
+.institutionRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.institutionRow .select,
+.institutionRow .input {
+  flex: 1;
+}
+
+.btnLink {
+  background: none;
+  border: none;
+  color: #006666;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0 4px;
+  white-space: nowrap;
+}
+
+.btnLink:hover { text-decoration: underline; }
+
+.btnPrimary {
+  padding: 7px 18px;
+  background: #003366;
+  color: #fff;
+  border: none;
+  border-radius: 2px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.btnPrimary:hover { background: #004488; }
+.btnPrimary:disabled { background: #999; cursor: not-allowed; }
+
+.btnSecondary {
+  padding: 6px 14px;
+  background: #e0e0e0;
+  color: #333;
+  border: 1px solid #b0b0b0;
+  border-radius: 2px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.btnSecondary:hover { background: #d0d0d0; }
+
+.actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.error {
+  color: #cc0000;
+  font-size: 12px;
+  padding: 8px;
+  background: #fff0f0;
+  border: 1px solid #f0c0c0;
+  border-radius: 2px;
+}

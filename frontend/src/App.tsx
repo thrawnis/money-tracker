@@ -4,9 +4,10 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import AccountRegister from './pages/AccountRegister';
+import AccountForm from './pages/AccountForm';
 import BillsReminders from './pages/BillsReminders';
 import Reports from './pages/Reports';
-import Import from './pages/Import';
+import Settings from './pages/Settings';
 import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
 import SetupTotp from './pages/auth/SetupTotp';
@@ -42,10 +43,11 @@ function AppRoutes() {
       <Route element={<PrivateRoute />}>
         <Route element={<Layout accounts={accounts} onLogout={logout} />}>
           <Route index element={<Dashboard />} />
+          <Route path="accounts/new" element={<AccountForm onCreated={() => getAccounts().then(setAccounts)} />} />
           <Route path="accounts/:id" element={<AccountRegister />} />
           <Route path="bills" element={<BillsReminders />} />
           <Route path="reports" element={<Reports />} />
-          <Route path="import" element={<Import />} />
+          <Route path="settings" element={<Settings />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Route>

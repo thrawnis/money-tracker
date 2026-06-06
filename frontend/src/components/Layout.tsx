@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import type { Account } from '../types';
 import { useAuth } from '../contexts/AuthContext';
-import ExportModal from './ExportModal';
 import styles from './Layout.module.css';
 
 interface Props {
@@ -12,11 +11,25 @@ interface Props {
 
 export default function Layout({ accounts, onLogout }: Props) {
   const { user } = useAuth();
-  const [showExport, setShowExport] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const closeSidebar = () => setSidebarOpen(false);
 
   return (
     <div className={styles.shell}>
-      <nav className={styles.sidebar}>
+      <button
+        className={styles.hamburger}
+        onClick={() => setSidebarOpen(o => !o)}
+        aria-label="Toggle menu"
+      >
+        ☰
+      </button>
+
+      {sidebarOpen && (
+        <div className={styles.overlay} onClick={closeSidebar} />
+      )}
+
+      <nav className={`${styles.sidebar} ${sidebarOpen ? styles.sidebarOpen : ''}`}>
         <div className={styles.logo}>Money Tracker</div>
 
         <section className={styles.navSection}>
@@ -28,6 +41,7 @@ export default function Layout({ accounts, onLogout }: Props) {
               className={({ isActive }) =>
                 `${styles.navItem} ${isActive ? styles.navItemActive : ''}`
               }
+              onClick={closeSidebar}
             >
               <span className={styles.accountName}>{account.name}</span>
             </NavLink>
@@ -37,6 +51,7 @@ export default function Layout({ accounts, onLogout }: Props) {
             className={({ isActive }) =>
               `${styles.navItem} ${styles.navItemAdd} ${isActive ? styles.navItemActive : ''}`
             }
+            onClick={closeSidebar}
           >
             + Add Account
           </NavLink>
@@ -49,6 +64,7 @@ export default function Layout({ accounts, onLogout }: Props) {
             className={({ isActive }) =>
               `${styles.navItem} ${isActive ? styles.navItemActive : ''}`
             }
+            onClick={closeSidebar}
           >
             Bills &amp; Reminders
           </NavLink>
@@ -57,24 +73,23 @@ export default function Layout({ accounts, onLogout }: Props) {
             className={({ isActive }) =>
               `${styles.navItem} ${isActive ? styles.navItemActive : ''}`
             }
+            onClick={closeSidebar}
           >
             Reports
           </NavLink>
           <NavLink
-            to="/import"
+            to="/settings"
             className={({ isActive }) =>
               `${styles.navItem} ${isActive ? styles.navItemActive : ''}`
             }
+            onClick={closeSidebar}
           >
-            Import
+            Settings
           </NavLink>
         </section>
 
         <div className={styles.sidebarFooter}>
           {user && <div className={styles.userEmail}>{user.email}</div>}
-          <button className={styles.exportBtn} onClick={() => setShowExport(true)}>
-            Export Data
-          </button>
           <button className={styles.logoutBtn} onClick={onLogout}>
             Sign Out
           </button>
@@ -84,8 +99,6 @@ export default function Layout({ accounts, onLogout }: Props) {
       <main className={styles.content}>
         <Outlet />
       </main>
-
-      {showExport && <ExportModal onClose={() => setShowExport(false)} />}
     </div>
   );
 }

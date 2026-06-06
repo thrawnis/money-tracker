@@ -20,6 +20,61 @@
   overflow: hidden;
   font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
   font-size: 13px;
+  position: relative;
+}
+
+.hamburger {
+  display: none;
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 300;
+  background: var(--ms-navy);
+  color: var(--ms-sidebar-text);
+  border: none;
+  border-radius: 4px;
+  font-size: 20px;
+  padding: 4px 10px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.overlay {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .hamburger {
+    display: block;
+  }
+
+  .overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 200;
+  }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: -240px;
+    height: 100vh;
+    z-index: 250;
+    transition: left 0.25s ease;
+    width: 240px !important;
+    min-width: 240px !important;
+  }
+
+  .sidebarOpen {
+    left: 0;
+  }
+
+  .content {
+    width: 100%;
+    padding-top: 44px;
+  }
 }
 
 .sidebar {
