@@ -101,6 +101,8 @@ builder.Services.AddScoped<ExportService>();
 
 // ── MVC & Swagger ─────────────────────────────────────────────────────────────
 
+builder.Services.AddHttpClient();
+
 builder.Services.AddControllers()
     .AddJsonOptions(o =>
         o.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter()));

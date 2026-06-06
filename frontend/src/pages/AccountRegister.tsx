@@ -7,6 +7,8 @@ import { getUpcoming } from '../api/scheduledTransactions';
 import { getCategories } from '../api/categories';
 import type { Account, Transaction, Category, ScheduledTransaction } from '../types';
 import TransactionForm from '../components/TransactionForm';
+import ReceiptScanner from '../components/ReceiptScanner';
+import type { ExtractedReceipt } from '../api/receipts';
 import styles from './AccountRegister.module.css';
 
 function formatCurrency(amount: number) {
@@ -60,6 +62,10 @@ export default function AccountRegister() {
   // Form
   const [showForm, setShowForm] = useState(false);
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
+  const [receiptPrefill, setReceiptPrefill] = useState<Partial<Transaction> | null>(null);
+  const [receiptPayeeName, setReceiptPayeeName] = useState<string | undefined>(undefined);
+  const [receiptCategoryLabel, setReceiptCategoryLabel] = useState<string | undefined>(undefined);
+  const [showScanner, setShowScanner] = useState(false);
   const lastUsedDate = useRef<string>(new Date().toISOString().slice(0, 10));
 
   // Infinite scroll sentinels
@@ -235,6 +241,9 @@ export default function AccountRegister() {
     }
     setShowForm(false);
     setEditingTx(null);
+    setReceiptPrefill(null);
+    setReceiptPayeeName(undefined);
+    setReceiptCategoryLabel(undefined);
     loadInitial();
   };
 
@@ -246,6 +255,19 @@ export default function AccountRegister() {
 
   const handleEdit = (tx: Transaction) => {
     setEditingTx(tx);
+    setShowForm(true);
+  };
+
+  const handleReceiptConfirm = (data: ExtractedReceipt) => {
+    setShowScanner(false);
+    setEditingTx(null);
+    setReceiptPrefill({
+      date: data.date ?? lastUsedDate.current,
+      amount: data.amount ?? undefined,
+      memo: data.memo ?? undefined,
+    });
+    setReceiptPayeeName(data.payee ?? undefined);
+    setReceiptCategoryLabel(data.suggestedCategory ?? undefined);
     setShowForm(true);
   };
 
@@ -302,8 +324,11 @@ export default function AccountRegister() {
           >
             {showFuture ? 'Hide Upcoming' : 'Show Upcoming'}
           </button>
-          <button className={styles.btnPrimary} onClick={() => { setEditingTx(null); setShowForm(s => !s); }}>
+          <button className={styles.btnPrimary} onClick={() => { setEditingTx(null); setReceiptPrefill(null); setReceiptPayeeName(undefined); setReceiptCategoryLabel(undefined); setShowForm(s => !s); }}>
             {showForm && !editingTx ? 'Cancel' : '+ New Transaction'}
+          </button>
+          <button className={styles.btnSecondary} onClick={() => setShowScanner(true)}>
+            📷 Scan Receipt
           </button>
           <button className={styles.btnSecondary} onClick={() => setFilterOpen(o => !o)}>
             {filterOpen ? 'Hide Filters' : 'Filters'}
@@ -365,9 +390,18 @@ export default function AccountRegister() {
         <TransactionForm
           accountId={accountId}
           accounts={allAccounts}
-          initial={editingTx ?? { date: lastUsedDate.current }}
+          initial={editingTx ?? receiptPrefill ?? { date: lastUsedDate.current }}
+          initialPayeeName={editingTx ? undefined : receiptPayeeName}
+          initialCategoryLabel={editingTx ? undefined : receiptCategoryLabel}
           onSave={handleSaveTx}
-          onCancel={() => { setShowForm(false); setEditingTx(null); }}
+          onCancel={() => { setShowForm(false); setEditingTx(null); setReceiptPrefill(null); setReceiptPayeeName(undefined); setReceiptCategoryLabel(undefined); }}
+        />
+      )}
+
+      {showScanner && (
+        <ReceiptScanner
+          onConfirm={handleReceiptConfirm}
+          onCancel={() => setShowScanner(false)}
         />
       )}
 

@@ -8,6 +8,8 @@ interface Props {
   accountId: number;
   accounts?: Account[];
   initial?: Partial<Transaction>;
+  initialPayeeName?: string;
+  initialCategoryLabel?: string;
   onSave: (data: Omit<Transaction, 'id' | 'accountId' | 'createdAt' | 'updatedAt'> & { targetAccountId?: number }) => Promise<void>;
   onCancel: () => void;
 }
@@ -76,11 +78,11 @@ async function resolveCategory(
   }
 }
 
-export default function TransactionForm({ accountId: _accountId, accounts, initial, onSave, onCancel }: Props) {
+export default function TransactionForm({ accountId: _accountId, accounts, initial, initialPayeeName, initialCategoryLabel, onSave, onCancel }: Props) {
   const today = new Date().toISOString().slice(0, 10);
   const [date, setDate] = useState(initial?.date ?? today);
-  const [payeeInput, setPayeeInput] = useState(initial?.payee?.name ?? '');
-  const [payeeId, setPayeeId] = useState<number | undefined>(initial?.payeeId);
+  const [payeeInput, setPayeeInput] = useState(initialPayeeName ?? initial?.payee?.name ?? '');
+  const [payeeId, setPayeeId] = useState<number | undefined>(initialPayeeName ? undefined : initial?.payeeId);
   const [memo, setMemo] = useState(initial?.memo ?? '');
   const [amount, setAmount] = useState(initial?.amount?.toString() ?? '');
   const [status] = useState<Transaction['status']>(initial?.status ?? 'Uncleared');
@@ -107,8 +109,9 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
     Promise.all([getCategories(), getPayees()]).then(([cats, pays]) => {
       setCategories(cats);
       setPayees(pays);
-      // Pre-fill category input if editing
-      if (initial?.categoryId) {
+      if (initialCategoryLabel) {
+        setCategoryInput(initialCategoryLabel);
+      } else if (initial?.categoryId) {
         const flat = flattenCategories(cats);
         const found = flat.find(c => c.id === initial.categoryId);
         if (found) setCategoryInput(found.label);
