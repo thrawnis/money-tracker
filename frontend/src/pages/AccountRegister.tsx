@@ -59,6 +59,7 @@ export default function AccountRegister() {
   // Form
   const [showForm, setShowForm] = useState(false);
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
+  const lastUsedDate = useRef<string>(new Date().toISOString().slice(0, 10));
 
   // Infinite scroll sentinels
   const topSentinelRef = useRef<HTMLDivElement>(null);
@@ -227,6 +228,7 @@ export default function AccountRegister() {
       await updateTransaction(accountId, editingTx.id, data);
     } else {
       await createTransaction(accountId, data);
+      lastUsedDate.current = data.date;
     }
     setShowForm(false);
     setEditingTx(null);
@@ -359,7 +361,7 @@ export default function AccountRegister() {
       {showForm && (
         <TransactionForm
           accountId={accountId}
-          initial={editingTx ?? undefined}
+          initial={editingTx ?? { date: lastUsedDate.current }}
           onSave={handleSaveTx}
           onCancel={() => { setShowForm(false); setEditingTx(null); }}
         />
