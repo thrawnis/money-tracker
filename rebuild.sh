@@ -19,12 +19,22 @@ mkdir -p "$REPO_DIR/data/postgres"
 mkdir -p "$REPO_DIR/data/ollama"
 
 # ── Determine Ollama profile ──────────────────────────────────────────────────
-# Load .env so we can inspect OLLAMA_EXTERNAL_URL and RECEIPT_PROVIDER
+# Load .env to inspect OLLAMA_EXTERNAL_URL and RECEIPT_PROVIDER.
+# We parse it manually to avoid bash choking on comment-only lines or unicode.
 if [ -f "$REPO_DIR/.env" ]; then
-  # shellcheck disable=SC1091
-  set -o allexport
-  source "$REPO_DIR/.env"
-  set +o allexport
+  while IFS='=' read -r key value; do
+    # Skip blank lines and comments
+    [[ "$key" =~ ^[[:space:]]*# ]] && continue
+    [[ -z "$key" ]] && continue
+    # Strip inline comments and surrounding quotes from value
+    value="${value%%#*}"
+    value="${value%\"}"
+    value="${value#\"}"
+    value="${value%\'}"
+    value="${value#\'}"
+    value="${value// /}"
+    export "$key=$value" 2>/dev/null || true
+  done < "$REPO_DIR/.env"
 fi
 
 OLLAMA_PROFILE=""
