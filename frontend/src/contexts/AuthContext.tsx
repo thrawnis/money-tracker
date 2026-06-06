@@ -48,9 +48,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const data = await authApi.refreshTokens();
       applyToken(data.accessToken);
-    } catch {
-      setAccessToken(null);
-      setUser(null);
+    } catch (err: unknown) {
+      // Only clear the session on an explicit 401 (invalid/expired token).
+      // Network errors or 5xx during a deployment restart should not log the
+      // user out — the cookie is still valid and will work once the API recovers.
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      if (status === 401) {
+        setAccessToken(null);
+        setUser(null);
+      }
     }
   }, [applyToken]);
 

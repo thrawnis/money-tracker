@@ -47,9 +47,18 @@ fi
 # ── Build and start containers ────────────────────────────────────────────────
 
 echo "==> Building and restarting containers"
+# Build all images first (db image is pulled, not built, so --pull refreshes it too)
 docker compose build --pull
+# Bring up db/ollama without recreating if they are already healthy — avoids
+# dropping database connections and causing a logout-on-deploy for users.
 # shellcheck disable=SC2086
-docker compose $OLLAMA_PROFILE up -d --force-recreate --remove-orphans
+docker compose $OLLAMA_PROFILE up -d db
+if [ -n "$OLLAMA_PROFILE" ]; then
+  docker compose $OLLAMA_PROFILE up -d ollama
+fi
+# Only force-recreate the application containers that actually changed.
+# shellcheck disable=SC2086
+docker compose $OLLAMA_PROFILE up -d --force-recreate --remove-orphans api frontend
 
 # ── Pull Ollama model if running locally ──────────────────────────────────────
 
