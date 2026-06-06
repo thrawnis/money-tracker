@@ -139,6 +139,7 @@ export default function TransactionForm({ accountId: _accountId, initial, onSave
             value={date}
             onChange={e => setDate(e.target.value)}
             tabIndex={1}
+            autoFocus={!initial?.id}
           />
           {errors.date && <span className={styles.error}>{errors.date}</span>}
         </div>

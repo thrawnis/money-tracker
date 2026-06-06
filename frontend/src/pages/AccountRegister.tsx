@@ -64,6 +64,21 @@ export default function AccountRegister() {
   const topSentinelRef = useRef<HTMLDivElement>(null);
   const bottomSentinelRef = useRef<HTMLDivElement>(null);
 
+  // Keyboard shortcut: N = new transaction
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if (e.key === 'n' || e.key === 'N') {
+        e.preventDefault();
+        setEditingTx(null);
+        setShowForm(true);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
+
   const hasMorePast = pastTxs.length < pastTotal;
   const hasMoreFuture = futureSkip + FUTURE_BATCH < futureTotal;
 
