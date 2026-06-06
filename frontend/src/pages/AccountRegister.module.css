@@ -10,6 +10,13 @@
   height: 100%;
   overflow: hidden;
   animation: fadeUp 0.18s ease both;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+@media (max-width: 768px) {
+  .page { padding: 10px 10px; }
 }
 
 @keyframes fadeUp {

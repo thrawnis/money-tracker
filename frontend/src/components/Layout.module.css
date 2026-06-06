@@ -157,8 +157,10 @@
 
 .content {
   flex: 1;
+  min-width: 0;
   background: var(--ms-bg);
   overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
 }
@@ -201,6 +203,12 @@
     backdrop-filter: blur(2px);
   }
 
+  .shell {
+    width: 100vw;
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+
   .sidebar {
     position: fixed;
     top: 0;
@@ -214,7 +222,9 @@
   .sidebarOpen { left: 0; }
 
   .content {
-    width: 100%;
+    width: 100vw !important;
+    max-width: 100vw;
+    overflow-x: hidden;
     padding-top: 48px;
   }
 }
