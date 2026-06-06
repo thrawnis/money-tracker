@@ -25,7 +25,8 @@ _env_get() {
   local key="$1"
   grep -m1 "^${key}=" "$REPO_DIR/.env" 2>/dev/null \
     | cut -d= -f2- \
-    | sed "s/[[:space:]]*#.*//; s/^['\"]//; s/['\"]$//"
+    | sed "s/[[:space:]]*#.*//; s/^['\"]//; s/['\"]$//" \
+    || true
 }
 
 if [ -f "$REPO_DIR/.env" ]; then
