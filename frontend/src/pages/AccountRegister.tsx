@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { usePageTitle } from '../hooks/usePageTitle';
-import { getAccount } from '../api/accounts';
+import { getAccount, getAccounts } from '../api/accounts';
 import { getTransactions, createTransaction, updateTransaction, deleteTransaction } from '../api/transactions';
 import { getUpcoming } from '../api/scheduledTransactions';
 import { getCategories } from '../api/categories';
@@ -27,6 +27,7 @@ export default function AccountRegister() {
   const accountId = Number(id);
 
   const [account, setAccount] = useState<Account | null>(null);
+  const [allAccounts, setAllAccounts] = useState<Account[]>([]);
   usePageTitle('Account Register');
   const [categories, setCategories] = useState<Category[]>([]);
   const [error, setError] = useState('');
@@ -90,12 +91,14 @@ export default function AccountRegister() {
     setInitialLoading(true);
     setError('');
     try {
-      const [acc, txResult, cats] = await Promise.all([
+      const [acc, txResult, cats, accs] = await Promise.all([
         getAccount(accountId),
         getTransactions(accountId, { page: 1, pageSize: PAST_PAGE_SIZE }),
         getCategories(),
+        getAccounts(),
       ]);
       setAccount(acc);
+      setAllAccounts(accs);
       setPastTxs(txResult.items);
       setPastTotal(txResult.total);
       setPastPage(1);
@@ -223,7 +226,7 @@ export default function AccountRegister() {
 
   // ── CRUD ───────────────────────────────────────────────────────────────────
 
-  const handleSaveTx = async (data: Omit<Transaction, 'id' | 'accountId' | 'createdAt' | 'updatedAt'>) => {
+  const handleSaveTx = async (data: Omit<Transaction, 'id' | 'accountId' | 'createdAt' | 'updatedAt'> & { targetAccountId?: number }) => {
     if (editingTx) {
       await updateTransaction(accountId, editingTx.id, data);
     } else {
@@ -361,6 +364,7 @@ export default function AccountRegister() {
       {showForm && (
         <TransactionForm
           accountId={accountId}
+          accounts={allAccounts}
           initial={editingTx ?? { date: lastUsedDate.current }}
           onSave={handleSaveTx}
           onCancel={() => { setShowForm(false); setEditingTx(null); }}

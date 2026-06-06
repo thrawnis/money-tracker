@@ -22,7 +22,7 @@ export const getTransactions = (accountId: number, params?: GetTransactionsParam
 export const createTransaction = (accountId: number, data: Omit<Transaction, 'id' | 'accountId' | 'createdAt' | 'updatedAt'>) =>
   api.post<Transaction>(`/accounts/${accountId}/transactions`, data).then(r => r.data);
 
-export const updateTransaction = (accountId: number, id: number, data: Partial<Transaction>) =>
+export const updateTransaction = (accountId: number, id: number, data: Partial<Transaction> & { targetAccountId?: number }) =>
   api.put<Transaction>(`/accounts/${accountId}/transactions/${id}`, data).then(r => r.data);
 
 export const deleteTransaction = (accountId: number, id: number) =>

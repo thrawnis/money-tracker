@@ -196,6 +196,12 @@ public class TransactionsController(
 
         int? previousPayeeId = tx.PayeeId != dto.PayeeId ? tx.PayeeId : null;
 
+        if (dto.TargetAccountId.HasValue && dto.TargetAccountId.Value != accountId)
+        {
+            if (!await AccountBelongsToUser(dto.TargetAccountId.Value, userId)) return BadRequest("Target account not found.");
+            tx.AccountId = dto.TargetAccountId.Value;
+        }
+
         tx.Date                 = dto.Date;
         tx.CheckNumberEncrypted = encryption.Encrypt(dto.CheckNumber, user.EncryptedDataKey);
         tx.PayeeId              = dto.PayeeId;
@@ -276,4 +282,5 @@ public record TransactionDto(
     string?           Memo,
     decimal           Amount,
     TransactionStatus Status,
-    int?              TransferTransactionId);
+    int?              TransferTransactionId,
+    int?              TargetAccountId);

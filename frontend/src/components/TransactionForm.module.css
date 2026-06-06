@@ -76,6 +76,18 @@
   margin-top: 2px;
 }
 
+.moveRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed #c5d4e0;
+}
+
+.moveRow .label { white-space: nowrap; }
+.moveRow .select { flex: 1; max-width: 260px; }
+
 .actions {
   display: flex;
   gap: 8px;

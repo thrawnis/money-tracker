@@ -1,17 +1,18 @@
 import { useState, useEffect, useRef, type FormEvent } from 'react';
-import type { Transaction, Category, Payee } from '../types';
+import type { Transaction, Category, Payee, Account } from '../types';
 import { getCategories } from '../api/categories';
 import { getPayees, createPayee } from '../api/payees';
 import styles from './TransactionForm.module.css';
 
 interface Props {
   accountId: number;
+  accounts?: Account[];
   initial?: Partial<Transaction>;
-  onSave: (data: Omit<Transaction, 'id' | 'accountId' | 'createdAt' | 'updatedAt'>) => Promise<void>;
+  onSave: (data: Omit<Transaction, 'id' | 'accountId' | 'createdAt' | 'updatedAt'> & { targetAccountId?: number }) => Promise<void>;
   onCancel: () => void;
 }
 
-export default function TransactionForm({ accountId: _accountId, initial, onSave, onCancel }: Props) {
+export default function TransactionForm({ accountId: _accountId, accounts, initial, onSave, onCancel }: Props) {
   const today = new Date().toISOString().slice(0, 10);
   const [date, setDate] = useState(initial?.date ?? today);
   const [payeeInput, setPayeeInput] = useState(initial?.payee?.name ?? '');
@@ -27,6 +28,7 @@ export default function TransactionForm({ accountId: _accountId, initial, onSave
   const [payeeSuggestions, setPayeeSuggestions] = useState<Payee[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
+  const [targetAccountId, setTargetAccountId] = useState<number | undefined>(undefined);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const payeeRef = useRef<HTMLInputElement>(null);
@@ -116,6 +118,7 @@ export default function TransactionForm({ accountId: _accountId, initial, onSave
         memo: memo || undefined,
         amount: Number(amount),
         status,
+        targetAccountId,
       });
     } finally {
       setSubmitting(false);
@@ -223,6 +226,22 @@ export default function TransactionForm({ accountId: _accountId, initial, onSave
           {errors.amount && <span className={styles.error}>{errors.amount}</span>}
         </div>
       </div>
+
+      {initial?.id && accounts && accounts.filter(a => a.id !== _accountId).length > 0 && (
+        <div className={styles.moveRow}>
+          <label className={styles.label}>Move to Account</label>
+          <select
+            className={styles.select}
+            value={targetAccountId ?? ''}
+            onChange={e => setTargetAccountId(e.target.value ? Number(e.target.value) : undefined)}
+          >
+            <option value="">— Keep in current account —</option>
+            {accounts.filter(a => a.id !== _accountId).map(a => (
+              <option key={a.id} value={a.id}>{a.name}</option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div className={styles.actions}>
         <button type="submit" className={styles.btnSave} disabled={submitting} tabIndex={7}>
