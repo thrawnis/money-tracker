@@ -8,6 +8,7 @@ using MoneyTracker.Auth.Services;
 using MoneyTracker.Data;
 using MoneyTracker.Export;
 using MoneyTracker.Models;
+using MoneyTracker.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -94,6 +95,26 @@ builder.Services.AddFido2(options =>
 #endif
 
 builder.Services.AddScoped<IPasskeyService, PasskeyService>();
+
+// ── Receipt extraction provider ───────────────────────────────────────────────
+
+var receiptProvider = (builder.Configuration["Receipt:Provider"] ?? "ollama").ToLowerInvariant();
+switch (receiptProvider)
+{
+    case "anthropic":
+        builder.Services.AddScoped<IReceiptExtractor, AnthropicReceiptExtractor>();
+        break;
+    case "openai":
+        builder.Services.AddScoped<IReceiptExtractor, OpenAiReceiptExtractor>();
+        break;
+    case "gemini":
+        builder.Services.AddScoped<IReceiptExtractor, GeminiReceiptExtractor>();
+        break;
+    default: // "ollama"
+        builder.Services.AddScoped<IReceiptExtractor, OllamaReceiptExtractor>();
+        break;
+}
+
 builder.Services.AddSingleton<JwtService>();
 builder.Services.AddSingleton<IEncryptionService, EncryptionService>();
 builder.Services.AddSingleton(UrlEncoder.Default);

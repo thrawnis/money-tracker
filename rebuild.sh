@@ -16,13 +16,54 @@ git reset --hard "origin/$BRANCH"
 
 echo "==> Ensuring data directories exist"
 mkdir -p "$REPO_DIR/data/postgres"
+mkdir -p "$REPO_DIR/data/ollama"
 
-echo "==> Building and restarting containers (no cache on code changes)"
+# ── Determine Ollama profile ──────────────────────────────────────────────────
+# Load .env so we can inspect OLLAMA_EXTERNAL_URL and RECEIPT_PROVIDER
+if [ -f "$REPO_DIR/.env" ]; then
+  # shellcheck disable=SC1091
+  set -o allexport
+  source "$REPO_DIR/.env"
+  set +o allexport
+fi
+
+OLLAMA_PROFILE=""
+RECEIPT_PROVIDER="${RECEIPT_PROVIDER:-ollama}"
+OLLAMA_EXTERNAL_URL="${OLLAMA_EXTERNAL_URL:-}"
+
+if [ "$RECEIPT_PROVIDER" = "ollama" ] && [ -z "$OLLAMA_EXTERNAL_URL" ]; then
+  echo "==> Using local Ollama container (no OLLAMA_EXTERNAL_URL set)"
+  OLLAMA_PROFILE="--profile local-ollama"
+else
+  echo "==> Skipping local Ollama (provider=$RECEIPT_PROVIDER, external=${OLLAMA_EXTERNAL_URL:-n/a})"
+fi
+
+# ── Build and start containers ────────────────────────────────────────────────
+
+echo "==> Building and restarting containers"
 docker compose build --pull
-docker compose up -d --force-recreate --remove-orphans
+# shellcheck disable=SC2086
+docker compose $OLLAMA_PROFILE up -d --force-recreate --remove-orphans
+
+# ── Pull Ollama model if running locally ──────────────────────────────────────
+
+if [ -n "$OLLAMA_PROFILE" ]; then
+  OLLAMA_MODEL="${OLLAMA_MODEL:-llava}"
+  echo "==> Pulling Ollama model: $OLLAMA_MODEL (this may take a while on first run)"
+  # Wait for Ollama to be ready
+  for i in $(seq 1 30); do
+    if docker compose exec -T ollama ollama list > /dev/null 2>&1; then
+      break
+    fi
+    echo "   Waiting for Ollama to start ($i/30)…"
+    sleep 2
+  done
+  docker compose exec -T ollama ollama pull "$OLLAMA_MODEL" || \
+    echo "   Warning: could not pull model '$OLLAMA_MODEL' — it may already be cached."
+fi
 
 echo "==> Removing dangling images"
 docker image prune -f
 
 echo "==> Done. App is running on port 3012."
-docker compose ps
+docker compose $OLLAMA_PROFILE ps

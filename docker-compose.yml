@@ -14,6 +14,23 @@ services:
       timeout: 5s
       retries: 5
 
+  # Local Ollama — only started when OLLAMA_EXTERNAL_URL is not set.
+  # rebuild.sh handles passing --profile local-ollama automatically.
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    profiles: [local-ollama]
+    volumes:
+      - ./data/ollama:/root/.ollama
+    # GPU passthrough (optional — remove if no NVIDIA GPU on the host)
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
   api:
     build:
       context: ./backend
@@ -26,7 +43,21 @@ services:
       EncryptionKey: ${ENCRYPTION_KEY}
       Fido2__Domain: ${FIDO2_DOMAIN}
       Fido2__Origin: ${FIDO2_ORIGIN}
-      Anthropic__ApiKey: ${ANTHROPIC_API_KEY:-}
+      # Receipt extraction provider: ollama (default) | anthropic | openai | gemini
+      Receipt__Provider: ${RECEIPT_PROVIDER:-ollama}
+      # Ollama: defaults to local container; set OLLAMA_EXTERNAL_URL to use an external server
+      Receipt__Ollama__BaseUrl: ${OLLAMA_EXTERNAL_URL:-http://ollama:11434}
+      Receipt__Ollama__Model: ${OLLAMA_MODEL:-llava}
+      # Anthropic / Claude
+      Receipt__Anthropic__ApiKey: ${ANTHROPIC_API_KEY:-}
+      Receipt__Anthropic__Model: ${ANTHROPIC_MODEL:-claude-haiku-4-5-20251001}
+      # OpenAI / ChatGPT (also works with any OpenAI-compatible API via OPENAI_BASE_URL)
+      Receipt__OpenAi__ApiKey: ${OPENAI_API_KEY:-}
+      Receipt__OpenAi__Model: ${OPENAI_MODEL:-gpt-4o-mini}
+      Receipt__OpenAi__BaseUrl: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      # Google Gemini
+      Receipt__Gemini__ApiKey: ${GEMINI_API_KEY:-}
+      Receipt__Gemini__Model: ${GEMINI_MODEL:-gemini-1.5-flash}
     ports:
       - "5012:8080"
     depends_on:
@@ -42,4 +73,3 @@ services:
       - "3012:80"
     depends_on:
       - api
-
