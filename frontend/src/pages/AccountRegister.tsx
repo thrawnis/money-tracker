@@ -27,7 +27,7 @@ export default function AccountRegister() {
   const accountId = Number(id);
 
   const [account, setAccount] = useState<Account | null>(null);
-  usePageTitle(account?.name ?? 'Account');
+  usePageTitle('Account Register');
   const [categories, setCategories] = useState<Category[]>([]);
   const [error, setError] = useState('');
   const [initialLoading, setInitialLoading] = useState(true);
