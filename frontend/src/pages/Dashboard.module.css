@@ -1,120 +1,130 @@
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
 .page {
-  padding: 16px 20px;
+  padding: 18px 22px;
+  animation: fadeUp 0.2s ease both;
 }
 
 .pageHeader {
-  margin-bottom: 16px;
-  border-bottom: 2px solid var(--ms-header, #336699);
-  padding-bottom: 8px;
+  margin-bottom: 18px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #c5d4e0;
 }
 
 .pageTitle {
   margin: 0;
-  font-size: 16px;
-  color: var(--ms-navy, #003366);
+  font-size: 18px;
+  font-weight: 700;
+  color: #002a52;
+  letter-spacing: -0.2px;
 }
 
-.loading {
-  color: #555;
-}
+.loading { color: #777; }
+.errorMsg { color: #c0392b; }
 
-.errorMsg {
-  color: #cc0000;
-}
+/* ── Grid ─────────────────────────────────────────────────────────────────── */
 
 .grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 20px;
+  gap: 18px;
   align-items: start;
 }
 
-@media (max-width: 900px) {
-  .grid {
-    grid-template-columns: 1fr;
-  }
-}
+@media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
 
-.sectionTitle {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--ms-navy, #003366);
-  margin: 0 0 10px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
+/* ── Cards ────────────────────────────────────────────────────────────────── */
 
 .accountsPanel, .rightPanel {
   background: #fff;
-  border: 1px solid #c0c0c0;
-  border-radius: 3px;
-  padding: 14px;
+  border: 1.5px solid #c5d4e0;
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.06);
 }
+
+.sectionTitle {
+  font-size: 12px;
+  font-weight: 700;
+  color: #002a52;
+  margin: 0 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #eef2f7;
+}
+
+/* ── Account list ─────────────────────────────────────────────────────────── */
 
 .accountGroup {
   margin-bottom: 14px;
 }
 
 .accountGroupHeader {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.6px;
-  color: #666;
-  padding: 4px 0;
-  border-bottom: 1px solid #e0e0e0;
+  letter-spacing: 0.8px;
+  color: #8899aa;
+  padding: 3px 4px;
+  border-bottom: 1px solid #eef2f7;
   margin-bottom: 4px;
 }
 
 .accountRow {
   display: flex;
   justify-content: space-between;
-  padding: 4px 6px;
+  padding: 5px 6px;
   text-decoration: none;
-  color: #000;
-  font-size: 13px;
-  border-radius: 2px;
+  color: #1a1a2e;
+  font-size: 12.5px;
+  border-radius: 5px;
+  transition: background 0.12s;
 }
 
 .accountRow:hover {
-  background: #e8f0f8;
+  background: #eef4fc;
 }
 
-.accountRowName {
-  flex: 1;
-}
+.accountRowName { flex: 1; }
 
 .accountRowBalance {
-  font-weight: 600;
-  color: #006600;
+  font-weight: 700;
+  color: #1a7a40;
+  font-variant-numeric: tabular-nums;
 }
 
 .accountGroupTotal {
   font-size: 12px;
   font-weight: 700;
-  color: #003366;
+  color: #002a52;
   text-align: right;
-  padding: 4px 6px;
-  border-top: 1px solid #e0e0e0;
+  padding: 5px 6px 2px;
+  border-top: 1px solid #eef2f7;
   margin-top: 2px;
+  font-variant-numeric: tabular-nums;
 }
 
-.negative {
-  color: #cc0000 !important;
-}
+.negative { color: #c0392b !important; }
 
-/* Pie chart */
+/* ── Pie chart ────────────────────────────────────────────────────────────── */
+
 .pieSection {
   margin-top: 16px;
-  border-top: 1px solid #e0e0e0;
+  border-top: 1px solid #eef2f7;
   padding-top: 14px;
 }
 
 .pieWrapper {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 18px;
 }
 
 .pieLegend {
@@ -127,32 +137,24 @@
 .pieLegendItem {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin-bottom: 5px;
+  gap: 7px;
+  margin-bottom: 6px;
   font-size: 12px;
 }
 
 .pieDot {
   width: 10px;
   height: 10px;
-  border-radius: 2px;
+  border-radius: 3px;
   flex-shrink: 0;
 }
 
-.pieLegendType {
-  flex: 1;
-  color: #333;
-}
+.pieLegendType { flex: 1; color: #334; }
+.pieLegendPct  { color: #888; font-size: 11px; font-variant-numeric: tabular-nums; }
 
-.pieLegendPct {
-  color: #666;
-  font-size: 11px;
-}
+/* ── Bills ────────────────────────────────────────────────────────────────── */
 
-/* Bills */
-.billsSection {
-  margin-bottom: 16px;
-}
+.billsSection { margin-bottom: 16px; }
 
 .billsTable, .uncatTable {
   width: 100%;
@@ -162,60 +164,68 @@
 
 .billsTable th, .uncatTable th {
   text-align: left;
-  padding: 5px 6px;
-  background: #e8eef4;
-  color: #003366;
+  padding: 6px 8px;
+  background: #eef2f7;
+  color: #334;
   font-weight: 700;
-  border-bottom: 1px solid #c0c0c0;
+  border-bottom: 1.5px solid #c5d4e0;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
 }
 
 .billsTable td, .uncatTable td {
-  padding: 5px 6px;
-  border-bottom: 1px solid #f0f0f0;
+  padding: 6px 8px;
+  border-bottom: 1px solid #f2f5f8;
+}
+
+.billsTable tr:last-child td, .uncatTable tr:last-child td {
+  border-bottom: none;
 }
 
 .overdue td {
-  color: #cc0000;
+  color: #c0392b;
   font-weight: 600;
 }
 
 .amount {
   text-align: right;
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
 .emptyMsg {
-  color: #666;
-  font-size: 13px;
+  color: #aaa;
+  font-size: 12px;
   font-style: italic;
+  padding: 8px 0;
 }
 
-/* Uncategorized */
+/* ── Uncategorized ────────────────────────────────────────────────────────── */
+
 .uncatSection {
-  border-top: 1px solid #e0e0e0;
+  border-top: 1px solid #eef2f7;
   padding-top: 14px;
 }
 
 .uncatBadge {
-  background: #cc0000;
+  background: #c0392b;
   color: #fff;
   border-radius: 10px;
-  padding: 1px 8px;
+  padding: 1px 9px;
   font-size: 11px;
   font-weight: 700;
 }
 
 .uncatHint {
   font-size: 12px;
-  color: #666;
+  color: #778;
   margin-bottom: 8px;
 }
 
 .txLink {
-  color: #006666;
-  text-decoration: none;
+  color: #005f5f;
+  font-weight: 500;
 }
 
-.txLink:hover {
-  text-decoration: underline;
-}
+.txLink:hover { text-decoration: underline; }
