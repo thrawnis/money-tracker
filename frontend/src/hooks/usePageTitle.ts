@@ -1,8 +1,5 @@
 import { useEffect } from 'react';
 
-export function usePageTitle(title: string) {
-  useEffect(() => {
-    document.title = `${title} - Money Tracker`;
-    return () => { document.title = 'Money Tracker'; };
-  }, [title]);
+export function usePageTitle(_title: string) {
+  // Title is always "Money Tracker" — no personal info in the tab
 }
