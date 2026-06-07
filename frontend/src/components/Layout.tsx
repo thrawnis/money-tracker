@@ -78,15 +78,6 @@ export default function Layout({ accounts, onLogout }: Props) {
               ))}
             </div>
           ))}
-          <NavLink
-            to="/accounts/new"
-            className={({ isActive }) =>
-              `${styles.navItem} ${styles.navItemAdd} ${isActive ? styles.navItemActive : ''}`
-            }
-            onClick={closeSidebar}
-          >
-            + Add Account
-          </NavLink>
           <button
             className={styles.manageAccountsBtn}
             onClick={() => { closeSidebar(); navigate('/settings'); }}

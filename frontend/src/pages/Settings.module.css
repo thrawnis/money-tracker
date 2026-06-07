@@ -476,3 +476,15 @@
   color: #334;
   cursor: pointer;
 }
+
+.accountRowAdd {
+  border-color: #4a90d9;
+  background: #f4f8fd;
+}
+
+.addFormTitle {
+  font-size: 13px;
+  font-weight: 700;
+  color: #002a52;
+  margin-bottom: 10px;
+}

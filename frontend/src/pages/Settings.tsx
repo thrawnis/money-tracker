@@ -1,10 +1,11 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { usePageTitle } from '../hooks/usePageTitle';
+import { useNavigate } from 'react-router-dom';
 import api from '../api/client';
 import { getTemplate, previewImport, importWithDuplicates } from '../api/import';
 import { getAuditLog, type AuditEntry, type GetAuditParams } from '../api/audit';
-import { getAccounts, updateAccount, deleteAccount } from '../api/accounts';
-import { getInstitutions } from '../api/institutions';
+import { getAccounts, createAccount, updateAccount, deleteAccount } from '../api/accounts';
+import { getInstitutions, createInstitution } from '../api/institutions';
 import type { Account, AccountType, Institution } from '../types';
 import styles from './Settings.module.css';
 
@@ -668,7 +669,25 @@ interface EditState {
   accountNumber: string;
 }
 
+interface AddState {
+  name: string;
+  type: AccountType;
+  openingBalance: string;
+  institutionId: number | '';
+  accountNumber: string;
+  notes: string;
+  addingInstitution: boolean;
+  newInstitutionName: string;
+}
+
+const BLANK_ADD: AddState = {
+  name: '', type: 'Checking', openingBalance: '0',
+  institutionId: '', accountNumber: '', notes: '',
+  addingInstitution: false, newInstitutionName: '',
+};
+
 function AccountsTab() {
+  const navigate = useNavigate();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [institutions, setInstitutions] = useState<Institution[]>([]);
   const [loading, setLoading] = useState(true);
@@ -677,6 +696,9 @@ function AccountsTab() {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<number | null>(null);
   const [error, setError] = useState('');
+  const [showAdd, setShowAdd] = useState(false);
+  const [addState, setAddState] = useState<AddState>(BLANK_ADD);
+  const [adding, setAdding] = useState(false);
 
   useEffect(() => {
     Promise.all([getAccounts(true), getInstitutions()])
@@ -686,13 +708,11 @@ function AccountsTab() {
   }, []);
 
   const startEdit = (acc: Account) => {
+    setShowAdd(false);
     setEditingId(acc.id);
     setEditState({
-      name: acc.name,
-      type: acc.type,
-      isActive: acc.isActive,
-      notes: acc.notes ?? '',
-      institutionId: acc.institutionId ?? '',
+      name: acc.name, type: acc.type, isActive: acc.isActive,
+      notes: acc.notes ?? '', institutionId: acc.institutionId ?? '',
       accountNumber: acc.accountNumber ?? '',
     });
     setError('');
@@ -702,39 +722,54 @@ function AccountsTab() {
 
   const handleSave = async (acc: Account) => {
     if (!editState || !editState.name.trim()) { setError('Name is required.'); return; }
-    setSaving(true);
-    setError('');
+    setSaving(true); setError('');
     try {
       const updated = await updateAccount(acc.id, {
-        name: editState.name.trim(),
-        type: editState.type,
-        isActive: editState.isActive,
+        name: editState.name.trim(), type: editState.type, isActive: editState.isActive,
         notes: editState.notes.trim() || undefined,
         institutionId: editState.institutionId !== '' ? editState.institutionId : undefined,
         accountNumber: editState.accountNumber.trim() || undefined,
       });
       setAccounts(prev => prev.map(a => a.id === acc.id ? updated : a));
-      setEditingId(null);
-      setEditState(null);
-    } catch {
-      setError('Failed to save account.');
-    } finally {
-      setSaving(false);
-    }
+      setEditingId(null); setEditState(null);
+    } catch { setError('Failed to save account.'); }
+    finally { setSaving(false); }
   };
 
   const handleDelete = async (acc: Account) => {
     if (!confirm(`Delete "${acc.name}"? This will permanently delete the account and all its transactions. This cannot be undone.`)) return;
-    setDeleting(acc.id);
-    setError('');
+    setDeleting(acc.id); setError('');
     try {
       await deleteAccount(acc.id);
       setAccounts(prev => prev.filter(a => a.id !== acc.id));
-    } catch {
-      setError('Failed to delete account.');
-    } finally {
-      setDeleting(null);
-    }
+    } catch { setError('Failed to delete account.'); }
+    finally { setDeleting(null); }
+  };
+
+  const handleAddInstitution = async () => {
+    if (!addState.newInstitutionName.trim()) return;
+    try {
+      const inst = await createInstitution(addState.newInstitutionName.trim());
+      setInstitutions(prev => [...prev, inst]);
+      setAddState(s => ({ ...s, institutionId: inst.id, addingInstitution: false, newInstitutionName: '' }));
+    } catch { setError('Failed to create institution.'); }
+  };
+
+  const handleAdd = async () => {
+    if (!addState.name.trim()) { setError('Name is required.'); return; }
+    setAdding(true); setError('');
+    try {
+      const created = await createAccount({
+        name: addState.name.trim(), type: addState.type, isActive: true,
+        openingBalance: parseFloat(addState.openingBalance) || 0,
+        institutionId: addState.institutionId !== '' ? addState.institutionId : undefined,
+        accountNumber: addState.accountNumber.trim() || undefined,
+        notes: addState.notes.trim() || undefined,
+      });
+      setAccounts(prev => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+      setAddState(BLANK_ADD); setShowAdd(false);
+    } catch { setError('Failed to create account.'); }
+    finally { setAdding(false); }
   };
 
   if (loading) return <div className={styles.hint}>Loading…</div>;
@@ -742,6 +777,67 @@ function AccountsTab() {
   return (
     <div className={styles.tabSection}>
       {error && <div className={styles.error}>{error}</div>}
+
+      {/* ── Add Account form ── */}
+      {showAdd ? (
+        <div className={`${styles.accountRow} ${styles.accountRowAdd}`}>
+          <div className={styles.accountEditForm}>
+            <div className={styles.addFormTitle}>New Account</div>
+            <div className={styles.accountEditGrid}>
+              <div className={styles.field}>
+                <label className={styles.label}>Name *</label>
+                <input className={styles.input} value={addState.name} onChange={e => setAddState(s => ({ ...s, name: e.target.value }))} autoFocus placeholder="e.g. Chase Checking" />
+              </div>
+              <div className={styles.field}>
+                <label className={styles.label}>Type</label>
+                <select className={styles.input} value={addState.type} onChange={e => setAddState(s => ({ ...s, type: e.target.value as AccountType }))}>
+                  {ACCOUNT_TYPES.map(t => <option key={t} value={t}>{t === 'CreditCard' ? 'Credit Card' : t}</option>)}
+                </select>
+              </div>
+              <div className={styles.field}>
+                <label className={styles.label}>Opening Balance</label>
+                <input className={styles.input} type="number" step="0.01" value={addState.openingBalance} onChange={e => setAddState(s => ({ ...s, openingBalance: e.target.value }))} />
+              </div>
+              <div className={styles.field}>
+                <label className={styles.label}>Institution</label>
+                {!addState.addingInstitution ? (
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <select className={styles.input} value={addState.institutionId} onChange={e => setAddState(s => ({ ...s, institutionId: e.target.value === '' ? '' : Number(e.target.value) }))}>
+                      <option value="">— None —</option>
+                      {institutions.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
+                    </select>
+                    <button type="button" className={styles.btnLink} onClick={() => setAddState(s => ({ ...s, addingInstitution: true }))}>+ New</button>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <input className={styles.input} value={addState.newInstitutionName} onChange={e => setAddState(s => ({ ...s, newInstitutionName: e.target.value }))} placeholder="Institution name" autoFocus />
+                    <button type="button" className={styles.btnSecondary} onClick={handleAddInstitution}>Save</button>
+                    <button type="button" className={styles.btnLink} onClick={() => setAddState(s => ({ ...s, addingInstitution: false, newInstitutionName: '' }))}>Cancel</button>
+                  </div>
+                )}
+              </div>
+              <div className={styles.field}>
+                <label className={styles.label}>Account Number</label>
+                <input className={styles.input} value={addState.accountNumber} onChange={e => setAddState(s => ({ ...s, accountNumber: e.target.value }))} placeholder="Optional" />
+              </div>
+              <div className={styles.field} style={{ gridColumn: '1 / -1' }}>
+                <label className={styles.label}>Notes</label>
+                <textarea className={styles.input} rows={2} value={addState.notes} onChange={e => setAddState(s => ({ ...s, notes: e.target.value }))} placeholder="Optional" />
+              </div>
+            </div>
+            <div className={styles.accountEditActions}>
+              <button className={styles.btnPrimary} onClick={handleAdd} disabled={adding}>{adding ? 'Creating…' : 'Create Account'}</button>
+              <button className={styles.btnSecondary} onClick={() => { setShowAdd(false); setAddState(BLANK_ADD); setError(''); }}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <button className={styles.btnPrimary} onClick={() => { setEditingId(null); setShowAdd(true); setError(''); }}>
+          + Add Account
+        </button>
+      )}
+
+      {/* ── Account list ── */}
       <div className={styles.accountList}>
         {accounts.map(acc => {
           const isEditing = editingId === acc.id;
@@ -752,70 +848,38 @@ function AccountsTab() {
                   <div className={styles.accountEditGrid}>
                     <div className={styles.field}>
                       <label className={styles.label}>Name *</label>
-                      <input
-                        className={styles.input}
-                        value={editState.name}
-                        onChange={e => setEditState(s => s ? { ...s, name: e.target.value } : s)}
-                        autoFocus
-                      />
+                      <input className={styles.input} value={editState.name} onChange={e => setEditState(s => s ? { ...s, name: e.target.value } : s)} autoFocus />
                     </div>
                     <div className={styles.field}>
                       <label className={styles.label}>Type</label>
-                      <select
-                        className={styles.input}
-                        value={editState.type}
-                        onChange={e => setEditState(s => s ? { ...s, type: e.target.value as AccountType } : s)}
-                      >
-                        {ACCOUNT_TYPES.map(t => (
-                          <option key={t} value={t}>{t === 'CreditCard' ? 'Credit Card' : t}</option>
-                        ))}
+                      <select className={styles.input} value={editState.type} onChange={e => setEditState(s => s ? { ...s, type: e.target.value as AccountType } : s)}>
+                        {ACCOUNT_TYPES.map(t => <option key={t} value={t}>{t === 'CreditCard' ? 'Credit Card' : t}</option>)}
                       </select>
                     </div>
                     <div className={styles.field}>
                       <label className={styles.label}>Institution</label>
-                      <select
-                        className={styles.input}
-                        value={editState.institutionId}
-                        onChange={e => setEditState(s => s ? { ...s, institutionId: e.target.value === '' ? '' : Number(e.target.value) } : s)}
-                      >
+                      <select className={styles.input} value={editState.institutionId} onChange={e => setEditState(s => s ? { ...s, institutionId: e.target.value === '' ? '' : Number(e.target.value) } : s)}>
                         <option value="">— None —</option>
                         {institutions.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
                       </select>
                     </div>
                     <div className={styles.field}>
                       <label className={styles.label}>Account Number</label>
-                      <input
-                        className={styles.input}
-                        value={editState.accountNumber}
-                        onChange={e => setEditState(s => s ? { ...s, accountNumber: e.target.value } : s)}
-                        placeholder="Optional"
-                      />
+                      <input className={styles.input} value={editState.accountNumber} onChange={e => setEditState(s => s ? { ...s, accountNumber: e.target.value } : s)} placeholder="Optional" />
                     </div>
                     <div className={styles.field} style={{ gridColumn: '1 / -1' }}>
                       <label className={styles.label}>Notes</label>
-                      <textarea
-                        className={styles.input}
-                        rows={2}
-                        value={editState.notes}
-                        onChange={e => setEditState(s => s ? { ...s, notes: e.target.value } : s)}
-                        placeholder="Optional"
-                      />
+                      <textarea className={styles.input} rows={2} value={editState.notes} onChange={e => setEditState(s => s ? { ...s, notes: e.target.value } : s)} placeholder="Optional" />
                     </div>
                     <div className={styles.field} style={{ gridColumn: '1 / -1' }}>
                       <label className={styles.checkLabel}>
-                        <input
-                          type="checkbox"
-                          checked={editState.isActive}
-                          onChange={e => setEditState(s => s ? { ...s, isActive: e.target.checked } : s)}
-                        />
+                        <input type="checkbox" checked={editState.isActive} onChange={e => setEditState(s => s ? { ...s, isActive: e.target.checked } : s)} />
                         Active
                       </label>
                     </div>
                   </div>
                   <div className={styles.accountEditActions}>
-                    <button className={styles.btnPrimary} onClick={() => handleSave(acc)} disabled={saving}>
-                      {saving ? 'Saving…' : 'Save'}
-                    </button>
+                    <button className={styles.btnPrimary} onClick={() => handleSave(acc)} disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
                     <button className={styles.btnSecondary} onClick={cancelEdit} disabled={saving}>Cancel</button>
                   </div>
                 </div>
@@ -832,12 +896,9 @@ function AccountsTab() {
                     </div>
                   </div>
                   <div className={styles.accountActions}>
+                    <button className={styles.btnSecondary} onClick={() => navigate(`/accounts/${acc.id}`)}>Transactions</button>
                     <button className={styles.btnSecondary} onClick={() => startEdit(acc)}>Edit</button>
-                    <button
-                      className={styles.btnDanger}
-                      onClick={() => handleDelete(acc)}
-                      disabled={deleting === acc.id}
-                    >
+                    <button className={styles.btnDanger} onClick={() => handleDelete(acc)} disabled={deleting === acc.id}>
                       {deleting === acc.id ? 'Deleting…' : 'Delete'}
                     </button>
                   </div>
