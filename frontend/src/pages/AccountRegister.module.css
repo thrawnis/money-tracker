@@ -334,3 +334,12 @@
   white-space: nowrap;
 }
 .sortable:hover { background: #d4e4f0; }
+
+.sortActive {
+  color: #1a6bbf;
+  font-size: 0.8em;
+}
+.sortIdle {
+  color: #b0bec5;
+  font-size: 0.8em;
+}

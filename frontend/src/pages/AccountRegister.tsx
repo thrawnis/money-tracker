@@ -467,15 +467,21 @@ export default function AccountRegister() {
               {(['date','payee','category','memo'] as const).map(col => (
                 <th key={col} className={styles.sortable} onClick={() => handleSort(col)}>
                   {col.charAt(0).toUpperCase() + col.slice(1)}
-                  {sortBy === col ? (sortDir === 'desc' ? ' ▼' : ' ▲') : ' ⇅'}
+                  {sortBy === col
+                    ? <span className={styles.sortActive}>{sortDir === 'desc' ? ' ▼' : ' ▲'}</span>
+                    : <span className={styles.sortIdle}> ⇅</span>}
                 </th>
               ))}
               <th className={`${styles.right} ${styles.sortable}`} onClick={() => handleSort('amount')}>
-                Amount{sortBy === 'amount' ? (sortDir === 'desc' ? ' ▼' : ' ▲') : ' ⇅'}
+                Amount{sortBy === 'amount'
+                  ? <span className={styles.sortActive}>{sortDir === 'desc' ? ' ▼' : ' ▲'}</span>
+                  : <span className={styles.sortIdle}> ⇅</span>}
               </th>
               <th className={styles.right}>Balance</th>
               <th className={styles.sortable} onClick={() => handleSort('status')}>
-                Status{sortBy === 'status' ? (sortDir === 'desc' ? ' ▼' : ' ▲') : ' ⇅'}
+                Status{sortBy === 'status'
+                  ? <span className={styles.sortActive}>{sortDir === 'desc' ? ' ▼' : ' ▲'}</span>
+                  : <span className={styles.sortIdle}> ⇅</span>}
               </th>
               <th></th>
             </tr>
