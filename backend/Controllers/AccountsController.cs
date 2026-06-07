@@ -36,7 +36,7 @@ public class AccountsController(
     };
 
     [HttpGet]
-    public async Task<IActionResult> GetAll()
+    public async Task<IActionResult> GetAll([FromQuery] bool includeInactive = false)
     {
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
@@ -45,7 +45,7 @@ public class AccountsController(
         if (user is null) return Unauthorized();
 
         var accounts = await db.Accounts
-            .Where(a => a.UserId == userId && a.IsActive)
+            .Where(a => a.UserId == userId && (includeInactive || a.IsActive))
             .Include(a => a.Institution)
             .OrderBy(a => a.Name)
             .ToListAsync();

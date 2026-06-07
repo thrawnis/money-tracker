@@ -377,3 +377,102 @@
   color: #888;
   font-size: 11px;
 }
+
+/* ── Accounts tab ── */
+
+.accountList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 620px;
+}
+
+.accountRow {
+  border: 1px solid #c8d8e8;
+  border-radius: 6px;
+  padding: 12px 14px;
+  background: #fff;
+  transition: border-color 0.15s;
+}
+
+.accountRowInactive {
+  background: #f8f8f8;
+  border-color: #ddd;
+}
+
+.accountInfo {
+  flex: 1;
+}
+
+.accountName {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #002a52;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.accountMeta {
+  font-size: 11.5px;
+  color: #778;
+  margin-top: 2px;
+}
+
+.inactiveBadge {
+  font-size: 10px;
+  font-weight: 500;
+  background: #eee;
+  color: #888;
+  border-radius: 3px;
+  padding: 1px 6px;
+}
+
+.accountActions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.btnDanger {
+  padding: 5px 14px;
+  background: transparent;
+  color: #c0392b;
+  border: 1px solid #e0a0a0;
+  border-radius: 3px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.btnDanger:hover:not(:disabled) { background: #fdf0ef; }
+.btnDanger:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.accountEditForm {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.accountEditGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+@media (max-width: 500px) {
+  .accountEditGrid { grid-template-columns: 1fr; }
+}
+
+.accountEditActions {
+  display: flex;
+  gap: 8px;
+}
+
+.checkLabel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: #334;
+  cursor: pointer;
+}

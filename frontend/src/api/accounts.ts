@@ -1,8 +1,8 @@
 import api from './client';
 import type { Account } from '../types';
 
-export const getAccounts = () =>
-  api.get<Account[]>('/accounts').then(r => r.data);
+export const getAccounts = (includeInactive = false) =>
+  api.get<Account[]>('/accounts', { params: includeInactive ? { includeInactive: true } : {} }).then(r => r.data);
 
 export const getAccount = (id: number) =>
   api.get<Account>(`/accounts/${id}`).then(r => r.data);

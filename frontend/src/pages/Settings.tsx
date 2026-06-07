@@ -3,9 +3,12 @@ import { usePageTitle } from '../hooks/usePageTitle';
 import api from '../api/client';
 import { getTemplate, previewImport, importWithDuplicates } from '../api/import';
 import { getAuditLog, type AuditEntry, type GetAuditParams } from '../api/audit';
+import { getAccounts, updateAccount, deleteAccount } from '../api/accounts';
+import { getInstitutions } from '../api/institutions';
+import type { Account, AccountType, Institution } from '../types';
 import styles from './Settings.module.css';
 
-type Tab = 'password' | 'export' | 'import' | 'audit';
+type Tab = 'accounts' | 'password' | 'export' | 'import' | 'audit';
 type ExportStep = 'auth' | 'format';
 type AuthMethod = 'password' | 'totp';
 type ExportFormat = 'qif' | 'ofx' | 'csv' | 'xlsx' | 'json';
@@ -650,11 +653,210 @@ function AuditLogTab() {
   );
 }
 
+// ── Accounts Tab ─────────────────────────────────────────────────────────────
+
+const ACCOUNT_TYPES: AccountType[] = [
+  'Checking', 'Savings', 'CreditCard', 'Cash', 'Loan', 'Investment', 'Other',
+];
+
+interface EditState {
+  name: string;
+  type: AccountType;
+  isActive: boolean;
+  notes: string;
+  institutionId: number | '';
+  accountNumber: string;
+}
+
+function AccountsTab() {
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [institutions, setInstitutions] = useState<Institution[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editState, setEditState] = useState<EditState | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState<number | null>(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    Promise.all([getAccounts(true), getInstitutions()])
+      .then(([accs, insts]) => { setAccounts(accs); setInstitutions(insts); })
+      .catch(() => setError('Failed to load accounts.'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const startEdit = (acc: Account) => {
+    setEditingId(acc.id);
+    setEditState({
+      name: acc.name,
+      type: acc.type,
+      isActive: acc.isActive,
+      notes: acc.notes ?? '',
+      institutionId: acc.institutionId ?? '',
+      accountNumber: acc.accountNumber ?? '',
+    });
+    setError('');
+  };
+
+  const cancelEdit = () => { setEditingId(null); setEditState(null); setError(''); };
+
+  const handleSave = async (acc: Account) => {
+    if (!editState || !editState.name.trim()) { setError('Name is required.'); return; }
+    setSaving(true);
+    setError('');
+    try {
+      const updated = await updateAccount(acc.id, {
+        name: editState.name.trim(),
+        type: editState.type,
+        isActive: editState.isActive,
+        notes: editState.notes.trim() || undefined,
+        institutionId: editState.institutionId !== '' ? editState.institutionId : undefined,
+        accountNumber: editState.accountNumber.trim() || undefined,
+      });
+      setAccounts(prev => prev.map(a => a.id === acc.id ? updated : a));
+      setEditingId(null);
+      setEditState(null);
+    } catch {
+      setError('Failed to save account.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (acc: Account) => {
+    if (!confirm(`Delete "${acc.name}"? This will permanently delete the account and all its transactions. This cannot be undone.`)) return;
+    setDeleting(acc.id);
+    setError('');
+    try {
+      await deleteAccount(acc.id);
+      setAccounts(prev => prev.filter(a => a.id !== acc.id));
+    } catch {
+      setError('Failed to delete account.');
+    } finally {
+      setDeleting(null);
+    }
+  };
+
+  if (loading) return <div className={styles.hint}>Loading…</div>;
+
+  return (
+    <div className={styles.tabSection}>
+      {error && <div className={styles.error}>{error}</div>}
+      <div className={styles.accountList}>
+        {accounts.map(acc => {
+          const isEditing = editingId === acc.id;
+          return (
+            <div key={acc.id} className={`${styles.accountRow} ${!acc.isActive ? styles.accountRowInactive : ''}`}>
+              {isEditing && editState ? (
+                <div className={styles.accountEditForm}>
+                  <div className={styles.accountEditGrid}>
+                    <div className={styles.field}>
+                      <label className={styles.label}>Name *</label>
+                      <input
+                        className={styles.input}
+                        value={editState.name}
+                        onChange={e => setEditState(s => s ? { ...s, name: e.target.value } : s)}
+                        autoFocus
+                      />
+                    </div>
+                    <div className={styles.field}>
+                      <label className={styles.label}>Type</label>
+                      <select
+                        className={styles.input}
+                        value={editState.type}
+                        onChange={e => setEditState(s => s ? { ...s, type: e.target.value as AccountType } : s)}
+                      >
+                        {ACCOUNT_TYPES.map(t => (
+                          <option key={t} value={t}>{t === 'CreditCard' ? 'Credit Card' : t}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className={styles.field}>
+                      <label className={styles.label}>Institution</label>
+                      <select
+                        className={styles.input}
+                        value={editState.institutionId}
+                        onChange={e => setEditState(s => s ? { ...s, institutionId: e.target.value === '' ? '' : Number(e.target.value) } : s)}
+                      >
+                        <option value="">— None —</option>
+                        {institutions.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
+                      </select>
+                    </div>
+                    <div className={styles.field}>
+                      <label className={styles.label}>Account Number</label>
+                      <input
+                        className={styles.input}
+                        value={editState.accountNumber}
+                        onChange={e => setEditState(s => s ? { ...s, accountNumber: e.target.value } : s)}
+                        placeholder="Optional"
+                      />
+                    </div>
+                    <div className={styles.field} style={{ gridColumn: '1 / -1' }}>
+                      <label className={styles.label}>Notes</label>
+                      <textarea
+                        className={styles.input}
+                        rows={2}
+                        value={editState.notes}
+                        onChange={e => setEditState(s => s ? { ...s, notes: e.target.value } : s)}
+                        placeholder="Optional"
+                      />
+                    </div>
+                    <div className={styles.field} style={{ gridColumn: '1 / -1' }}>
+                      <label className={styles.checkLabel}>
+                        <input
+                          type="checkbox"
+                          checked={editState.isActive}
+                          onChange={e => setEditState(s => s ? { ...s, isActive: e.target.checked } : s)}
+                        />
+                        Active
+                      </label>
+                    </div>
+                  </div>
+                  <div className={styles.accountEditActions}>
+                    <button className={styles.btnPrimary} onClick={() => handleSave(acc)} disabled={saving}>
+                      {saving ? 'Saving…' : 'Save'}
+                    </button>
+                    <button className={styles.btnSecondary} onClick={cancelEdit} disabled={saving}>Cancel</button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className={styles.accountInfo}>
+                    <div className={styles.accountName}>
+                      {acc.name}
+                      {!acc.isActive && <span className={styles.inactiveBadge}>inactive</span>}
+                    </div>
+                    <div className={styles.accountMeta}>
+                      {acc.type === 'CreditCard' ? 'Credit Card' : acc.type}
+                      {acc.institution?.name ? ` · ${acc.institution.name}` : ''}
+                    </div>
+                  </div>
+                  <div className={styles.accountActions}>
+                    <button className={styles.btnSecondary} onClick={() => startEdit(acc)}>Edit</button>
+                    <button
+                      className={styles.btnDanger}
+                      onClick={() => handleDelete(acc)}
+                      disabled={deleting === acc.id}
+                    >
+                      {deleting === acc.id ? 'Deleting…' : 'Delete'}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          );
+        })}
+        {accounts.length === 0 && <div className={styles.hint}>No accounts found.</div>}
+      </div>
+    </div>
+  );
+}
+
 // ── Settings page ────────────────────────────────────────────────────────────
 
 export default function Settings() {
   usePageTitle('Settings');
-  const [tab, setTab] = useState<Tab>('password');
+  const [tab, setTab] = useState<Tab>('accounts');
 
   return (
     <div className={styles.page}>
@@ -662,6 +864,12 @@ export default function Settings() {
         <h2 className={styles.pageTitle}>Settings</h2>
       </div>
       <div className={styles.tabs}>
+        <button
+          className={`${styles.tab} ${tab === 'accounts' ? styles.tabActive : ''}`}
+          onClick={() => setTab('accounts')}
+        >
+          Accounts
+        </button>
         <button
           className={`${styles.tab} ${tab === 'password' ? styles.tabActive : ''}`}
           onClick={() => setTab('password')}
@@ -688,6 +896,7 @@ export default function Settings() {
         </button>
       </div>
       <div className={styles.tabContent}>
+        {tab === 'accounts' && <AccountsTab />}
         {tab === 'password' && <ChangePasswordTab />}
         {tab === 'export' && <ExportTab />}
         {tab === 'import' && <ImportTab />}
