@@ -1,6 +1,7 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { usePageTitle } from '../hooks/usePageTitle';
 import api from '../api/client';
+import { getDemoInfo, resetDemo } from '../api/demo';
 import { getTemplate, previewImport, importWithDuplicates } from '../api/import';
 import { getAuditLog, type AuditEntry, type GetAuditParams } from '../api/audit';
 import styles from './Settings.module.css';
@@ -25,8 +26,14 @@ function ChangePasswordTab() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [resettingDemo, setResettingDemo] = useState(false);
+  const [isDemoMode, setIsDemoMode] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  useEffect(() => {
+    getDemoInfo().then(info => setIsDemoMode(info.isDemoMode)).catch(() => {});
+  }, []);
 
   const validate = () => {
     if (!currentPassword) return 'Current password is required.';
@@ -60,43 +67,82 @@ function ChangePasswordTab() {
   };
 
   return (
-    <form className={styles.tabForm} onSubmit={handleSubmit}>
-      <div className={styles.field}>
-        <label className={styles.label}>Current Password</label>
-        <input
-          type="password"
-          className={styles.input}
-          value={currentPassword}
-          onChange={e => setCurrentPassword(e.target.value)}
-          autoComplete="current-password"
-        />
-      </div>
-      <div className={styles.field}>
-        <label className={styles.label}>New Password (≥12 chars, upper + lower + digit)</label>
-        <input
-          type="password"
-          className={styles.input}
-          value={newPassword}
-          onChange={e => setNewPassword(e.target.value)}
-          autoComplete="new-password"
-        />
-      </div>
-      <div className={styles.field}>
-        <label className={styles.label}>Confirm New Password</label>
-        <input
-          type="password"
-          className={styles.input}
-          value={confirmPassword}
-          onChange={e => setConfirmPassword(e.target.value)}
-          autoComplete="new-password"
-        />
-      </div>
-      {error && <div className={styles.error}>{error}</div>}
-      {success && <div className={styles.success}>{success}</div>}
-      <button type="submit" className={styles.btnPrimary} disabled={loading}>
-        {loading ? 'Saving…' : 'Change Password'}
-      </button>
-    </form>
+    <div className={styles.tabSection}>
+      {isDemoMode && (
+        <div className={styles.hint} style={{ marginBottom: 16 }}>
+          Password changes are disabled for the demo account.
+        </div>
+      )}
+      <form className={styles.tabForm} onSubmit={handleSubmit} style={isDemoMode ? { display: 'none' } : undefined}>
+        <div className={styles.field}>
+          <label className={styles.label}>Current Password</label>
+          <input
+            type="password"
+            className={styles.input}
+            value={currentPassword}
+            onChange={e => setCurrentPassword(e.target.value)}
+            autoComplete="current-password"
+          />
+        </div>
+        <div className={styles.field}>
+          <label className={styles.label}>New Password (≥12 chars, upper + lower + digit)</label>
+          <input
+            type="password"
+            className={styles.input}
+            value={newPassword}
+            onChange={e => setNewPassword(e.target.value)}
+            autoComplete="new-password"
+          />
+        </div>
+        <div className={styles.field}>
+          <label className={styles.label}>Confirm New Password</label>
+          <input
+            type="password"
+            className={styles.input}
+            value={confirmPassword}
+            onChange={e => setConfirmPassword(e.target.value)}
+            autoComplete="new-password"
+          />
+        </div>
+        {error && <div className={styles.error}>{error}</div>}
+        {success && <div className={styles.success}>{success}</div>}
+        <button type="submit" className={styles.btnPrimary} disabled={loading}>
+          {loading ? 'Saving…' : 'Change Password'}
+        </button>
+      </form>
+
+      {isDemoMode && (
+        <>
+          <hr className={styles.divider} />
+          <div>
+            <div className={styles.sectionTitle}>Demo Data</div>
+            <p className={styles.hint}>Reset all demo data back to its original state. This cannot be undone.</p>
+            {error && <div className={styles.error}>{error}</div>}
+            {success && <div className={styles.success}>{success}</div>}
+            <button
+              className={styles.btnDanger}
+              disabled={resettingDemo}
+              onClick={async () => {
+                if (!confirm('Reset all demo data to its original state?')) return;
+                setResettingDemo(true);
+                setError('');
+                setSuccess('');
+                try {
+                  await resetDemo();
+                  setSuccess('Demo data has been reset successfully.');
+                } catch {
+                  setError('Failed to reset demo data.');
+                } finally {
+                  setResettingDemo(false);
+                }
+              }}
+            >
+              {resettingDemo ? 'Resetting…' : 'Reset Demo Data'}
+            </button>
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 

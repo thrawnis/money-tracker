@@ -25,8 +25,10 @@ public class AuthController(
     IEncryptionService              encryption,
     AppDbContext                    db,
     UrlEncoder                      urlEncoder,
-    IAuditService                   audit) : ControllerBase
+    IAuditService                   audit,
+    IConfiguration                  config) : ControllerBase
 {
+    private bool IsDemoMode => config["DEMO_MODE"] == "true";
     // ── Registration ────────────────────────────────────────────────────────
 
     [HttpPost("register")]
@@ -73,6 +75,10 @@ public class AuthController(
 
         // Stash rememberMe so IssueTokensAsync can read it after MFA completes
         HttpContext.Session.SetString("rememberMe", request.RememberMe ? "1" : "0");
+
+        // Demo user bypasses MFA
+        if (IsDemoMode && user.Email == MoneyTracker.Services.DemoSeeder.DemoEmail)
+            return await IssueTokensAsync(user);
 
         if (!user.MfaEnrolled)
             return Ok(new { requiresMfaSetup = true });
@@ -255,6 +261,9 @@ public class AuthController(
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         var user = await userManager.FindByIdAsync(userId!);
         if (user is null) return Unauthorized();
+
+        if (IsDemoMode && user.Email == MoneyTracker.Services.DemoSeeder.DemoEmail)
+            return BadRequest(new { message = "Password cannot be changed for the demo account." });
 
         var result = await userManager.ChangePasswordAsync(user, request.CurrentPassword, request.NewPassword);
         if (!result.Succeeded)
