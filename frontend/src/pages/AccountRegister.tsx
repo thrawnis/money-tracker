@@ -245,10 +245,13 @@ export default function AccountRegister() {
     } else {
       const created = await createTransaction(accountId, data);
       lastUsedDate.current = data.date;
-      // Insert in date-descending order (newest first)
+      // Insert sorted by effective date desc, then createdAt desc within same date
       setPastTxs(prev => {
-        const effectiveDate = (t: typeof created) => t.postDate ?? t.date;
-        const idx = prev.findIndex(t => effectiveDate(t) <= effectiveDate(created));
+        const effDate = (t: typeof created) => t.postDate ?? t.date;
+        const idx = prev.findIndex(t =>
+          effDate(t) < effDate(created) ||
+          (effDate(t) === effDate(created) && t.createdAt <= created.createdAt)
+        );
         const next = [...prev];
         next.splice(idx === -1 ? next.length : idx, 0, created);
         return next;
