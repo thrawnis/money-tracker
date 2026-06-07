@@ -321,3 +321,10 @@
   vertical-align: super;
   margin-left: 1px;
 }
+
+.sortable {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+.sortable:hover { background: #d4e4f0; }

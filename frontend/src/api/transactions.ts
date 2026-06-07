@@ -10,6 +10,8 @@ export interface GetTransactionsParams {
   categoryId?: number;
   memo?: string;
   uncategorizedOnly?: boolean;
+  sortBy?: string;
+  sortDir?: 'asc' | 'desc';
   page?: number;
   pageSize?: number;
 }

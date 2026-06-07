@@ -59,6 +59,10 @@ export default function AccountRegister() {
   const [filterMemo, setFilterMemo] = useState('');
   const [filterUncategorized, setFilterUncategorized] = useState(false);
 
+  // Sort
+  const [sortBy, setSortBy] = useState('date');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+
   // Form
   const [showForm, setShowForm] = useState(false);
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
@@ -92,14 +96,14 @@ export default function AccountRegister() {
 
   // ── Initial load ───────────────────────────────────────────────────────────
 
-  const loadInitial = useCallback(async () => {
+  const loadInitial = useCallback(async (overrideSortBy = sortBy, overrideSortDir = sortDir) => {
     if (!accountId) return;
     setInitialLoading(true);
     setError('');
     try {
       const [acc, txResult, cats, accs] = await Promise.all([
         getAccount(accountId),
-        getTransactions(accountId, { page: 1, pageSize: PAST_PAGE_SIZE }),
+        getTransactions(accountId, { page: 1, pageSize: PAST_PAGE_SIZE, sortBy: overrideSortBy, sortDir: overrideSortDir }),
         getCategories(),
         getAccounts(),
       ]);
@@ -114,7 +118,7 @@ export default function AccountRegister() {
     } finally {
       setInitialLoading(false);
     }
-  }, [accountId]);
+  }, [accountId, sortBy, sortDir]);
 
   useEffect(() => { loadInitial(); }, [loadInitial]);
 
@@ -134,6 +138,7 @@ export default function AccountRegister() {
         categoryId: filterCategoryId ? Number(filterCategoryId) : undefined,
         memo: filterMemo || undefined,
         uncategorizedOnly: filterUncategorized || undefined,
+        sortBy, sortDir,
         page: nextPage,
         pageSize: PAST_PAGE_SIZE,
       });
@@ -144,7 +149,7 @@ export default function AccountRegister() {
     } finally {
       setLoadingPast(false);
     }
-  }, [loadingPast, hasMorePast, pastPage, accountId, filterFrom, filterTo, filterMinAmount, filterMaxAmount, filterPayee, filterCategoryId, filterMemo, filterUncategorized]);
+  }, [loadingPast, hasMorePast, pastPage, accountId, filterFrom, filterTo, filterMinAmount, filterMaxAmount, filterPayee, filterCategoryId, filterMemo, filterUncategorized, sortBy, sortDir]);
 
   // ── Load future bills ──────────────────────────────────────────────────────
 
@@ -212,6 +217,7 @@ export default function AccountRegister() {
         categoryId: filterCategoryId ? Number(filterCategoryId) : undefined,
         memo: filterMemo || undefined,
         uncategorizedOnly: filterUncategorized || undefined,
+        sortBy, sortDir,
         page: 1,
         pageSize: PAST_PAGE_SIZE,
       });
@@ -223,11 +229,18 @@ export default function AccountRegister() {
     } finally {
       setInitialLoading(false);
     }
-  }, [accountId, filterFrom, filterTo, filterMinAmount, filterMaxAmount, filterPayee, filterCategoryId, filterMemo, filterUncategorized]);
+  }, [accountId, filterFrom, filterTo, filterMinAmount, filterMaxAmount, filterPayee, filterCategoryId, filterMemo, filterUncategorized, sortBy, sortDir]);
 
   const clearFilters = () => {
     setFilterFrom(''); setFilterTo(''); setFilterMinAmount(''); setFilterMaxAmount('');
     setFilterPayee(''); setFilterCategoryId(''); setFilterMemo(''); setFilterUncategorized(false);
+  };
+
+  const handleSort = (field: string) => {
+    const newDir = sortBy === field && sortDir === 'desc' ? 'asc' : 'desc';
+    setSortBy(field);
+    setSortDir(newDir);
+    loadInitial(field, newDir);
   };
 
   // ── CRUD ───────────────────────────────────────────────────────────────────
@@ -437,13 +450,19 @@ export default function AccountRegister() {
         <table className={styles.table}>
           <thead>
             <tr>
-              <th>Date</th>
-              <th>Payee</th>
-              <th>Category</th>
-              <th>Memo</th>
-              <th className={styles.right}>Amount</th>
+              {(['date','payee','category','memo'] as const).map(col => (
+                <th key={col} className={styles.sortable} onClick={() => handleSort(col)}>
+                  {col.charAt(0).toUpperCase() + col.slice(1)}
+                  {sortBy === col ? (sortDir === 'desc' ? ' ▼' : ' ▲') : ' ⇅'}
+                </th>
+              ))}
+              <th className={`${styles.right} ${styles.sortable}`} onClick={() => handleSort('amount')}>
+                Amount{sortBy === 'amount' ? (sortDir === 'desc' ? ' ▼' : ' ▲') : ' ⇅'}
+              </th>
               <th className={styles.right}>Balance</th>
-              <th>Status</th>
+              <th className={styles.sortable} onClick={() => handleSort('status')}>
+                Status{sortBy === 'status' ? (sortDir === 'desc' ? ' ▼' : ' ▲') : ' ⇅'}
+              </th>
               <th></th>
             </tr>
           </thead>

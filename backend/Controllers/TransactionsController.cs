@@ -64,6 +64,8 @@ public class TransactionsController(
         [FromQuery] string?    memo,          // wildcard
         [FromQuery] string?    checkNumber,   // wildcard
         [FromQuery] bool?      uncategorized, // true = no category assigned
+        [FromQuery] string     sortBy  = "date",
+        [FromQuery] string     sortDir = "desc",
         [FromQuery] int        page     = 1,
         [FromQuery] int        pageSize = 50)
     {
@@ -91,11 +93,8 @@ public class TransactionsController(
             t.CategoryId == categoryId.Value || t.Category!.ParentId == categoryId.Value);
         if (uncategorized == true) query = query.Where(t => t.CategoryId == null);
 
-        // Fetch into memory — needed for encrypted-field filtering
-        var loaded = await query
-            .OrderByDescending(t => t.PostDate ?? t.Date)
-            .ThenByDescending(t => t.CreatedAt)
-            .ToListAsync();
+        // Fetch into memory — needed for encrypted-field filtering and flexible sort
+        var loaded = await query.ToListAsync();
 
         // ── In-memory filters (encrypted columns) ─────────────────────────────
         if (!string.IsNullOrWhiteSpace(payeeName))
@@ -119,6 +118,30 @@ public class TransactionsController(
             loaded = loaded.Where(t =>
                 rx.IsMatch(encryption.Decrypt(t.CheckNumberEncrypted, dek) ?? "")).ToList();
         }
+
+        // ── Sort ──────────────────────────────────────────────────────────────
+        bool asc = sortDir.Equals("asc", StringComparison.OrdinalIgnoreCase);
+        loaded = sortBy.ToLowerInvariant() switch
+        {
+            "payee"    => asc
+                ? loaded.OrderBy(t => encryption.Decrypt(t.Payee?.NameEncrypted, dek)).ThenBy(t => t.CreatedAt).ToList()
+                : loaded.OrderByDescending(t => encryption.Decrypt(t.Payee?.NameEncrypted, dek)).ThenByDescending(t => t.CreatedAt).ToList(),
+            "category" => asc
+                ? loaded.OrderBy(t => encryption.Decrypt(t.Category?.NameEncrypted, dek)).ThenBy(t => t.CreatedAt).ToList()
+                : loaded.OrderByDescending(t => encryption.Decrypt(t.Category?.NameEncrypted, dek)).ThenByDescending(t => t.CreatedAt).ToList(),
+            "memo"     => asc
+                ? loaded.OrderBy(t => encryption.Decrypt(t.MemoEncrypted, dek)).ThenBy(t => t.CreatedAt).ToList()
+                : loaded.OrderByDescending(t => encryption.Decrypt(t.MemoEncrypted, dek)).ThenByDescending(t => t.CreatedAt).ToList(),
+            "amount"   => asc
+                ? loaded.OrderBy(t => t.Amount).ThenBy(t => t.CreatedAt).ToList()
+                : loaded.OrderByDescending(t => t.Amount).ThenByDescending(t => t.CreatedAt).ToList(),
+            "status"   => asc
+                ? loaded.OrderBy(t => t.Status).ThenBy(t => t.CreatedAt).ToList()
+                : loaded.OrderByDescending(t => t.Status).ThenByDescending(t => t.CreatedAt).ToList(),
+            _          => asc  // "date" (default)
+                ? loaded.OrderBy(t => t.PostDate ?? t.Date).ThenBy(t => t.CreatedAt).ToList()
+                : loaded.OrderByDescending(t => t.PostDate ?? t.Date).ThenByDescending(t => t.CreatedAt).ToList(),
+        };
 
         var total = loaded.Count;
         var items = loaded
