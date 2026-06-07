@@ -1,6 +1,7 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import api from '../api/client';
 import { getTemplate, previewImport, importWithDuplicates } from '../api/import';
 import { getAuditLog, type AuditEntry, type GetAuditParams } from '../api/audit';
@@ -25,10 +26,12 @@ const FORMATS: { id: ExportFormat; label: string }[] = [
 // ── Change Password ──────────────────────────────────────────────────────────
 
 function ChangePasswordTab() {
+  const { logout } = useAuth();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [signingOutAll, setSigningOutAll] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
@@ -63,44 +66,68 @@ function ChangePasswordTab() {
     }
   };
 
+  const handleSignOutAll = async () => {
+    if (!confirm('Sign out of all sessions? You will be signed out on all devices.')) return;
+    setSigningOutAll(true);
+    try {
+      await api.post('/auth/logout-all');
+      logout();
+    } catch {
+      setError('Failed to sign out all sessions.');
+      setSigningOutAll(false);
+    }
+  };
+
   return (
-    <form className={styles.tabForm} onSubmit={handleSubmit}>
-      <div className={styles.field}>
-        <label className={styles.label}>Current Password</label>
-        <input
-          type="password"
-          className={styles.input}
-          value={currentPassword}
-          onChange={e => setCurrentPassword(e.target.value)}
-          autoComplete="current-password"
-        />
+    <div className={styles.tabSection}>
+      <form className={styles.tabForm} onSubmit={handleSubmit}>
+        <div className={styles.field}>
+          <label className={styles.label}>Current Password</label>
+          <input
+            type="password"
+            className={styles.input}
+            value={currentPassword}
+            onChange={e => setCurrentPassword(e.target.value)}
+            autoComplete="current-password"
+          />
+        </div>
+        <div className={styles.field}>
+          <label className={styles.label}>New Password (≥12 chars, upper + lower + digit)</label>
+          <input
+            type="password"
+            className={styles.input}
+            value={newPassword}
+            onChange={e => setNewPassword(e.target.value)}
+            autoComplete="new-password"
+          />
+        </div>
+        <div className={styles.field}>
+          <label className={styles.label}>Confirm New Password</label>
+          <input
+            type="password"
+            className={styles.input}
+            value={confirmPassword}
+            onChange={e => setConfirmPassword(e.target.value)}
+            autoComplete="new-password"
+          />
+        </div>
+        {error && <div className={styles.error}>{error}</div>}
+        {success && <div className={styles.success}>{success}</div>}
+        <button type="submit" className={styles.btnPrimary} disabled={loading}>
+          {loading ? 'Saving…' : 'Change Password'}
+        </button>
+      </form>
+
+      <hr className={styles.divider} />
+
+      <div>
+        <div className={styles.sectionTitle}>Sessions</div>
+        <p className={styles.hint}>Sign out of all devices and browsers, including this one.</p>
+        <button className={styles.btnDanger} onClick={handleSignOutAll} disabled={signingOutAll}>
+          {signingOutAll ? 'Signing out…' : 'Sign Out All Sessions'}
+        </button>
       </div>
-      <div className={styles.field}>
-        <label className={styles.label}>New Password (≥12 chars, upper + lower + digit)</label>
-        <input
-          type="password"
-          className={styles.input}
-          value={newPassword}
-          onChange={e => setNewPassword(e.target.value)}
-          autoComplete="new-password"
-        />
-      </div>
-      <div className={styles.field}>
-        <label className={styles.label}>Confirm New Password</label>
-        <input
-          type="password"
-          className={styles.input}
-          value={confirmPassword}
-          onChange={e => setConfirmPassword(e.target.value)}
-          autoComplete="new-password"
-        />
-      </div>
-      {error && <div className={styles.error}>{error}</div>}
-      {success && <div className={styles.success}>{success}</div>}
-      <button type="submit" className={styles.btnPrimary} disabled={loading}>
-        {loading ? 'Saving…' : 'Change Password'}
-      </button>
-    </form>
+    </div>
   );
 }
 

@@ -488,3 +488,16 @@
   color: #002a52;
   margin-bottom: 10px;
 }
+
+.divider {
+  border: none;
+  border-top: 1px solid #dde8f2;
+  margin: 4px 0;
+}
+
+.sectionTitle {
+  font-size: 13px;
+  font-weight: 700;
+  color: #003366;
+  margin-bottom: 6px;
+}

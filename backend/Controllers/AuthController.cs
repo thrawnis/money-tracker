@@ -260,9 +260,33 @@ public class AuthController(
         if (!result.Succeeded)
             return BadRequest(new { message = string.Join(" ", result.Errors.Select(e => e.Description)) });
 
+        // Revoke all refresh tokens so every other session is signed out
+        var tokens = db.RefreshTokens.Where(r => r.UserId == userId && !r.IsRevoked);
+        await tokens.ForEachAsync(t => t.IsRevoked = true);
+        await db.SaveChangesAsync();
+
         await audit.LogAsync("PASSWORD_CHANGE");
 
-        return Ok(new { message = "Password changed successfully." });
+        return Ok(new { message = "Password changed successfully. All other sessions have been signed out." });
+    }
+
+    // ── Logout all sessions ───────────────────────────────────────────────────
+
+    [HttpPost("logout-all")]
+    [Authorize]
+    public async Task<IActionResult> LogoutAll()
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId is not null)
+        {
+            var tokens = db.RefreshTokens.Where(r => r.UserId == userId && !r.IsRevoked);
+            await tokens.ForEachAsync(t => t.IsRevoked = true);
+            await db.SaveChangesAsync();
+        }
+
+        await audit.LogAsync("LOGOUT_ALL");
+        Response.Cookies.Delete("refreshToken");
+        return NoContent();
     }
 
     // ── Logout ────────────────────────────────────────────────────────────────
