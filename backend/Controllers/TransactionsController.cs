@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using MoneyTracker.Auth.Services;
 using MoneyTracker.Data;
 using MoneyTracker.Models;
+using MoneyTracker.Services;
 
 namespace MoneyTracker.Controllers;
 
@@ -16,7 +17,8 @@ namespace MoneyTracker.Controllers;
 public class TransactionsController(
     AppDbContext db,
     IEncryptionService encryption,
-    UserManager<ApplicationUser> userManager) : ControllerBase
+    UserManager<ApplicationUser> userManager,
+    IAuditService audit) : ControllerBase
 {
     private string? GetUserId() => User.FindFirstValue(ClaimTypes.NameIdentifier);
 
@@ -202,8 +204,9 @@ public class TransactionsController(
         await db.Entry(tx).Reference(t => t.Payee).LoadAsync();
         await db.Entry(tx).Reference(t => t.Category).LoadAsync();
 
-        return CreatedAtAction(nameof(GetById), new { accountId, id = tx.Id },
-            MapTransaction(tx, user.EncryptedDataKey));
+        var mapped = MapTransaction(tx, user.EncryptedDataKey);
+        await audit.LogAsync("CREATE", "Transaction", tx.Id, new { accountId, date = tx.Date, amount = tx.Amount });
+        return CreatedAtAction(nameof(GetById), new { accountId, id = tx.Id }, mapped);
     }
 
     [HttpPut("{id}")]
@@ -252,6 +255,7 @@ public class TransactionsController(
         await db.Entry(tx).Reference(t => t.Payee).LoadAsync();
         await db.Entry(tx).Reference(t => t.Category).LoadAsync();
 
+        await audit.LogAsync("UPDATE", "Transaction", id, new { accountId = tx.AccountId, date = tx.Date, amount = tx.Amount });
         return Ok(MapTransaction(tx, user.EncryptedDataKey));
     }
 
@@ -279,6 +283,7 @@ public class TransactionsController(
             }
         }
 
+        await audit.LogAsync("DELETE", "Transaction", id, new { accountId });
         return NoContent();
     }
 

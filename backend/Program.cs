@@ -115,6 +115,9 @@ switch (receiptProvider)
         break;
 }
 
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<IAuditService, AuditService>();
+
 builder.Services.AddSingleton<JwtService>();
 builder.Services.AddSingleton<IEncryptionService, EncryptionService>();
 builder.Services.AddSingleton(UrlEncoder.Default);
@@ -147,6 +150,8 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.Migrate();
+    var audit = scope.ServiceProvider.GetRequiredService<IAuditService>();
+    await audit.LogSystemAsync("STARTUP", details: new { message = "Application started, migrations applied" });
 }
 
 // ── Middleware pipeline ───────────────────────────────────────────────────────

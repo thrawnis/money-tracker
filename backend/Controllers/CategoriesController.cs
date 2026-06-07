@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using MoneyTracker.Auth.Services;
 using MoneyTracker.Data;
 using MoneyTracker.Models;
+using MoneyTracker.Services;
 
 namespace MoneyTracker.Controllers;
 
@@ -15,7 +16,8 @@ namespace MoneyTracker.Controllers;
 public class CategoriesController(
     AppDbContext db,
     IEncryptionService encryption,
-    UserManager<ApplicationUser> userManager) : ControllerBase
+    UserManager<ApplicationUser> userManager,
+    IAuditService audit) : ControllerBase
 {
     private string? GetUserId() => User.FindFirstValue(ClaimTypes.NameIdentifier);
 
@@ -88,6 +90,8 @@ public class CategoriesController(
         db.Categories.Add(category);
         await db.SaveChangesAsync();
 
+        await audit.LogAsync("CREATE", "Category", category.Id, new { name = dto.Name, parentId = dto.ParentId });
+
         return CreatedAtAction(nameof(GetAll), new { },
             new { id = category.Id, name = dto.Name, category.ParentId });
     }
@@ -104,10 +108,13 @@ public class CategoriesController(
         var user = await userManager.FindByIdAsync(userId);
         if (user is null) return Unauthorized();
 
+        var oldName = encryption.Decrypt(category.NameEncrypted, user.EncryptedDataKey);
         category.NameEncrypted = encryption.Encrypt(dto.Name, user.EncryptedDataKey)!;
         category.ParentId      = dto.ParentId;
 
         await db.SaveChangesAsync();
+
+        await audit.LogAsync("UPDATE", "Category", id, new { before = oldName, after = dto.Name, parentId = dto.ParentId });
 
         return Ok(new { id = category.Id, name = dto.Name, category.ParentId });
     }
@@ -121,8 +128,14 @@ public class CategoriesController(
         var category = await db.Categories.FirstOrDefaultAsync(c => c.Id == id && c.UserId == userId);
         if (category is null) return NotFound();
 
+        var user = await userManager.FindByIdAsync(userId);
+        var name = user is null ? null : encryption.Decrypt(category.NameEncrypted, user.EncryptedDataKey);
+
         db.Categories.Remove(category);
         await db.SaveChangesAsync();
+
+        await audit.LogAsync("DELETE", "Category", id, new { name });
+
         return NoContent();
     }
 }

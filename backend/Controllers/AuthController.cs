@@ -7,6 +7,7 @@ using MoneyTracker.Auth.Dtos;
 using MoneyTracker.Auth.Services;
 using MoneyTracker.Data;
 using MoneyTracker.Models;
+using MoneyTracker.Services;
 using System.Security.Claims;
 using System.Text;
 using System.Text.Encodings.Web;
@@ -23,7 +24,8 @@ public class AuthController(
     IPasskeyService                 passkeyService,
     IEncryptionService              encryption,
     AppDbContext                    db,
-    UrlEncoder                      urlEncoder) : ControllerBase
+    UrlEncoder                      urlEncoder,
+    IAuditService                   audit) : ControllerBase
 {
     // ── Registration ────────────────────────────────────────────────────────
 
@@ -46,6 +48,8 @@ public class AuthController(
 
         await EnsureRolesExistAsync();
         await userManager.AddToRoleAsync(user, Roles.Standard);
+
+        await audit.LogAsync("REGISTER", "User", null, new { email = request.Email });
 
         return Ok(new { userId = user.Id, requiresMfaSetup = true });
     }
@@ -108,6 +112,8 @@ public class AuthController(
 
         user.MfaEnrolled = true;
         await userManager.UpdateAsync(user);
+
+        await audit.LogAsync("MFA_ENROLLED", details: new { type = "TOTP" });
 
         return await IssueTokensAsync(user);
     }
@@ -254,6 +260,8 @@ public class AuthController(
         if (!result.Succeeded)
             return BadRequest(new { message = string.Join(" ", result.Errors.Select(e => e.Description)) });
 
+        await audit.LogAsync("PASSWORD_CHANGE");
+
         return Ok(new { message = "Password changed successfully." });
     }
 
@@ -271,6 +279,7 @@ public class AuthController(
             await db.SaveChangesAsync();
         }
 
+        await audit.LogAsync("LOGOUT");
         Response.Cookies.Delete("refreshToken");
         return NoContent();
     }
@@ -298,6 +307,7 @@ public class AuthController(
         await db.SaveChangesAsync();
 
         SetRefreshCookie(refreshToken, rememberMe ? refreshExpiry : null);
+        await audit.LogAsync("LOGIN", details: new { email = user.Email, method = "password" });
         return Ok(new TokenResponse(accessToken, expiry, role, user.MfaEnrolled));
     }
 

@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using MoneyTracker.Auth.Services;
 using MoneyTracker.Data;
 using MoneyTracker.Models;
+using MoneyTracker.Services;
 
 namespace MoneyTracker.Controllers;
 
@@ -15,7 +16,8 @@ namespace MoneyTracker.Controllers;
 public class AccountsController(
     AppDbContext db,
     IEncryptionService encryption,
-    UserManager<ApplicationUser> userManager) : ControllerBase
+    UserManager<ApplicationUser> userManager,
+    IAuditService audit) : ControllerBase
 {
     private string? GetUserId() => User.FindFirstValue(ClaimTypes.NameIdentifier);
 
@@ -93,6 +95,8 @@ public class AccountsController(
         await db.SaveChangesAsync();
         await db.Entry(account).Reference(a => a.Institution).LoadAsync();
 
+        await audit.LogAsync("CREATE", "Account", account.Id, new { name = account.Name, type = account.Type.ToString() });
+
         return CreatedAtAction(nameof(GetById), new { id = account.Id },
             MapAccount(account, user.EncryptedDataKey));
     }
@@ -109,6 +113,7 @@ public class AccountsController(
         var user = await userManager.FindByIdAsync(userId);
         if (user is null) return Unauthorized();
 
+        var oldName = account.Name;
         account.Name                   = dto.Name;
         account.Type                   = dto.Type;
         account.InstitutionId          = dto.InstitutionId;
@@ -117,6 +122,8 @@ public class AccountsController(
 
         await db.SaveChangesAsync();
         await db.Entry(account).Reference(a => a.Institution).LoadAsync();
+
+        await audit.LogAsync("UPDATE", "Account", id, new { before = oldName, after = dto.Name, type = dto.Type.ToString() });
 
         return Ok(MapAccount(account, user.EncryptedDataKey));
     }
@@ -132,6 +139,9 @@ public class AccountsController(
 
         account.IsActive = false;
         await db.SaveChangesAsync();
+
+        await audit.LogAsync("DELETE", "Account", id, new { name = account.Name });
+
         return NoContent();
     }
 }

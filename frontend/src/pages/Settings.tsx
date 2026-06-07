@@ -1,10 +1,11 @@
-import { useState, type FormEvent } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import { usePageTitle } from '../hooks/usePageTitle';
 import api from '../api/client';
 import { getTemplate, previewImport, importWithDuplicates } from '../api/import';
+import { getAuditLog, type AuditEntry, type GetAuditParams } from '../api/audit';
 import styles from './Settings.module.css';
 
-type Tab = 'password' | 'export' | 'import';
+type Tab = 'password' | 'export' | 'import' | 'audit';
 type ExportStep = 'auth' | 'format';
 type AuthMethod = 'password' | 'totp';
 type ExportFormat = 'qif' | 'ofx' | 'csv' | 'xlsx' | 'json';
@@ -460,6 +461,195 @@ function ImportTab() {
   );
 }
 
+// ── Audit Log ────────────────────────────────────────────────────────────────
+
+const ENTITY_TYPES = ['All', 'Transaction', 'Account', 'Category', 'Payee', 'User'];
+
+const ACTION_BADGE_STYLES: Record<string, React.CSSProperties> = {
+  CREATE:   { background: '#e8f8e8', color: '#006600', border: '1px solid #006600' },
+  UPDATE:   { background: '#e8f0ff', color: '#003399', border: '1px solid #003399' },
+  DELETE:   { background: '#ffe8e8', color: '#cc0000', border: '1px solid #cc0000' },
+  LOGIN:    { background: '#f0f0f0', color: '#555',    border: '1px solid #999' },
+  LOGOUT:   { background: '#f0f0f0', color: '#555',    border: '1px solid #999' },
+  REGISTER: { background: '#f0f0f0', color: '#555',    border: '1px solid #999' },
+  STARTUP:  { background: '#f0e8ff', color: '#6600cc', border: '1px solid #6600cc' },
+};
+
+function actionBadgeStyle(action: string, isSystem: boolean): React.CSSProperties {
+  if (isSystem) return { background: '#f0e8ff', color: '#6600cc', border: '1px solid #6600cc' };
+  return ACTION_BADGE_STYLES[action] ?? { background: '#f8f8e8', color: '#666', border: '1px solid #ccc' };
+}
+
+function parseDetails(raw?: string): string {
+  if (!raw) return '';
+  try {
+    const obj = JSON.parse(raw) as Record<string, unknown>;
+    return Object.entries(obj)
+      .map(([k, v]) => {
+        if (typeof v === 'number' && (k === 'amount')) {
+          return `${k}: ${v < 0 ? '-' : ''}$${Math.abs(v).toFixed(2)}`;
+        }
+        return `${k}: ${String(v ?? '')}`;
+      })
+      .join(', ');
+  } catch {
+    return raw;
+  }
+}
+
+function AuditLogTab() {
+  const [entries, setEntries] = useState<AuditEntry[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const [filterAction, setFilterAction] = useState('');
+  const [filterEntityType, setFilterEntityType] = useState('');
+  const [filterFrom, setFilterFrom] = useState('');
+  const [filterTo, setFilterTo] = useState('');
+  const [filterSearch, setFilterSearch] = useState('');
+
+  const pageSize = 50;
+
+  const fetchPage = async (pageNum: number, replace: boolean) => {
+    setLoading(true);
+    setError('');
+    try {
+      const params: GetAuditParams = { page: pageNum, pageSize };
+      if (filterAction.trim()) params.action = filterAction.trim();
+      if (filterEntityType && filterEntityType !== 'All') params.entityType = filterEntityType;
+      if (filterFrom) params.from = filterFrom;
+      if (filterTo) params.to = filterTo;
+      if (filterSearch.trim()) params.search = filterSearch.trim();
+
+      const data = await getAuditLog(params);
+      setTotal(data.total);
+      setEntries(prev => replace ? data.items : [...prev, ...data.items]);
+      setPage(pageNum);
+    } catch {
+      setError('Failed to load audit log.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchPage(1, true); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleApply = (e: FormEvent) => {
+    e.preventDefault();
+    fetchPage(1, true);
+  };
+
+  return (
+    <div className={styles.tabSection}>
+      <form onSubmit={handleApply} className={styles.auditFilters}>
+        <div className={styles.field}>
+          <label className={styles.label}>Action</label>
+          <input
+            className={styles.input}
+            placeholder="e.g. CREATE"
+            value={filterAction}
+            onChange={e => setFilterAction(e.target.value)}
+          />
+        </div>
+        <div className={styles.field}>
+          <label className={styles.label}>Entity Type</label>
+          <select
+            className={styles.input}
+            value={filterEntityType}
+            onChange={e => setFilterEntityType(e.target.value)}
+          >
+            {ENTITY_TYPES.map(t => <option key={t} value={t === 'All' ? '' : t}>{t}</option>)}
+          </select>
+        </div>
+        <div className={styles.field}>
+          <label className={styles.label}>From</label>
+          <input
+            type="date"
+            className={styles.input}
+            value={filterFrom}
+            onChange={e => setFilterFrom(e.target.value)}
+          />
+        </div>
+        <div className={styles.field}>
+          <label className={styles.label}>To</label>
+          <input
+            type="date"
+            className={styles.input}
+            value={filterTo}
+            onChange={e => setFilterTo(e.target.value)}
+          />
+        </div>
+        <div className={styles.field} style={{ flex: '1 1 160px' }}>
+          <label className={styles.label}>Search</label>
+          <input
+            className={styles.input}
+            placeholder="Search details or email"
+            value={filterSearch}
+            onChange={e => setFilterSearch(e.target.value)}
+          />
+        </div>
+        <button type="submit" className={styles.btnPrimary} disabled={loading} style={{ alignSelf: 'flex-end' }}>
+          Apply
+        </button>
+      </form>
+
+      {error && <div className={styles.error}>{error}</div>}
+
+      <div className={styles.auditTableWrap}>
+        <table className={styles.auditTable}>
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>Action</th>
+              <th>Entity</th>
+              <th>Details</th>
+              <th>User</th>
+              <th>IP</th>
+            </tr>
+          </thead>
+          <tbody>
+            {entries.length === 0 && !loading && (
+              <tr><td colSpan={6} style={{ textAlign: 'center', color: '#888', padding: '16px' }}>No entries found.</td></tr>
+            )}
+            {entries.map(e => (
+              <tr key={e.id}>
+                <td className={styles.auditTs}>{new Date(e.timestamp).toLocaleString()}</td>
+                <td>
+                  <span className={styles.auditBadge} style={actionBadgeStyle(e.action, e.isSystem)}>
+                    {e.action}
+                  </span>
+                </td>
+                <td className={styles.auditEntity}>
+                  {e.entityType ?? '—'}
+                  {e.entityId != null ? ` #${e.entityId}` : ''}
+                </td>
+                <td className={styles.auditDetails}>{parseDetails(e.details)}</td>
+                <td className={styles.auditUser}>
+                  {e.isSystem ? <span className={styles.auditSystem}>System</span> : (e.userEmail ?? e.userId ?? '—')}
+                </td>
+                <td className={styles.auditIp}>{e.ipAddress ?? '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {entries.length < total && (
+        <button
+          className={styles.btnSecondary}
+          onClick={() => fetchPage(page + 1, false)}
+          disabled={loading}
+          style={{ alignSelf: 'flex-start' }}
+        >
+          {loading ? 'Loading…' : `Load More (${entries.length} / ${total})`}
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ── Settings page ────────────────────────────────────────────────────────────
 
 export default function Settings() {
@@ -490,11 +680,18 @@ export default function Settings() {
         >
           Import Data
         </button>
+        <button
+          className={`${styles.tab} ${tab === 'audit' ? styles.tabActive : ''}`}
+          onClick={() => setTab('audit')}
+        >
+          Audit Log
+        </button>
       </div>
       <div className={styles.tabContent}>
         {tab === 'password' && <ChangePasswordTab />}
         {tab === 'export' && <ExportTab />}
         {tab === 'import' && <ImportTab />}
+        {tab === 'audit' && <AuditLogTab />}
       </div>
     </div>
   );
