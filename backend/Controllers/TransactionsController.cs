@@ -93,7 +93,7 @@ public class TransactionsController(
 
         // Fetch into memory — needed for encrypted-field filtering
         var loaded = await query
-            .OrderByDescending(t => t.Date)
+            .OrderByDescending(t => t.PostDate ?? t.Date)
             .ThenByDescending(t => t.Id)
             .ToListAsync();
 

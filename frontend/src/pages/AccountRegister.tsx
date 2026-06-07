@@ -247,7 +247,8 @@ export default function AccountRegister() {
       lastUsedDate.current = data.date;
       // Insert in date-descending order (newest first)
       setPastTxs(prev => {
-        const idx = prev.findIndex(t => t.date <= created.date);
+        const effectiveDate = (t: typeof created) => t.postDate ?? t.date;
+        const idx = prev.findIndex(t => effectiveDate(t) <= effectiveDate(created));
         const next = [...prev];
         next.splice(idx === -1 ? next.length : idx, 0, created);
         return next;
@@ -462,7 +463,13 @@ export default function AccountRegister() {
             ) : (
               pastTxs.map(tx => (
                 <tr key={tx.id} className={styles.txRow}>
-                  <td>{formatDate(tx.date)}</td>
+                  <td>
+                    {tx.postDate ? (
+                      <span title={`Post date. Transaction date: ${formatDate(tx.date)}`}>
+                        {formatDate(tx.postDate)}<span className={styles.postDateMark}>*</span>
+                      </span>
+                    ) : formatDate(tx.date)}
+                  </td>
                   <td>{tx.payee?.name ?? '—'}</td>
                   <td>{getCategoryLabel(tx, categories)}</td>
                   <td>{tx.memo ?? ''}</td>
