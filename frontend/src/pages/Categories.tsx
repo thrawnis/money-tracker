@@ -45,10 +45,10 @@ export default function Categories() {
     if (!newCatName.trim()) return;
     if (!confirm(`Create category "${newCatName.trim()}"?`)) return;
     try {
-      await createCategory({ name: newCatName.trim() });
+      const created = await createCategory({ name: newCatName.trim() });
+      setCategories(prev => [...prev, { ...created, subCategories: [] }]);
       setNewCatName('');
       setAddingCat(false);
-      load();
     } catch { setError('Failed to create category.'); }
   };
 
@@ -57,10 +57,12 @@ export default function Categories() {
     const parent = categories.find(c => c.id === parentId);
     if (!confirm(`Create subcategory "${newSubName.trim()}" under "${parent?.name}"?`)) return;
     try {
-      await createCategory({ name: newSubName.trim(), parentId });
+      const created = await createCategory({ name: newSubName.trim(), parentId });
+      setCategories(prev => prev.map(c =>
+        c.id === parentId ? { ...c, subCategories: [...(c.subCategories ?? []), created] } : c
+      ));
       setNewSubName('');
       setAddingSubFor(null);
-      load();
     } catch { setError('Failed to create subcategory.'); }
   };
 
@@ -72,8 +74,11 @@ export default function Categories() {
     if (!confirm(`Rename "${cat?.name}" to "${renameValue.trim()}"?`)) return;
     try {
       await updateCategory(id, { name: renameValue.trim() });
+      setCategories(prev => prev.map(c => {
+        if (!isSubcat && c.id === id) return { ...c, name: renameValue.trim() };
+        return { ...c, subCategories: c.subCategories?.map(s => s.id === id ? { ...s, name: renameValue.trim() } : s) };
+      }));
       setRenamingId(null);
-      load();
     } catch { setError('Failed to rename.'); }
   };
 
@@ -81,7 +86,12 @@ export default function Categories() {
     if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
     try {
       await deleteCategory(id);
-      load();
+      setCategories(prev =>
+        prev.filter(c => c.id !== id).map(c => ({
+          ...c,
+          subCategories: c.subCategories?.filter(s => s.id !== id),
+        }))
+      );
     } catch { setError('Failed to delete. It may be in use by transactions.'); }
   };
 
@@ -93,9 +103,25 @@ export default function Categories() {
     if (!confirm(`Move "${subName}" to ${targetName}?`)) return;
     try {
       await updateCategory(subId, { parentId: targetParentId ?? undefined });
+      // Remove sub from its current parent
+      let moved: Category | undefined;
+      const updated = categories.map(c => {
+        const sub = c.subCategories?.find(s => s.id === subId);
+        if (sub) { moved = sub; return { ...c, subCategories: c.subCategories!.filter(s => s.id !== subId) }; }
+        return c;
+      });
+      if (moved) {
+        if (targetParentId === null) {
+          // Promote to top-level
+          setCategories([...updated, { ...moved, subCategories: [] }]);
+        } else {
+          setCategories(updated.map(c =>
+            c.id === targetParentId ? { ...c, subCategories: [...(c.subCategories ?? []), moved!] } : c
+          ));
+        }
+      }
       setMovingId(null);
       setMoveTarget('');
-      load();
     } catch { setError('Failed to move category.'); }
   };
 

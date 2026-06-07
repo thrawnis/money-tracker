@@ -49,8 +49,8 @@ export default function Payees() {
     if (!confirm(`Rename "${payee?.name}" to "${renameValue.trim()}"?`)) return;
     try {
       await updatePayee(id, { name: renameValue.trim() });
+      setPayees(prev => prev.map(p => p.id === id ? { ...p, name: renameValue.trim() } : p));
       setRenamingId(null);
-      load();
     } catch { setError('Failed to rename payee.'); }
   };
 
@@ -62,8 +62,8 @@ export default function Payees() {
     if (!confirm(`Set default category for "${payee?.name}" to ${catName ? `"${catName}"` : 'none'}?`)) return;
     try {
       await updatePayee(id, { defaultCategoryId: targetId });
+      setPayees(prev => prev.map(p => p.id === id ? { ...p, defaultCategoryId: targetId ?? undefined } : p));
       setEditingCatFor(null);
-      load();
     } catch { setError('Failed to update default category.'); }
   };
 
@@ -71,7 +71,7 @@ export default function Payees() {
     if (!confirm(`Delete payee "${name}"? This cannot be undone.\n\nNote: transactions using this payee will retain their payee name.`)) return;
     try {
       await deletePayee(id);
-      load();
+      setPayees(prev => prev.filter(p => p.id !== id));
     } catch { setError('Failed to delete payee.'); }
   };
 

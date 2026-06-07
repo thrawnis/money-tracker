@@ -234,23 +234,38 @@ export default function AccountRegister() {
 
   const handleSaveTx = async (data: Omit<Transaction, 'id' | 'accountId' | 'createdAt' | 'updatedAt'> & { targetAccountId?: number }) => {
     if (editingTx) {
-      await updateTransaction(accountId, editingTx.id, data);
+      const updated = await updateTransaction(accountId, editingTx.id, data);
+      if (data.targetAccountId && data.targetAccountId !== accountId) {
+        // Transaction moved to another account — remove it from this register
+        setPastTxs(prev => prev.filter(t => t.id !== editingTx.id));
+        setPastTotal(prev => prev - 1);
+      } else {
+        setPastTxs(prev => prev.map(t => t.id === editingTx.id ? updated : t));
+      }
     } else {
-      await createTransaction(accountId, data);
+      const created = await createTransaction(accountId, data);
       lastUsedDate.current = data.date;
+      // Insert in date-descending order (newest first)
+      setPastTxs(prev => {
+        const idx = prev.findIndex(t => t.date <= created.date);
+        const next = [...prev];
+        next.splice(idx === -1 ? next.length : idx, 0, created);
+        return next;
+      });
+      setPastTotal(prev => prev + 1);
     }
     setShowForm(false);
     setEditingTx(null);
     setReceiptPrefill(null);
     setReceiptPayeeName(undefined);
     setReceiptCategoryLabel(undefined);
-    loadInitial();
   };
 
   const handleDelete = async (txId: number) => {
     if (!confirm('Delete this transaction?')) return;
     await deleteTransaction(accountId, txId);
-    loadInitial();
+    setPastTxs(prev => prev.filter(t => t.id !== txId));
+    setPastTotal(prev => prev - 1);
   };
 
   const handleEdit = (tx: Transaction) => {
