@@ -71,8 +71,8 @@ public class AccountsController(
                 currentBalance,
                 institutionId = a.InstitutionId,
                 institution   = a.Institution is null ? null : new { a.Institution.Id, a.Institution.Name },
-                accountNumber = encryption.Decrypt(a.AccountNumberEncrypted, dek: user.EncryptedDataKey),
-                notes         = encryption.Decrypt(a.NotesEncrypted, dek: user.EncryptedDataKey),
+                accountNumber = encryption.Decrypt(a.AccountNumberEncrypted, user.EncryptedDataKey),
+                notes         = encryption.Decrypt(a.NotesEncrypted, user.EncryptedDataKey),
                 isActive      = a.IsActive,
                 createdAt     = a.CreatedAt,
             };
