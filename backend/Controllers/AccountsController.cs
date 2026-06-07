@@ -50,7 +50,33 @@ public class AccountsController(
             .OrderBy(a => a.Name)
             .ToListAsync();
 
-        return Ok(accounts.Select(a => MapAccount(a, user.EncryptedDataKey)));
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var accountIds = accounts.Select(a => a.Id).ToList();
+        var txSums = await db.Transactions
+            .Where(t => accountIds.Contains(t.AccountId) && t.Date <= today)
+            .GroupBy(t => t.AccountId)
+            .Select(g => new { AccountId = g.Key, Sum = g.Sum(t => t.Amount) })
+            .ToDictionaryAsync(x => x.AccountId, x => x.Sum);
+
+        return Ok(accounts.Select(a =>
+        {
+            var txSum = txSums.TryGetValue(a.Id, out var s) ? s : 0m;
+            var currentBalance = a.OpeningBalance + txSum;
+            return new
+            {
+                id            = a.Id,
+                name          = a.Name,
+                type          = a.Type,
+                openingBalance = a.OpeningBalance,
+                currentBalance,
+                institutionId = a.InstitutionId,
+                institution   = a.Institution is null ? null : new { a.Institution.Id, a.Institution.Name },
+                accountNumber = encryption.Decrypt(a.AccountNumberEncrypted, dek: user.EncryptedDataKey),
+                notes         = encryption.Decrypt(a.NotesEncrypted, dek: user.EncryptedDataKey),
+                isActive      = a.IsActive,
+                createdAt     = a.CreatedAt,
+            };
+        }));
     }
 
     [HttpGet("{id}")]

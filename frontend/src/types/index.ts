@@ -17,6 +17,7 @@ export interface Account {
   name: string;
   type: AccountType;
   openingBalance: number;
+  currentBalance?: number;
   institutionId?: number;
   institution?: Institution;
   accountNumber?: string;

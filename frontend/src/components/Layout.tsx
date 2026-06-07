@@ -67,6 +67,11 @@ export default function Layout({ accounts, onLogout }: Props) {
                     `${styles.navItem} ${isActive ? styles.navItemActive : ''}`
                   }
                   onClick={closeSidebar}
+                  title={
+                    account.currentBalance !== undefined
+                      ? `${account.name}\nBalance: ${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(account.currentBalance)}`
+                      : account.name
+                  }
                 >
                   <span className={styles.accountName}>{account.name}</span>
                 </NavLink>
