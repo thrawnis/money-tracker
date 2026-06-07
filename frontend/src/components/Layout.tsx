@@ -60,6 +60,15 @@ export default function Layout({ accounts, onLogout }: Props) {
         <section className={styles.navSection}>
           <div className={styles.navHeader}>Tools</div>
           <NavLink
+            to="/all-transactions"
+            className={({ isActive }) =>
+              `${styles.navItem} ${isActive ? styles.navItemActive : ''}`
+            }
+            onClick={closeSidebar}
+          >
+            Transactions
+          </NavLink>
+          <NavLink
             to="/bills"
             className={({ isActive }) =>
               `${styles.navItem} ${isActive ? styles.navItemActive : ''}`

@@ -34,6 +34,7 @@ public class TransactionSearchController(
         [FromQuery] string? memo,
         [FromQuery] DateOnly? from,
         [FromQuery] DateOnly? to,
+        [FromQuery] int[]?  accountIds,
         [FromQuery] int     page     = 1,
         [FromQuery] int     pageSize = 50)
     {
@@ -51,6 +52,8 @@ public class TransactionSearchController(
             .Include(t => t.Account)
             .AsQueryable();
 
+        if (accountIds is { Length: > 0 })
+            query = query.Where(t => accountIds.Contains(t.AccountId));
         if (categoryId.HasValue)
             query = query.Where(t => t.CategoryId == categoryId.Value || t.Category!.ParentId == categoryId.Value);
         if (payeeId.HasValue)

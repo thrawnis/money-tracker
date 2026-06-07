@@ -25,9 +25,28 @@ export interface SearchParams {
   payeeId?: number;
   from?: string;
   to?: string;
+  accountIds?: number[];
+  payeeName?: string;
+  memo?: string;
   page?: number;
   pageSize?: number;
 }
 
-export const searchTransactions = (params: SearchParams) =>
-  api.get<SearchResult>('/transactions', { params }).then(r => r.data);
+export const searchTransactions = (params: SearchParams) => {
+  const { accountIds, ...rest } = params;
+  return api.get<SearchResult>('/transactions', {
+    params: { ...rest, ...(accountIds?.length ? { accountIds } : {}) },
+    paramsSerializer: p => {
+      const parts: string[] = [];
+      for (const [k, v] of Object.entries(p)) {
+        if (v === undefined || v === null) continue;
+        if (Array.isArray(v)) {
+          for (const item of v) parts.push(`${k}=${encodeURIComponent(item)}`);
+        } else {
+          parts.push(`${k}=${encodeURIComponent(String(v))}`);
+        }
+      }
+      return parts.join('&');
+    },
+  }).then(r => r.data);
+};
