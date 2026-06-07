@@ -32,7 +32,6 @@ public class ScheduledTransaction
 
     // Set when this is a scheduled transfer; points to the destination account
     public int? TransferAccountId { get; set; }
-    public Account? TransferAccount { get; set; }
 
     // Stored encrypted
     public string? MemoEncrypted { get; set; }

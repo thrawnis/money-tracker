@@ -45,7 +45,6 @@ public class ScheduledTransactionsController(
         reminderDays = s.ReminderDays,
         isActive     = s.IsActive,
         transferAccountId = s.TransferAccountId,
-        transferAccount   = s.TransferAccount is null ? null : new { s.TransferAccount.Id, s.TransferAccount.Name },
         createdAt    = s.CreatedAt,
     };
 
@@ -63,7 +62,6 @@ public class ScheduledTransactionsController(
             .Include(s => s.Account)
             .Include(s => s.Payee)
             .Include(s => s.Category)
-            .Include(s => s.TransferAccount)
             .OrderBy(s => s.NextDueDate)
             .ToListAsync();
 
@@ -96,7 +94,6 @@ public class ScheduledTransactionsController(
             .Include(s => s.Payee)
             .Include(s => s.Category)
             .Include(s => s.Account)
-            .Include(s => s.TransferAccount)
             .OrderBy(s => s.NextDueDate)
             .Skip(skip)
             .Take(limit)

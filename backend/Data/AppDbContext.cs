@@ -59,7 +59,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         {
             e.Property(s => s.Amount).HasPrecision(18, 2);
             e.HasOne(s => s.User).WithMany().HasForeignKey(s => s.UserId).OnDelete(DeleteBehavior.Cascade);
-            e.HasOne(s => s.TransferAccount).WithMany().HasForeignKey(s => s.TransferAccountId).OnDelete(DeleteBehavior.Restrict);
+            e.HasOne(s => s.Account).WithMany().HasForeignKey(s => s.AccountId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(s => s.Payee).WithMany().HasForeignKey(s => s.PayeeId).OnDelete(DeleteBehavior.SetNull);
+            e.HasOne(s => s.Category).WithMany().HasForeignKey(s => s.CategoryId).OnDelete(DeleteBehavior.SetNull);
+            // TransferAccountId is a plain FK column with no navigation property — avoids EF ambiguity
+            // from having two Account-typed navigations on the same entity
         });
 
         modelBuilder.Entity<SavedReport>(e =>
