@@ -38,6 +38,11 @@ public class InstitutionsController(
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
 
+        var duplicate = await db.Institutions.AnyAsync(i =>
+            i.UserId == userId && i.Name.ToLower() == dto.Name.ToLower());
+        if (duplicate)
+            return Conflict(new { message = $"A bank/institution named \"{dto.Name}\" already exists." });
+
         var institution = new Institution
         {
             UserId = userId,
@@ -59,6 +64,11 @@ public class InstitutionsController(
 
         var institution = await db.Institutions.FirstOrDefaultAsync(i => i.Id == id && i.UserId == userId);
         if (institution is null) return NotFound();
+
+        var duplicate = await db.Institutions.AnyAsync(i =>
+            i.UserId == userId && i.Id != id && i.Name.ToLower() == dto.Name.ToLower());
+        if (duplicate)
+            return Conflict(new { message = $"A bank/institution named \"{dto.Name}\" already exists." });
 
         institution.Name = dto.Name;
         await db.SaveChangesAsync();

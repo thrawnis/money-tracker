@@ -759,8 +759,10 @@ function AccountsTab() {
       });
       setAccounts(prev => prev.map(a => a.id === acc.id ? updated : a));
       setEditingId(null); setEditState(null);
-    } catch { setError('Failed to save account.'); }
-    finally { setSaving(false); }
+    } catch (err) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setError(msg ?? 'Failed to save account.');
+    } finally { setSaving(false); }
   };
 
   const handleDelete = async (acc: Account) => {
@@ -795,8 +797,10 @@ function AccountsTab() {
       });
       setAccounts(prev => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
       setAddState(BLANK_ADD); setShowAdd(false);
-    } catch { setError('Failed to create account.'); }
-    finally { setAdding(false); }
+    } catch (err) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setError(msg ?? 'Failed to create account.');
+    } finally { setAdding(false); }
   };
 
   if (loading) return <div className={styles.hint}>Loading…</div>;

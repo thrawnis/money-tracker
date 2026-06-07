@@ -41,8 +41,9 @@ export default function AccountForm({ onCreated }: Props) {
       setInstitutionId(inst.id);
       setAddingInstitution(false);
       setNewInstitutionName('');
-    } catch {
-      setError('Failed to create institution.');
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setError(msg ?? 'Failed to create institution.');
     }
   };
 

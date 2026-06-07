@@ -148,9 +148,16 @@ export default function BillsReminders() {
     try {
       let resolvedPayeeId = form.payeeId;
       if (form.payeeInput && !resolvedPayeeId) {
-        const newP = await createPayee(form.payeeInput);
-        resolvedPayeeId = newP.id;
-        setPayees(prev => [...prev, newP]);
+        try {
+          const newP = await createPayee(form.payeeInput);
+          resolvedPayeeId = newP.id;
+          setPayees(prev => [...prev, newP]);
+        } catch (payeeErr: unknown) {
+          const msg = (payeeErr as { response?: { data?: { message?: string } } })?.response?.data?.message;
+          setFormErrors(prev => ({ ...prev, submit: msg ?? 'Failed to create payee.' }));
+          setSaving(false);
+          return;
+        }
       }
       const data = {
         name: form.name,

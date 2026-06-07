@@ -105,6 +105,7 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
     isExistingTransfer ? (initial?.transferAccountId ?? undefined) : undefined
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [saveError, setSaveError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -176,14 +177,22 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
     e.preventDefault();
     if (!validate()) return;
     setSubmitting(true);
+    setSaveError('');
 
     try {
       let resolvedPayeeId = payeeId;
       if (payeeInput.trim() && !resolvedPayeeId) {
-        const newPayee = await createPayee(payeeInput.trim());
-        resolvedPayeeId = newPayee.id;
-        setPayees(prev => [...prev, newPayee]);
-        setPayeeId(newPayee.id);
+        try {
+          const newPayee = await createPayee(payeeInput.trim());
+          resolvedPayeeId = newPayee.id;
+          setPayees(prev => [...prev, newPayee]);
+          setPayeeId(newPayee.id);
+        } catch (err) {
+          const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+          setSaveError(msg ?? 'Failed to create payee.');
+          setSubmitting(false);
+          return;
+        }
       }
 
       const resolvedCategoryId = await resolveCategory(categoryInput, categories, setCategories);
@@ -380,6 +389,7 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
         </div>
       )}
 
+      {saveError && <div className={styles.error}>{saveError}</div>}
       <div className={styles.actions}>
         <button type="submit" className={styles.btnSave} disabled={submitting} tabIndex={6}>
           {submitting ? 'Saving…' : 'Save'}

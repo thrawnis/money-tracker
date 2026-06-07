@@ -6,6 +6,10 @@ import { usePageTitle } from '../hooks/usePageTitle';
 import type { Payee, Category } from '../types';
 import styles from './Payees.module.css';
 
+type ApiError = { response?: { data?: { message?: string } } };
+const apiMsg = (err: unknown, fallback: string) =>
+  (err as ApiError)?.response?.data?.message ?? fallback;
+
 function fmt(d?: string) {
   if (!d) return null;
   return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
@@ -51,7 +55,7 @@ export default function Payees() {
       await updatePayee(id, { name: renameValue.trim() });
       setPayees(prev => prev.map(p => p.id === id ? { ...p, name: renameValue.trim() } : p));
       setRenamingId(null);
-    } catch { setError('Failed to rename payee.'); }
+    } catch (err) { setError(apiMsg(err, 'Failed to rename payee.')); }
   };
 
   const handleSetCategory = async (id: number) => {

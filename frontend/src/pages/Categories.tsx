@@ -5,6 +5,10 @@ import { usePageTitle } from '../hooks/usePageTitle';
 import type { Category } from '../types';
 import styles from './Categories.module.css';
 
+type ApiError = { response?: { data?: { message?: string } } };
+const apiMsg = (err: unknown, fallback: string) =>
+  (err as ApiError)?.response?.data?.message ?? fallback;
+
 function fmt(d?: string) {
   if (!d) return null;
   return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
@@ -49,7 +53,7 @@ export default function Categories() {
       setCategories(prev => [...prev, { ...created, subCategories: [] }]);
       setNewCatName('');
       setAddingCat(false);
-    } catch { setError('Failed to create category.'); }
+    } catch (err) { setError(apiMsg(err, 'Failed to create category.')); }
   };
 
   const handleAddSub = async (parentId: number) => {
@@ -63,7 +67,7 @@ export default function Categories() {
       ));
       setNewSubName('');
       setAddingSubFor(null);
-    } catch { setError('Failed to create subcategory.'); }
+    } catch (err) { setError(apiMsg(err, 'Failed to create subcategory.')); }
   };
 
   const handleRename = async (id: number, isSubcat: boolean) => {
@@ -79,7 +83,7 @@ export default function Categories() {
         return { ...c, subCategories: c.subCategories?.map(s => s.id === id ? { ...s, name: renameValue.trim() } : s) };
       }));
       setRenamingId(null);
-    } catch { setError('Failed to rename.'); }
+    } catch (err) { setError(apiMsg(err, 'Failed to rename.')); }
   };
 
   const handleDelete = async (id: number, name: string) => {

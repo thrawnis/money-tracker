@@ -80,6 +80,14 @@ public class CategoriesController(
         var user = await userManager.FindByIdAsync(userId);
         if (user is null) return Unauthorized();
 
+        var siblings = await db.Categories
+            .Where(c => c.UserId == userId && c.ParentId == dto.ParentId)
+            .ToListAsync();
+        var duplicate = siblings.Any(c =>
+            string.Equals(encryption.Decrypt(c.NameEncrypted, user.EncryptedDataKey), dto.Name, StringComparison.OrdinalIgnoreCase));
+        if (duplicate)
+            return Conflict(new { message = $"A category named \"{dto.Name}\" already exists." });
+
         var category = new Category
         {
             UserId        = userId,
@@ -107,6 +115,14 @@ public class CategoriesController(
 
         var user = await userManager.FindByIdAsync(userId);
         if (user is null) return Unauthorized();
+
+        var siblings = await db.Categories
+            .Where(c => c.UserId == userId && c.ParentId == dto.ParentId && c.Id != id)
+            .ToListAsync();
+        var duplicate = siblings.Any(c =>
+            string.Equals(encryption.Decrypt(c.NameEncrypted, user.EncryptedDataKey), dto.Name, StringComparison.OrdinalIgnoreCase));
+        if (duplicate)
+            return Conflict(new { message = $"A category named \"{dto.Name}\" already exists." });
 
         var oldName = encryption.Decrypt(category.NameEncrypted, user.EncryptedDataKey);
         category.NameEncrypted = encryption.Encrypt(dto.Name, user.EncryptedDataKey)!;

@@ -63,6 +63,12 @@ public class PayeesController(
         var user = await userManager.FindByIdAsync(userId);
         if (user is null) return Unauthorized();
 
+        var existing = await db.Payees.Where(p => p.UserId == userId).ToListAsync();
+        var duplicate = existing.Any(p =>
+            string.Equals(encryption.Decrypt(p.NameEncrypted, user.EncryptedDataKey), dto.Name, StringComparison.OrdinalIgnoreCase));
+        if (duplicate)
+            return Conflict(new { message = $"A payee named \"{dto.Name}\" already exists." });
+
         var payee = new Payee
         {
             UserId            = userId,
@@ -90,6 +96,12 @@ public class PayeesController(
 
         var user = await userManager.FindByIdAsync(userId);
         if (user is null) return Unauthorized();
+
+        var existing = await db.Payees.Where(p => p.UserId == userId && p.Id != id).ToListAsync();
+        var duplicate = existing.Any(p =>
+            string.Equals(encryption.Decrypt(p.NameEncrypted, user.EncryptedDataKey), dto.Name, StringComparison.OrdinalIgnoreCase));
+        if (duplicate)
+            return Conflict(new { message = $"A payee named \"{dto.Name}\" already exists." });
 
         var oldName = encryption.Decrypt(payee.NameEncrypted, user.EncryptedDataKey);
         payee.NameEncrypted     = encryption.Encrypt(dto.Name, user.EncryptedDataKey)!;

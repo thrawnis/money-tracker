@@ -105,6 +105,11 @@ public class AccountsController(
         var user = await userManager.FindByIdAsync(userId);
         if (user is null) return Unauthorized();
 
+        var duplicate = await db.Accounts.AnyAsync(a =>
+            a.UserId == userId && a.Name.ToLower() == dto.Name.ToLower());
+        if (duplicate)
+            return Conflict(new { message = $"An account named \"{dto.Name}\" already exists." });
+
         var account = new Account
         {
             UserId                 = userId,
@@ -138,6 +143,11 @@ public class AccountsController(
 
         var user = await userManager.FindByIdAsync(userId);
         if (user is null) return Unauthorized();
+
+        var duplicate = await db.Accounts.AnyAsync(a =>
+            a.UserId == userId && a.Id != id && a.Name.ToLower() == dto.Name.ToLower());
+        if (duplicate)
+            return Conflict(new { message = $"An account named \"{dto.Name}\" already exists." });
 
         var oldName = account.Name;
         account.Name                   = dto.Name;
