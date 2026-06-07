@@ -21,8 +21,6 @@ function formatDate(d: string) {
 
 const PAST_PAGE_SIZE = 50;
 const FUTURE_BATCH = 5;
-// How far ahead (in days) to look for upcoming bills
-const FUTURE_DAYS = 365;
 
 export default function AccountRegister() {
   const { id } = useParams<{ id: string }>();
@@ -42,7 +40,10 @@ export default function AccountRegister() {
   const [loadingPast, setLoadingPast] = useState(false);
 
   // Future scheduled transactions
-  const [showFuture, setShowFuture] = useState(false);
+  const [showFuture, setShowFuture] = useState(true);
+  const [futureDays, setFutureDays] = useState(14);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsRef = useRef<HTMLDivElement>(null);
   const [futureBills, setFutureBills] = useState<ScheduledTransaction[]>([]);
   const [futureSkip, setFutureSkip] = useState(0);
   const [futureTotal, setFutureTotal] = useState(0);
@@ -72,6 +73,10 @@ export default function AccountRegister() {
   const [showScanner, setShowScanner] = useState(false);
   const lastUsedDate = useRef<string>(new Date().toISOString().slice(0, 10));
 
+  // Actions menu
+  const [openMenuId, setOpenMenuId] = useState<number | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
   // Infinite scroll sentinels
   const topSentinelRef = useRef<HTMLDivElement>(null);
   const bottomSentinelRef = useRef<HTMLDivElement>(null);
@@ -89,6 +94,20 @@ export default function AccountRegister() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
+  }, []);
+
+  // Close dropdown menus on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOpenMenuId(null);
+      }
+      if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) {
+        setSettingsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
   }, []);
 
   const hasMorePast = pastTxs.length < pastTotal;
@@ -157,10 +176,9 @@ export default function AccountRegister() {
     if (loadingFuture) return;
     setLoadingFuture(true);
     try {
-      // Fetch one extra to know if there are more
       const batch = await getUpcoming({
         accountId,
-        days: FUTURE_DAYS,
+        days: futureDays,
         limit: FUTURE_BATCH + 1,
         skip,
       });
@@ -175,13 +193,13 @@ export default function AccountRegister() {
     } finally {
       setLoadingFuture(false);
     }
-  }, [loadingFuture, accountId]);
+  }, [loadingFuture, accountId, futureDays]);
 
   useEffect(() => {
-    if (showFuture && futureBills.length === 0) {
+    if (showFuture) {
       loadFutureBills(0, true);
     }
-  }, [showFuture]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [showFuture, futureDays]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Infinite scroll via IntersectionObserver ───────────────────────────────
 
@@ -371,13 +389,6 @@ export default function AccountRegister() {
           )}
         </div>
         <div className={styles.headerActions}>
-          <button
-            className={`${styles.btnToggleFuture} ${showFuture ? styles.btnToggleFutureActive : ''}`}
-            onClick={() => setShowFuture(s => !s)}
-            title="Show upcoming scheduled transactions"
-          >
-            {showFuture ? 'Hide Upcoming' : 'Show Upcoming'}
-          </button>
           <button className={styles.btnPrimary} onClick={() => { setEditingTx(null); setReceiptPrefill(null); setReceiptPayeeName(undefined); setReceiptCategoryLabel(undefined); setShowForm(s => !s); }}>
             {showForm && !editingTx ? 'Cancel' : '+ New Transaction'}
           </button>
@@ -387,6 +398,42 @@ export default function AccountRegister() {
           <button className={styles.btnSecondary} onClick={() => setFilterOpen(o => !o)}>
             {filterOpen ? 'Hide Filters' : 'Filters'}
           </button>
+          <div className={styles.settingsDropdown} ref={settingsRef}>
+            <button
+              className={`${styles.btnSecondary} ${settingsOpen ? styles.btnSecondaryActive : ''}`}
+              onClick={() => setSettingsOpen(o => !o)}
+              title="Register settings"
+            >⚙</button>
+            {settingsOpen && (
+              <div className={styles.settingsMenu}>
+                <label className={styles.settingsRow}>
+                  <input
+                    type="checkbox"
+                    checked={showFuture}
+                    onChange={e => setShowFuture(e.target.checked)}
+                  />
+                  Show upcoming transactions
+                </label>
+                <div className={styles.settingsRow}>
+                  <label htmlFor="futureDaysInput">Days ahead</label>
+                  <input
+                    id="futureDaysInput"
+                    type="number"
+                    min={1}
+                    max={3650}
+                    value={futureDays}
+                    onChange={e => {
+                      const v = Math.max(1, Math.min(3650, Number(e.target.value) || 14));
+                      setFutureDays(v);
+                      setFutureBills([]);
+                      setFutureSkip(0);
+                    }}
+                    className={styles.settingsDaysInput}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -531,7 +578,7 @@ export default function AccountRegister() {
                   <td className={`${styles.right} ${(balanceMap.get(tx.id) ?? 0) < 0 ? styles.debit : ''}`}>
                     {formatCurrency(balanceMap.get(tx.id) ?? 0)}
                   </td>
-                  <td>
+                  <td className={styles.statusCell}>
                     <button
                       className={styles[`status${tx.status}`]}
                       onClick={() => handleToggleStatus(tx)}
@@ -541,8 +588,19 @@ export default function AccountRegister() {
                     </button>
                   </td>
                   <td className={styles.actions}>
-                    <button className={styles.btnEdit} onClick={() => handleEdit(tx)}>Edit</button>
-                    <button className={styles.btnDelete} onClick={() => handleDelete(tx.id)}>Del</button>
+                    <div className={styles.actionsMenu} ref={openMenuId === tx.id ? menuRef : undefined}>
+                      <button
+                        className={styles.btnActionsToggle}
+                        onClick={e => { e.stopPropagation(); setOpenMenuId(id => id === tx.id ? null : tx.id); }}
+                        title="Actions"
+                      >⋯</button>
+                      {openMenuId === tx.id && (
+                        <div className={styles.actionsDropdown}>
+                          <button className={styles.dropdownEdit} onClick={() => { setOpenMenuId(null); handleEdit(tx); }}>Edit</button>
+                          <button className={styles.dropdownDelete} onClick={() => { setOpenMenuId(null); handleDelete(tx.id); }}>Delete</button>
+                        </div>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))

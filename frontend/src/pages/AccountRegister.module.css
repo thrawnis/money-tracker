@@ -90,21 +90,55 @@
 .btnSecondary:hover { background: #f0f4f8; border-color: #99b4cc; }
 .btnSecondary:disabled { opacity: 0.5; cursor: not-allowed; }
 
-.btnToggleFuture {
-  padding: 6px 14px;
-  background: #f0faf5;
-  color: #1a6640;
-  border: 1.5px solid #a8d5b5;
-  border-radius: 5px;
-  font-size: 12px;
-  cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+.btnSecondaryActive {
+  background: #e8f0f8;
+  border-color: #99b4cc;
 }
-.btnToggleFuture:hover { background: #e0f5e8; }
-.btnToggleFutureActive {
-  background: #d5eedd;
-  border-color: #27ae60;
-  font-weight: 600;
+
+/* ── Settings dropdown ────────────────────────────────────────────────────── */
+
+.settingsDropdown {
+  position: relative;
+  display: inline-block;
+}
+
+.settingsMenu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 5px);
+  background: #fff;
+  border: 1.5px solid #c5d4e0;
+  border-radius: 7px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  z-index: 200;
+  min-width: 210px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.settingsRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: #334;
+  white-space: nowrap;
+}
+
+.settingsRow label {
+  font-size: 12.5px;
+  color: #556;
+}
+
+.settingsDaysInput {
+  width: 60px;
+  padding: 3px 6px;
+  border: 1.5px solid #c5d4e0;
+  border-radius: 4px;
+  font-size: 12px;
+  background: #fafbfc;
 }
 
 /* ── Filter panel ─────────────────────────────────────────────────────────── */
@@ -228,7 +262,9 @@
 .statusCleared:hover    { background: #e6f9ee; }
 .statusReconciled:hover { background: #ddeaf8; }
 
-.statusUncleared  { color: #bbb; }
+.statusCell { text-align: center; }
+
+.statusUncleared  { color: #888; }
 .statusCleared    { color: #27ae60; font-weight: 700; }
 .statusReconciled { color: #002a52; font-weight: 700; }
 .statusScheduled {
@@ -237,22 +273,57 @@
   font-style: italic;
 }
 
-.actions { white-space: nowrap; }
+.actions { white-space: nowrap; text-align: right; }
 
-.btnEdit, .btnDelete {
-  padding: 3px 9px;
-  font-size: 11px;
-  border-radius: 4px;
-  cursor: pointer;
-  margin-right: 3px;
-  border: 1.5px solid transparent;
-  transition: background 0.12s, border-color 0.12s;
-  font-weight: 500;
+/* ── Actions ⋯ dropdown ───────────────────────────────────────────────────── */
+
+.actionsMenu {
+  position: relative;
+  display: inline-block;
 }
-.btnEdit  { background: #edf4fb; color: #002a52; border-color: #c5d4e0; }
-.btnEdit:hover  { background: #d8eaf8; border-color: #99b4cc; }
-.btnDelete { background: #fdf0ef; color: #c0392b; border-color: #f0c8c4; }
-.btnDelete:hover { background: #fce0de; border-color: #e09090; }
+
+.btnActionsToggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  color: #99b4cc;
+  padding: 2px 6px;
+  border-radius: 4px;
+  line-height: 1;
+  transition: color 0.12s, background 0.12s;
+}
+.btnActionsToggle:hover { color: #002a52; background: #eef2f7; }
+
+.actionsDropdown {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 3px);
+  background: #fff;
+  border: 1.5px solid #c5d4e0;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+  z-index: 100;
+  min-width: 90px;
+  overflow: hidden;
+}
+
+.dropdownEdit, .dropdownDelete {
+  display: block;
+  width: 100%;
+  padding: 7px 14px;
+  text-align: left;
+  font-size: 12px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background 0.1s;
+}
+.dropdownEdit  { color: #002a52; }
+.dropdownEdit:hover  { background: #edf4fb; }
+.dropdownDelete { color: #c0392b; }
+.dropdownDelete:hover { background: #fdf0ef; }
 
 /* ── Today divider ────────────────────────────────────────────────────────── */
 
