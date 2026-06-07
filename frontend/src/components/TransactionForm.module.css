@@ -76,6 +76,17 @@
   margin-top: 2px;
 }
 
+.transferToggleRow {
+  padding: 4px 0 8px;
+}
+
+.transferToggleLabel {
+  font-size: 0.85rem;
+  color: #456;
+  cursor: pointer;
+  user-select: none;
+}
+
 .moveRow {
   display: flex;
   align-items: center;

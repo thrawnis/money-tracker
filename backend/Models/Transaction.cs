@@ -41,6 +41,7 @@ public class Transaction
 
     // For transfer transactions, points to the matching transaction in another account
     public int? TransferTransactionId { get; set; }
+    public int? TransferAccountId { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

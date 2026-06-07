@@ -29,3 +29,15 @@ export const updateTransaction = (accountId: number, id: number, data: Partial<T
 
 export const deleteTransaction = (accountId: number, id: number) =>
   api.delete(`/accounts/${accountId}/transactions/${id}`);
+
+export interface TransferDto {
+  sourceAccountId: number;
+  destinationAccountId: number;
+  date: string;
+  postDate?: string;
+  amount: number;
+  memo?: string;
+}
+
+export const createTransfer = (data: TransferDto) =>
+  api.post<{ debit: Transaction; credit: Transaction }>('/transfers', data).then(r => r.data);

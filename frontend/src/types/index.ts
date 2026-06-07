@@ -41,6 +41,7 @@ export interface Transaction {
   amount: number;
   status: TransactionStatus;
   transferTransactionId?: number;
+  transferAccountId?: number;
   createdAt: string;
   updatedAt: string;
 }

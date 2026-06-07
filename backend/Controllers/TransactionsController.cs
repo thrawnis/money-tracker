@@ -49,6 +49,7 @@ public class TransactionsController(
         amount                = tx.Amount,
         status                = tx.Status,
         transferTransactionId = tx.TransferTransactionId,
+        transferAccountId     = tx.TransferAccountId,
         createdAt             = tx.CreatedAt,
         updatedAt             = tx.UpdatedAt,
     };
@@ -242,6 +243,19 @@ public class TransactionsController(
 
         await db.SaveChangesAsync();
 
+        // Sync linked transfer transaction
+        if (tx.TransferTransactionId.HasValue)
+        {
+            var linked = await db.Transactions.FindAsync(tx.TransferTransactionId.Value);
+            if (linked is not null)
+            {
+                linked.Amount    = -tx.Amount;
+                linked.Date      = tx.Date;
+                linked.UpdatedAt = DateTime.UtcNow;
+                await db.SaveChangesAsync();
+            }
+        }
+
         if (previousPayeeId.HasValue)
         {
             bool payeeStillInUse = await db.Transactions.AnyAsync(t => t.PayeeId == previousPayeeId);
@@ -270,8 +284,16 @@ public class TransactionsController(
         if (tx is null) return NotFound();
 
         int? payeeId = tx.PayeeId;
+        int? linkedTransferId = tx.TransferTransactionId;
         db.Transactions.Remove(tx);
         await db.SaveChangesAsync();
+
+        // Cascade-delete the linked transfer transaction
+        if (linkedTransferId.HasValue)
+        {
+            var linked = await db.Transactions.FindAsync(linkedTransferId.Value);
+            if (linked is not null) { db.Transactions.Remove(linked); await db.SaveChangesAsync(); }
+        }
 
         if (payeeId.HasValue)
         {

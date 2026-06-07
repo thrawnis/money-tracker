@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { getAccount, getAccounts } from '../api/accounts';
-import { getTransactions, createTransaction, updateTransaction, deleteTransaction } from '../api/transactions';
+import { getTransactions, createTransaction, updateTransaction, deleteTransaction, createTransfer } from '../api/transactions';
 import { getUpcoming } from '../api/scheduledTransactions';
 import { getCategories } from '../api/categories';
 import type { Account, Transaction, Category, ScheduledTransaction } from '../types';
@@ -245,11 +245,35 @@ export default function AccountRegister() {
 
   // ── CRUD ───────────────────────────────────────────────────────────────────
 
-  const handleSaveTx = async (data: Omit<Transaction, 'id' | 'accountId' | 'createdAt' | 'updatedAt'> & { targetAccountId?: number }) => {
-    if (editingTx) {
+  const insertSorted = (prev: Transaction[], tx: Transaction) => {
+    const effDate = (t: Transaction) => t.postDate ?? t.date;
+    const idx = prev.findIndex(t =>
+      effDate(t) < effDate(tx) ||
+      (effDate(t) === effDate(tx) && t.createdAt <= tx.createdAt)
+    );
+    const next = [...prev];
+    next.splice(idx === -1 ? next.length : idx, 0, tx);
+    return next;
+  };
+
+  const handleSaveTx = async (data: Omit<Transaction, 'id' | 'accountId' | 'createdAt' | 'updatedAt'> & { targetAccountId?: number; transferDestAccountId?: number }) => {
+    if (data.transferDestAccountId) {
+      // Create a transfer
+      const result = await createTransfer({
+        sourceAccountId:      accountId,
+        destinationAccountId: data.transferDestAccountId,
+        date:                 data.date,
+        postDate:             data.postDate,
+        amount:               Math.abs(data.amount),
+        memo:                 data.memo,
+      });
+      lastUsedDate.current = data.date;
+      // Only add the debit side to this account's register
+      setPastTxs(prev => insertSorted(prev, result.debit));
+      setPastTotal(prev => prev + 1);
+    } else if (editingTx) {
       const updated = await updateTransaction(accountId, editingTx.id, data);
       if (data.targetAccountId && data.targetAccountId !== accountId) {
-        // Transaction moved to another account — remove it from this register
         setPastTxs(prev => prev.filter(t => t.id !== editingTx.id));
         setPastTotal(prev => prev - 1);
       } else {
@@ -258,17 +282,7 @@ export default function AccountRegister() {
     } else {
       const created = await createTransaction(accountId, data);
       lastUsedDate.current = data.date;
-      // Insert sorted by effective date desc, then createdAt desc within same date
-      setPastTxs(prev => {
-        const effDate = (t: typeof created) => t.postDate ?? t.date;
-        const idx = prev.findIndex(t =>
-          effDate(t) < effDate(created) ||
-          (effDate(t) === effDate(created) && t.createdAt <= created.createdAt)
-        );
-        const next = [...prev];
-        next.splice(idx === -1 ? next.length : idx, 0, created);
-        return next;
-      });
+      setPastTxs(prev => insertSorted(prev, created));
       setPastTotal(prev => prev + 1);
     }
     setShowForm(false);
@@ -486,13 +500,23 @@ export default function AccountRegister() {
               pastTxs.map(tx => (
                 <tr key={tx.id} className={styles.txRow}>
                   <td>
-                    {tx.postDate ? (
-                      <span title={`Post date. Transaction date: ${formatDate(tx.date)}`}>
-                        {formatDate(tx.postDate)}<span className={styles.postDateMark}>*</span>
-                      </span>
-                    ) : formatDate(tx.date)}
+                    {/* Transfer source side: always show transaction date (post date belongs to destination) */}
+                    {tx.transferTransactionId && tx.amount < 0 ? formatDate(tx.date) :
+                      tx.postDate ? (
+                        <span title={`Post date. Transaction date: ${formatDate(tx.date)}`}>
+                          {formatDate(tx.postDate)}<span className={styles.postDateMark}>*</span>
+                        </span>
+                      ) : formatDate(tx.date)}
                   </td>
-                  <td>{tx.payee?.name ?? '—'}</td>
+                  <td>
+                    {tx.transferTransactionId
+                      ? <span className={styles.transferLabel}>
+                          {tx.amount < 0
+                            ? `Transfer → ${allAccounts.find(a => a.id === tx.transferAccountId)?.name ?? 'account'}`
+                            : `Transfer ← ${allAccounts.find(a => a.id === tx.transferAccountId)?.name ?? 'account'}`}
+                        </span>
+                      : (tx.payee?.name ?? '—')}
+                  </td>
                   <td>{getCategoryLabel(tx, categories)}</td>
                   <td>{tx.memo ?? ''}</td>
                   <td className={`${styles.right} ${tx.amount < 0 ? styles.debit : styles.credit}`}>

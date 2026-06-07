@@ -572,6 +572,9 @@ namespace MoneyTracker.Migrations
                     b.Property<int?>("TransferTransactionId")
                         .HasColumnType("integer");
 
+                    b.Property<int?>("TransferAccountId")
+                        .HasColumnType("integer");
+
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 

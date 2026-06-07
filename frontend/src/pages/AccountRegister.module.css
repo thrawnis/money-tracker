@@ -315,6 +315,12 @@
   font-style: italic;
 }
 
+.transferLabel {
+  color: #2563ab;
+  font-style: italic;
+  font-size: 0.88em;
+}
+
 .postDateMark {
   color: #888;
   font-size: 10px;

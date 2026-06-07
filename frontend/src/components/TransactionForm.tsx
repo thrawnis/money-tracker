@@ -10,7 +10,7 @@ interface Props {
   initial?: Partial<Transaction>;
   initialPayeeName?: string;
   initialCategoryLabel?: string;
-  onSave: (data: Omit<Transaction, 'id' | 'accountId' | 'createdAt' | 'updatedAt'> & { targetAccountId?: number }) => Promise<void>;
+  onSave: (data: Omit<Transaction, 'id' | 'accountId' | 'createdAt' | 'updatedAt'> & { targetAccountId?: number; transferDestAccountId?: number }) => Promise<void>;
   onCancel: () => void;
 }
 
@@ -99,6 +99,11 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
   const payeeRef = useRef<HTMLInputElement>(null);
 
   const [targetAccountId, setTargetAccountId] = useState<number | undefined>(undefined);
+  const isExistingTransfer = !!(initial?.transferTransactionId);
+  const [isTransfer, setIsTransfer] = useState(isExistingTransfer);
+  const [transferDestAccountId, setTransferDestAccountId] = useState<number | undefined>(
+    isExistingTransfer ? (initial?.transferAccountId ?? undefined) : undefined
+  );
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
 
@@ -161,6 +166,8 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
     const e: Record<string, string> = {};
     if (!date) e.date = 'Date required';
     if (!amount || isNaN(Number(amount))) e.amount = 'Valid amount required';
+    if (isTransfer && !transferDestAccountId) e.transferDest = 'Destination account required';
+    if (isTransfer && transferDestAccountId === _accountId) e.transferDest = 'Source and destination must differ';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -184,20 +191,45 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
       await onSave({
         date,
         postDate: showPostDate && postDate ? postDate : undefined,
-        payeeId: resolvedPayeeId,
-        categoryId: resolvedCategoryId,
+        payeeId: isTransfer ? undefined : resolvedPayeeId,
+        categoryId: isTransfer ? undefined : resolvedCategoryId,
         memo: memo || undefined,
         amount: Number(amount),
         status,
         targetAccountId,
+        transferDestAccountId: isTransfer ? transferDestAccountId : undefined,
       });
     } finally {
       setSubmitting(false);
     }
   };
 
+  // For transfer mode: active accounts only for new transfers, all accounts for editing
+  const transferAccounts = accounts
+    ? (isExistingTransfer ? accounts : accounts.filter(a => a.isActive))
+        .filter(a => a.id !== _accountId)
+        .sort((a, b) => a.name.localeCompare(b.name))
+    : [];
+
   return (
     <form onSubmit={handleSubmit} className={styles.form}>
+      {/* Transfer toggle — only show for new transactions or existing transfers */}
+      {(!initial?.id || isExistingTransfer) && (
+        <div className={styles.transferToggleRow}>
+          <label className={styles.transferToggleLabel}>
+            <input
+              type="checkbox"
+              checked={isTransfer}
+              onChange={e => {
+                setIsTransfer(e.target.checked);
+                if (!e.target.checked) setTransferDestAccountId(undefined);
+              }}
+              disabled={isExistingTransfer}
+            />
+            {' '}Transfer between accounts
+          </label>
+        </div>
+      )}
       <div className={styles.row}>
         <div className={styles.field}>
           <label className={styles.label}>
@@ -237,52 +269,75 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
           )}
         </div>
 
-        <div className={styles.fieldRelative}>
-          <label className={styles.label}>Payee</label>
-          <input
-            ref={payeeRef}
-            type="text"
-            className={styles.input}
-            value={payeeInput}
-            onChange={e => handlePayeeInput(e.target.value)}
-            onBlur={() => setTimeout(() => setShowPayeeSuggestions(false), 150)}
-            tabIndex={2}
-            autoComplete="off"
-          />
-          {showPayeeSuggestions && payeeSuggestions.length > 0 && (
-            <ul className={styles.suggestions}>
-              {payeeSuggestions.map(p => (
-                <li key={p.id} onMouseDown={() => selectPayee(p)} className={styles.suggestion}>
-                  {p.name}
-                </li>
+        {isTransfer ? (
+          <div className={styles.field}>
+            <label className={styles.label}>Destination Account</label>
+            <select
+              className={styles.select}
+              value={transferDestAccountId ?? ''}
+              onChange={e => setTransferDestAccountId(e.target.value ? Number(e.target.value) : undefined)}
+              disabled={isExistingTransfer}
+              tabIndex={2}
+            >
+              <option value="">— Select account —</option>
+              {transferAccounts.map(a => (
+                <option key={a.id} value={a.id} style={!a.isActive ? { color: '#999' } : undefined}>
+                  {a.name}{!a.isActive ? ' (inactive)' : ''}
+                </option>
               ))}
-            </ul>
-          )}
-        </div>
+            </select>
+            {errors.transferDest && <span className={styles.error}>{errors.transferDest}</span>}
+          </div>
+        ) : (
+          <>
+            <div className={styles.fieldRelative}>
+              <label className={styles.label}>Payee</label>
+              <input
+                ref={payeeRef}
+                type="text"
+                className={styles.input}
+                value={payeeInput}
+                onChange={e => handlePayeeInput(e.target.value)}
+                onBlur={() => setTimeout(() => setShowPayeeSuggestions(false), 150)}
+                tabIndex={2}
+                autoComplete="off"
+              />
+              {showPayeeSuggestions && payeeSuggestions.length > 0 && (
+                <ul className={styles.suggestions}>
+                  {payeeSuggestions.map(p => (
+                    <li key={p.id} onMouseDown={() => selectPayee(p)} className={styles.suggestion}>
+                      {p.name}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
 
-        <div className={styles.fieldRelative}>
-          <label className={styles.label}>Category</label>
-          <input
-            ref={categoryRef}
-            type="text"
-            className={styles.input}
-            value={categoryInput}
-            onChange={e => handleCategoryInput(e.target.value)}
-            onBlur={() => setTimeout(() => setShowCatSuggestions(false), 150)}
-            tabIndex={3}
-            autoComplete="off"
-            placeholder="e.g. Food or Food: Groceries"
-          />
-          {showCatSuggestions && categorySuggestions.length > 0 && (
-            <ul className={styles.suggestions}>
-              {categorySuggestions.map(c => (
-                <li key={c.id} onMouseDown={() => selectCategory(c)} className={styles.suggestion}>
-                  {c.label}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+            <div className={styles.fieldRelative}>
+              <label className={styles.label}>Category</label>
+              <input
+                ref={categoryRef}
+                type="text"
+                className={styles.input}
+                value={categoryInput}
+                onChange={e => handleCategoryInput(e.target.value)}
+                onBlur={() => setTimeout(() => setShowCatSuggestions(false), 150)}
+                tabIndex={3}
+                autoComplete="off"
+                placeholder="e.g. Food or Food: Groceries"
+              />
+              {showCatSuggestions && categorySuggestions.length > 0 && (
+                <ul className={styles.suggestions}>
+                  {categorySuggestions.map(c => (
+                    <li key={c.id} onMouseDown={() => selectCategory(c)} className={styles.suggestion}>
+                      {c.label}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </>
+        )}
 
         <div className={styles.field}>
           <label className={styles.label}>Memo</label>
