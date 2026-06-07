@@ -513,6 +513,9 @@ namespace MoneyTracker.Migrations
                     b.Property<int>("ReminderDays")
                         .HasColumnType("integer");
 
+                    b.Property<int?>("TransferAccountId")
+                        .HasColumnType("integer");
+
                     b.Property<string>("UserId")
                         .IsRequired()
                         .HasColumnType("text");

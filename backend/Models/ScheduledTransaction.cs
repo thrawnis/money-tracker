@@ -30,6 +30,10 @@ public class ScheduledTransaction
     public int? CategoryId { get; set; }
     public Category? Category { get; set; }
 
+    // Set when this is a scheduled transfer; points to the destination account
+    public int? TransferAccountId { get; set; }
+    public Account? TransferAccount { get; set; }
+
     // Stored encrypted
     public string? MemoEncrypted { get; set; }
 

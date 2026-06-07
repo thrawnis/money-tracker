@@ -183,6 +183,12 @@
 .table tbody tr:hover { background: #f5f8fc; }
 .table tbody tr:last-child td { border-bottom: none; }
 
+.transferLabel {
+  color: #2563ab;
+  font-style: italic;
+  font-size: 0.88em;
+}
+
 .overdue td { background: #fff7f6; }
 .overdueText { color: #c0392b; font-weight: 700; }
 

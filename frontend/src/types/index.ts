@@ -86,4 +86,5 @@ export interface ScheduledTransaction {
   nextDueDate: string;
   reminderDays: number;
   isActive: boolean;
+  transferAccountId?: number;
 }

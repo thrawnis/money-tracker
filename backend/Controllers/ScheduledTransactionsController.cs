@@ -44,6 +44,8 @@ public class ScheduledTransactionsController(
         nextDueDate         = s.NextDueDate,
         reminderDays = s.ReminderDays,
         isActive     = s.IsActive,
+        transferAccountId = s.TransferAccountId,
+        transferAccount   = s.TransferAccount is null ? null : new { s.TransferAccount.Id, s.TransferAccount.Name },
         createdAt    = s.CreatedAt,
     };
 
@@ -58,8 +60,10 @@ public class ScheduledTransactionsController(
 
         var items = await db.ScheduledTransactions
             .Where(s => s.UserId == userId && s.IsActive)
+            .Include(s => s.Account)
             .Include(s => s.Payee)
             .Include(s => s.Category)
+            .Include(s => s.TransferAccount)
             .OrderBy(s => s.NextDueDate)
             .ToListAsync();
 
@@ -92,6 +96,7 @@ public class ScheduledTransactionsController(
             .Include(s => s.Payee)
             .Include(s => s.Category)
             .Include(s => s.Account)
+            .Include(s => s.TransferAccount)
             .OrderBy(s => s.NextDueDate)
             .Skip(skip)
             .Take(limit)
@@ -116,6 +121,7 @@ public class ScheduledTransactionsController(
             AccountId     = dto.AccountId,
             PayeeId       = dto.PayeeId,
             CategoryId    = dto.CategoryId,
+            TransferAccountId = dto.TransferAccountId,
             MemoEncrypted      = encryption.Encrypt(dto.Memo, user.EncryptedDataKey),
             Amount             = dto.Amount,
             FrequencyInterval  = dto.FrequencyInterval,
@@ -149,6 +155,7 @@ public class ScheduledTransactionsController(
         scheduled.AccountId     = dto.AccountId;
         scheduled.PayeeId       = dto.PayeeId;
         scheduled.CategoryId    = dto.CategoryId;
+        scheduled.TransferAccountId = dto.TransferAccountId;
         scheduled.MemoEncrypted = encryption.Encrypt(dto.Memo, user.EncryptedDataKey);
         scheduled.Amount            = dto.Amount;
         scheduled.FrequencyInterval = dto.FrequencyInterval;
@@ -187,4 +194,5 @@ public record ScheduledTransactionDto(
     int FrequencyInterval,
     FrequencyUnit FrequencyUnit,
     DateOnly NextDueDate,
-    int ReminderDays);
+    int ReminderDays,
+    int? TransferAccountId);

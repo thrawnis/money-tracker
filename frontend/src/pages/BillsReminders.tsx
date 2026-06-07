@@ -32,6 +32,8 @@ function formatFrequency(interval: number, unit: FrequencyUnit): string {
 interface FormState {
   name: string;
   accountId: string;
+  isTransfer: boolean;
+  transferAccountId: string;
   payeeInput: string;
   payeeId?: number;
   categoryId: string;
@@ -47,6 +49,8 @@ interface FormState {
 const emptyForm = (): FormState => ({
   name: '',
   accountId: '',
+  isTransfer: false,
+  transferAccountId: '',
   payeeInput: '',
   payeeId: undefined,
   categoryId: '',
@@ -111,6 +115,8 @@ export default function BillsReminders() {
     const e: Record<string, string> = {};
     if (!form.name) e.name = 'Name required';
     if (!form.accountId) e.accountId = 'Account required';
+    if (form.isTransfer && !form.transferAccountId) e.transferAccountId = 'Destination account required';
+    if (form.isTransfer && form.transferAccountId === form.accountId) e.transferAccountId = 'Source and destination must differ';
     if (!form.amount || isNaN(Number(form.amount))) e.amount = 'Valid amount required';
     if (!form.nextDueDate) e.nextDueDate = 'Due date required';
     const interval = Number(form.frequencyInterval);
@@ -149,8 +155,8 @@ export default function BillsReminders() {
       const data = {
         name: form.name,
         accountId: Number(form.accountId),
-        payeeId: resolvedPayeeId,
-        categoryId: form.categoryId ? Number(form.categoryId) : undefined,
+        payeeId: form.isTransfer ? undefined : resolvedPayeeId,
+        categoryId: form.isTransfer ? undefined : (form.categoryId ? Number(form.categoryId) : undefined),
         memo: form.memo || undefined,
         amount: Number(form.amount),
         frequencyInterval: Number(form.frequencyInterval),
@@ -158,6 +164,7 @@ export default function BillsReminders() {
         nextDueDate: form.nextDueDate,
         reminderDays: Number(form.reminderDays) || 0,
         isActive: form.isActive,
+        transferAccountId: form.isTransfer && form.transferAccountId ? Number(form.transferAccountId) : undefined,
       };
       if (editId !== null) {
         await updateScheduledTransaction(editId, data);
@@ -181,6 +188,8 @@ export default function BillsReminders() {
     setForm({
       name: item.name,
       accountId: String(item.accountId),
+      isTransfer: !!item.transferAccountId,
+      transferAccountId: item.transferAccountId ? String(item.transferAccountId) : '',
       payeeInput: item.payee?.name ?? '',
       payeeId: item.payeeId,
       categoryId: item.categoryId ? String(item.categoryId) : '',
@@ -237,29 +246,58 @@ export default function BillsReminders() {
               </select>
               {formErrors.accountId && <span className={styles.fieldError}>{formErrors.accountId}</span>}
             </div>
-            <div className={styles.formField} style={{ position: 'relative' }}>
-              <label>Payee</label>
-              <input
-                value={form.payeeInput}
-                onChange={e => handlePayeeInput(e.target.value)}
-                onBlur={() => setTimeout(() => setShowSugg(false), 150)}
-                autoComplete="off"
-              />
-              {showSugg && payeeSuggestions.length > 0 && (
-                <ul className={styles.suggestions}>
-                  {payeeSuggestions.map(p => (
-                    <li key={p.id} onMouseDown={() => selectPayee(p)} className={styles.suggestion}>{p.name}</li>
-                  ))}
-                </ul>
-              )}
+            <div className={styles.formField} style={{ gridColumn: '1 / -1' }}>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={form.isTransfer}
+                  onChange={e => setForm(f => ({ ...f, isTransfer: e.target.checked, transferAccountId: '', payeeInput: '', payeeId: undefined, categoryId: '' }))}
+                />
+                {' '}Scheduled transfer between accounts
+              </label>
             </div>
-            <div className={styles.formField}>
-              <label>Category</label>
-              <select value={form.categoryId} onChange={e => setForm(f => ({ ...f, categoryId: e.target.value }))}>
-                <option value="">None</option>
-                {allCategories.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
-              </select>
-            </div>
+            {form.isTransfer ? (
+              <div className={styles.formField}>
+                <label>Destination Account *</label>
+                <select
+                  value={form.transferAccountId}
+                  onChange={e => setForm(f => ({ ...f, transferAccountId: e.target.value }))}
+                >
+                  <option value="">Select…</option>
+                  {accounts
+                    .filter(a => a.isActive && String(a.id) !== form.accountId)
+                    .sort((a, b) => a.name.localeCompare(b.name))
+                    .map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                </select>
+                {formErrors.transferAccountId && <span className={styles.fieldError}>{formErrors.transferAccountId}</span>}
+              </div>
+            ) : (
+              <div className={styles.formField} style={{ position: 'relative' }}>
+                <label>Payee</label>
+                <input
+                  value={form.payeeInput}
+                  onChange={e => handlePayeeInput(e.target.value)}
+                  onBlur={() => setTimeout(() => setShowSugg(false), 150)}
+                  autoComplete="off"
+                />
+                {showSugg && payeeSuggestions.length > 0 && (
+                  <ul className={styles.suggestions}>
+                    {payeeSuggestions.map(p => (
+                      <li key={p.id} onMouseDown={() => selectPayee(p)} className={styles.suggestion}>{p.name}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+            {!form.isTransfer && (
+              <div className={styles.formField}>
+                <label>Category</label>
+                <select value={form.categoryId} onChange={e => setForm(f => ({ ...f, categoryId: e.target.value }))}>
+                  <option value="">None</option>
+                  {allCategories.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                </select>
+              </div>
+            )}
             <div className={styles.formField}>
               <label>Amount *</label>
               <input type="number" step="0.01" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} />
@@ -343,7 +381,13 @@ export default function BillsReminders() {
                 return (
                   <tr key={item.id} className={days < 0 ? styles.overdue : ''}>
                     <td>{item.name}</td>
-                    <td>{item.payee?.name ?? '—'}</td>
+                    <td>
+                      {item.transferAccountId
+                        ? <span className={styles.transferLabel}>
+                            Transfer → {accounts.find(a => a.id === item.transferAccountId)?.name ?? 'account'}
+                          </span>
+                        : (item.payee?.name ?? '—')}
+                    </td>
                     <td>{item.account?.name ?? accounts.find(a => a.id === item.accountId)?.name ?? '—'}</td>
                     <td className={styles.amount}>{formatCurrency(item.amount)}</td>
                     <td>{formatFrequency(item.frequencyInterval, item.frequencyUnit)}</td>
