@@ -82,10 +82,10 @@ public class DashboardController(
         // ── Uncategorized transactions ─────────────────────────────────────────
 
         var uncategorizedCount = await db.Transactions
-            .CountAsync(t => t.Account.UserId == userId && t.CategoryId == null);
+            .CountAsync(t => t.Account.UserId == userId && t.CategoryId == null && t.TransferTransactionId == null);
 
         var recentUncategorized = await db.Transactions
-            .Where(t => t.Account.UserId == userId && t.CategoryId == null)
+            .Where(t => t.Account.UserId == userId && t.CategoryId == null && t.TransferTransactionId == null)
             .Include(t => t.Payee)
             .OrderByDescending(t => t.Date)
             .Take(5)

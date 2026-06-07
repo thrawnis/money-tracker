@@ -528,6 +528,8 @@ namespace MoneyTracker.Migrations
 
                     b.HasIndex("PayeeId");
 
+                    b.HasIndex("TransferAccountId");
+
                     b.HasIndex("UserId");
 
                     b.ToTable("ScheduledTransactions");
@@ -843,6 +845,11 @@ namespace MoneyTracker.Migrations
                         .WithMany()
                         .HasForeignKey("PayeeId");
 
+                    b.HasOne("MoneyTracker.Models.Account", "TransferAccount")
+                        .WithMany()
+                        .HasForeignKey("TransferAccountId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("MoneyTracker.Models.ApplicationUser", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
@@ -854,6 +861,8 @@ namespace MoneyTracker.Migrations
                     b.Navigation("Category");
 
                     b.Navigation("Payee");
+
+                    b.Navigation("TransferAccount");
 
                     b.Navigation("User");
                 });

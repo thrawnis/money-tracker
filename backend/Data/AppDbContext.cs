@@ -59,6 +59,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         {
             e.Property(s => s.Amount).HasPrecision(18, 2);
             e.HasOne(s => s.User).WithMany().HasForeignKey(s => s.UserId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(s => s.TransferAccount).WithMany().HasForeignKey(s => s.TransferAccountId).OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<SavedReport>(e =>
