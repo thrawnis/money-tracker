@@ -557,6 +557,9 @@ namespace MoneyTracker.Migrations
                     b.Property<DateOnly>("Date")
                         .HasColumnType("date");
 
+                    b.Property<DateOnly?>("PostDate")
+                        .HasColumnType("date");
+
                     b.Property<string>("MemoEncrypted")
                         .HasColumnType("text");
 

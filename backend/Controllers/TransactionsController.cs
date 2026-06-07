@@ -28,6 +28,7 @@ public class TransactionsController(
         id                    = tx.Id,
         accountId             = tx.AccountId,
         date                  = tx.Date,
+        postDate              = tx.PostDate,
         checkNumber           = encryption.Decrypt(tx.CheckNumberEncrypted, dek),
         payeeId               = tx.PayeeId,
         payee                 = tx.Payee is null ? null : new
@@ -161,6 +162,7 @@ public class TransactionsController(
         {
             AccountId             = accountId,
             Date                  = dto.Date,
+            PostDate              = dto.PostDate,
             CheckNumberEncrypted  = encryption.Encrypt(dto.CheckNumber, user.EncryptedDataKey),
             PayeeId               = dto.PayeeId,
             CategoryId            = dto.CategoryId,
@@ -203,6 +205,7 @@ public class TransactionsController(
         }
 
         tx.Date                 = dto.Date;
+        tx.PostDate             = dto.PostDate;
         tx.CheckNumberEncrypted = encryption.Encrypt(dto.CheckNumber, user.EncryptedDataKey);
         tx.PayeeId              = dto.PayeeId;
         tx.CategoryId           = dto.CategoryId;
@@ -276,6 +279,7 @@ public class TransactionsController(
 
 public record TransactionDto(
     DateOnly          Date,
+    DateOnly?         PostDate,
     string?           CheckNumber,
     int?              PayeeId,
     int?              CategoryId,

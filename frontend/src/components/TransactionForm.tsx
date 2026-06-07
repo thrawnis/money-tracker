@@ -81,6 +81,8 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
   const [memo, setMemo] = useState(initial?.memo ?? '');
   const [amount, setAmount] = useState(initial?.amount?.toString() ?? '');
   const [status] = useState<Transaction['status']>(initial?.status ?? 'Uncleared');
+  const [postDate, setPostDate] = useState(initial?.postDate ?? '');
+  const [showPostDate, setShowPostDate] = useState(!!initial?.postDate);
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [payees, setPayees] = useState<Payee[]>([]);
@@ -181,6 +183,7 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
 
       await onSave({
         date,
+        postDate: showPostDate && postDate ? postDate : undefined,
         payeeId: resolvedPayeeId,
         categoryId: resolvedCategoryId,
         memo: memo || undefined,
@@ -197,7 +200,17 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
     <form onSubmit={handleSubmit} className={styles.form}>
       <div className={styles.row}>
         <div className={styles.field}>
-          <label className={styles.label}>Date</label>
+          <label className={styles.label}>
+            Date
+            <button
+              type="button"
+              className={styles.postDateToggle}
+              onClick={() => setShowPostDate(s => !s)}
+              title="Post Date: the date this transaction settled or posted to your bank/credit card statement, which is often 1–3 days after the transaction date."
+            >
+              {showPostDate ? '📅−' : '📅+'}
+            </button>
+          </label>
           <input
             type="date"
             className={styles.input}
@@ -207,6 +220,21 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
             autoFocus={!initial?.id}
           />
           {errors.date && <span className={styles.error}>{errors.date}</span>}
+          {showPostDate && (
+            <div className={styles.postDateRow}>
+              <label className={styles.postDateLabel}>
+                Post Date
+                <span className={styles.postDateHint}>Date posted to statement</span>
+              </label>
+              <input
+                type="date"
+                className={styles.input}
+                value={postDate}
+                onChange={e => setPostDate(e.target.value)}
+                tabIndex={2}
+              />
+            </div>
+          )}
         </div>
 
         <div className={styles.fieldRelative}>

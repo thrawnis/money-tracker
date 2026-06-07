@@ -125,3 +125,42 @@
 .btnCancel:hover {
   background: #d0d0d0;
 }
+
+.postDateToggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 11px;
+  margin-left: 5px;
+  padding: 0 2px;
+  opacity: 0.6;
+  vertical-align: middle;
+  border-radius: 3px;
+  transition: opacity 0.1s;
+}
+.postDateToggle:hover { opacity: 1; background: #dce8f4; }
+
+.postDateRow {
+  margin-top: 5px;
+}
+
+.postDateLabel {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #556;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-bottom: 3px;
+}
+
+.postDateHint {
+  font-size: 10px;
+  font-weight: 400;
+  color: #99a;
+  text-transform: none;
+  letter-spacing: 0;
+  font-style: italic;
+}

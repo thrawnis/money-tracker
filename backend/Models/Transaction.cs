@@ -18,6 +18,9 @@ public class Transaction
 
     public DateOnly Date { get; set; }
 
+    // The date the transaction settled/posted to the statement (often 1-3 days after Date)
+    public DateOnly? PostDate { get; set; }
+
     // Stored encrypted (AES-256-GCM); no MaxLength since ciphertext is longer than plaintext
     public string? CheckNumberEncrypted { get; set; }
 

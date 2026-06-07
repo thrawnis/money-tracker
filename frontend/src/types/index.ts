@@ -31,6 +31,7 @@ export interface Transaction {
   id: number;
   accountId: number;
   date: string;           // ISO date string YYYY-MM-DD
+  postDate?: string;      // Date transaction posted to statement (optional)
   checkNumber?: string;
   payeeId?: number;
   payee?: Payee;
