@@ -273,6 +273,14 @@ export default function AccountRegister() {
     setShowForm(true);
   };
 
+  const handleToggleStatus = async (tx: Transaction) => {
+    const next: Transaction['status'] =
+      tx.status === 'Uncleared' ? 'Cleared' :
+      tx.status === 'Cleared'   ? 'Reconciled' : 'Uncleared';
+    setPastTxs(prev => prev.map(t => t.id === tx.id ? { ...t, status: next } : t));
+    await updateTransaction(accountId, tx.id, { status: next });
+  };
+
   const handleReceiptConfirm = (data: ExtractedReceipt) => {
     setShowScanner(false);
     setEditingTx(null);
@@ -464,7 +472,15 @@ export default function AccountRegister() {
                   <td className={`${styles.right} ${(balanceMap.get(tx.id) ?? 0) < 0 ? styles.debit : ''}`}>
                     {formatCurrency(balanceMap.get(tx.id) ?? 0)}
                   </td>
-                  <td><span className={styles[`status${tx.status}`]}>{tx.status}</span></td>
+                  <td>
+                    <button
+                      className={styles[`status${tx.status}`]}
+                      onClick={() => handleToggleStatus(tx)}
+                      title={tx.status === 'Uncleared' ? 'Mark Cleared' : tx.status === 'Cleared' ? 'Mark Reconciled' : 'Mark Uncleared'}
+                    >
+                      {tx.status === 'Uncleared' ? '○' : tx.status === 'Cleared' ? '✓' : '✓✓'}
+                    </button>
+                  </td>
                   <td className={styles.actions}>
                     <button className={styles.btnEdit} onClick={() => handleEdit(tx)}>Edit</button>
                     <button className={styles.btnDelete} onClick={() => handleDelete(tx.id)}>Del</button>
