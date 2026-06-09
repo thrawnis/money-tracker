@@ -1,0 +1,175 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal {
+  background: #fff;
+  border-radius: 4px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+  width: 440px;
+  max-width: 95vw;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modalHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  background: #002a52;
+  color: #fff;
+  border-radius: 4px 4px 0 0;
+  position: sticky;
+  top: 0;
+}
+
+.modalTitle {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.closeBtn {
+  background: none;
+  border: none;
+  color: #fff;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 2px 6px;
+  line-height: 1;
+}
+
+.closeBtn:hover { opacity: 0.8; }
+
+.modalBody {
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #333;
+}
+
+.checkLabel {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #333;
+  cursor: pointer;
+}
+
+.input,
+.select,
+.textarea {
+  padding: 7px 9px;
+  border: 1px solid #c0c0c0;
+  border-radius: 3px;
+  font-size: 13px;
+  font-family: inherit;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.textarea { resize: vertical; }
+
+.input:focus,
+.select:focus,
+.textarea:focus {
+  outline: none;
+  border-color: #006666;
+}
+
+.institutionRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.institutionRow .input,
+.institutionRow .select {
+  flex: 1;
+}
+
+.error {
+  color: #cc0000;
+  font-size: 12px;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding-top: 4px;
+}
+
+.btnPrimary {
+  padding: 7px 18px;
+  background: #006666;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btnPrimary:hover { background: #007a7a; }
+.btnPrimary:disabled { background: #999; cursor: not-allowed; }
+
+.btnSecondary {
+  padding: 7px 14px;
+  background: #fff;
+  color: #336699;
+  border: 1px solid #b0c0d0;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btnSecondary:hover { background: #f0f6ff; }
+.btnSecondary:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.btnDanger {
+  margin-left: auto;
+  padding: 7px 14px;
+  background: #fff;
+  color: #c0392b;
+  border: 1px solid #c0392b;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btnDanger:hover { background: #c0392b; color: #fff; }
+.btnDanger:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.btnLink {
+  background: none;
+  border: none;
+  color: #006666;
+  cursor: pointer;
+  font-size: 12px;
+  text-decoration: underline;
+  padding: 0;
+  white-space: nowrap;
+}

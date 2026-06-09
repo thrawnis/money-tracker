@@ -2,13 +2,15 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
-import { getAccount, getAccounts } from '../api/accounts';
+import { getAccount, getAccounts, deleteAccount } from '../api/accounts';
 import { getTransactions, createTransaction, updateTransaction, deleteTransaction, createTransfer } from '../api/transactions';
 import { getUpcoming } from '../api/scheduledTransactions';
 import { getCategories } from '../api/categories';
-import type { Account, Transaction, Category, ScheduledTransaction } from '../types';
+import { getInstitutions } from '../api/institutions';
+import type { Account, Transaction, Category, ScheduledTransaction, Institution } from '../types';
 import TransactionForm from '../components/TransactionForm';
 import ReceiptScanner from '../components/ReceiptScanner';
+import AccountEditModal from '../components/AccountEditModal';
 import type { ExtractedReceipt } from '../api/receipts';
 import styles from './AccountRegister.module.css';
 
@@ -30,6 +32,8 @@ export default function AccountRegister() {
 
   const [account, setAccount] = useState<Account | null>(null);
   const [allAccounts, setAllAccounts] = useState<Account[]>([]);
+  const [institutions, setInstitutions] = useState<Institution[]>([]);
+  const [showEditModal, setShowEditModal] = useState(false);
   usePageTitle('Account Register');
   const [categories, setCategories] = useState<Category[]>([]);
   const [error, setError] = useState('');
@@ -124,14 +128,16 @@ export default function AccountRegister() {
     setInitialLoading(true);
     setError('');
     try {
-      const [acc, txResult, cats, accs] = await Promise.all([
+      const [acc, txResult, cats, accs, insts] = await Promise.all([
         getAccount(accountId),
         getTransactions(accountId, { page: 1, pageSize: PAST_PAGE_SIZE, sortBy: overrideSortBy, sortDir: overrideSortDir }),
         getCategories(),
         getAccounts(true),
+        getInstitutions(),
       ]);
       setAccount(acc);
       setAllAccounts(accs);
+      setInstitutions(insts);
       setPastTxs(txResult.items);
       setPastTotal(txResult.total);
       setPastPage(1);
@@ -457,6 +463,29 @@ export default function AccountRegister() {
                     className={styles.settingsDaysInput}
                   />
                 </div>
+                <div className={styles.settingsDivider} />
+                <button
+                  className={styles.settingsAction}
+                  onClick={() => { setSettingsOpen(false); setShowEditModal(true); }}
+                >
+                  Edit Account…
+                </button>
+                <button
+                  className={`${styles.settingsAction} ${styles.settingsActionDanger}`}
+                  onClick={async () => {
+                    setSettingsOpen(false);
+                    if (!account) return;
+                    if (!confirm(`Delete "${account.name}"? This permanently deletes the account and all its transactions. This cannot be undone.`)) return;
+                    try {
+                      await deleteAccount(account.id);
+                      navigate('/accounts');
+                    } catch {
+                      alert('Failed to delete account.');
+                    }
+                  }}
+                >
+                  Delete Account…
+                </button>
               </div>
             )}
           </div>
@@ -683,6 +712,16 @@ export default function AccountRegister() {
           </tbody>
         </table>
       </div>
+
+      {showEditModal && account && (
+        <AccountEditModal
+          account={account}
+          institutions={institutions}
+          onSaved={updated => { setAccount(updated); setShowEditModal(false); }}
+          onDeleted={() => navigate('/accounts')}
+          onClose={() => setShowEditModal(false)}
+        />
+      )}
     </div>
   );
 }

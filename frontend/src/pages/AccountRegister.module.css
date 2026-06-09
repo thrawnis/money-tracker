@@ -163,6 +163,27 @@
   background: #fafbfc;
 }
 
+.settingsDivider {
+  border: none;
+  border-top: 1px solid #e0e8f0;
+  margin: 2px 0;
+}
+
+.settingsAction {
+  background: none;
+  border: none;
+  text-align: left;
+  padding: 4px 0;
+  font-size: 12.5px;
+  color: #336699;
+  cursor: pointer;
+}
+
+.settingsAction:hover { color: #002a52; text-decoration: underline; }
+
+.settingsActionDanger { color: #c0392b; }
+.settingsActionDanger:hover { color: #922b21; }
+
 /* ── Filter panel ─────────────────────────────────────────────────────────── */
 
 .filterPanel {
