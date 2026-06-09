@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { getAccount, getAccounts } from '../api/accounts';
 import { getTransactions, createTransaction, updateTransaction, deleteTransaction, createTransfer } from '../api/transactions';
@@ -25,6 +25,7 @@ const FUTURE_BATCH = 5;
 export default function AccountRegister() {
   const { id } = useParams<{ id: string }>();
   const accountId = Number(id);
+  const navigate = useNavigate();
 
   const [account, setAccount] = useState<Account | null>(null);
   const [allAccounts, setAllAccounts] = useState<Account[]>([]);
@@ -124,7 +125,7 @@ export default function AccountRegister() {
         getAccount(accountId),
         getTransactions(accountId, { page: 1, pageSize: PAST_PAGE_SIZE, sortBy: overrideSortBy, sortDir: overrideSortDir }),
         getCategories(),
-        getAccounts(),
+        getAccounts(true),
       ]);
       setAccount(acc);
       setAllAccounts(accs);
@@ -381,7 +382,29 @@ export default function AccountRegister() {
       {/* ── Header ──────────────────────────────────────────────────────────── */}
       <div className={styles.pageHeader}>
         <div>
-          <h2 className={styles.pageTitle}>{account?.name ?? 'Account Register'}</h2>
+          <select
+            className={styles.accountSelect}
+            value={accountId}
+            onChange={e => navigate(`/accounts/${e.target.value}`)}
+          >
+            {(() => {
+              const active   = allAccounts.filter(a => a.isActive)  .sort((a, b) => a.name.localeCompare(b.name));
+              const inactive = allAccounts.filter(a => !a.isActive) .sort((a, b) => a.name.localeCompare(b.name));
+              return (
+                <>
+                  {active.map(a => (
+                    <option key={a.id} value={a.id}>{a.name}</option>
+                  ))}
+                  {inactive.length > 0 && active.length > 0 && (
+                    <option disabled>──────────</option>
+                  )}
+                  {inactive.map(a => (
+                    <option key={a.id} value={a.id}>{a.name} (inactive)</option>
+                  ))}
+                </>
+              );
+            })()}
+          </select>
           {account && (
             <div className={styles.accountMeta}>
               {account.type} &bull; Balance: <strong>{formatCurrency(currentBalance)}</strong>
