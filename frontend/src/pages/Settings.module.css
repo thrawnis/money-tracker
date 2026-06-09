@@ -120,6 +120,32 @@
   cursor: not-allowed;
 }
 
+.btnDanger {
+  padding: 7px 18px;
+  background: #c0392b;
+  color: #fff;
+  border: none;
+  border-radius: 3px;
+  font-size: 13px;
+  cursor: pointer;
+  align-self: flex-start;
+}
+
+.btnDanger:hover:not(:disabled) {
+  background: #a93226;
+}
+
+.btnDanger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.divider {
+  border: none;
+  border-top: 1px solid #e0e8f0;
+  margin: 20px 0;
+}
+
 .btnSecondary {
   padding: 7px 18px;
   background: transparent;

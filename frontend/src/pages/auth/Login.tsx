@@ -1,8 +1,9 @@
-import { useState, type FormEvent } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import * as authApi from '../../api/auth';
 import { setAccessToken } from '../../api/client';
+import { getDemoInfo } from '../../api/demo';
 import styles from './Login.module.css';
 
 export default function Login() {
@@ -16,6 +17,30 @@ export default function Login() {
   const [passwordError, setPasswordError] = useState('');
   const [globalError, setGlobalError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [demoEmail, setDemoEmail] = useState<string | null>(null);
+
+  useEffect(() => {
+    getDemoInfo().then(info => {
+      if (info.isDemoMode && info.email) setDemoEmail(info.email);
+    }).catch(() => {});
+  }, []);
+
+  const handleTryDemo = async () => {
+    if (!demoEmail) return;
+    setGlobalError('');
+    setSubmitting(true);
+    try {
+      await authApi.login(demoEmail, 'Demo123456!!', false);
+      const token = await authApi.refreshTokens();
+      setAccessToken(token.accessToken);
+      setTokenAndUser(token.accessToken, { id: '', email: demoEmail, role: token.role });
+      navigate('/');
+    } catch {
+      setGlobalError('Failed to start demo. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const validate = () => {
     let ok = true;
@@ -106,6 +131,19 @@ export default function Login() {
         <div className={styles.link}>
           Don't have an account? <Link to="/auth/register">Register</Link>
         </div>
+        {demoEmail && (
+          <>
+            <div className={styles.divider}>or</div>
+            <button
+              type="button"
+              className={styles.btnDemo}
+              onClick={handleTryDemo}
+              disabled={submitting}
+            >
+              Try Demo
+            </button>
+          </>
+        )}
       </div>
     </div>
   );

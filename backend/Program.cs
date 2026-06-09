@@ -122,6 +122,7 @@ builder.Services.AddSingleton<JwtService>();
 builder.Services.AddSingleton<IEncryptionService, EncryptionService>();
 builder.Services.AddSingleton(UrlEncoder.Default);
 builder.Services.AddScoped<ExportService>();
+builder.Services.AddScoped<DemoSeeder>();
 
 // ── MVC & Swagger ─────────────────────────────────────────────────────────────
 
@@ -152,6 +153,12 @@ using (var scope = app.Services.CreateScope())
     db.Database.Migrate();
     var audit = scope.ServiceProvider.GetRequiredService<IAuditService>();
     await audit.LogSystemAsync("STARTUP", details: new { message = "Application started, migrations applied" });
+
+    if (app.Configuration["DEMO_MODE"] == "true")
+    {
+        var seeder = scope.ServiceProvider.GetRequiredService<DemoSeeder>();
+        await seeder.SeedIfNeededAsync();
+    }
 }
 
 // ── Middleware pipeline ───────────────────────────────────────────────────────

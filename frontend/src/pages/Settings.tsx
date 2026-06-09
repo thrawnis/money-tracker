@@ -3,6 +3,7 @@ import { usePageTitle } from '../hooks/usePageTitle';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../api/client';
+import { getDemoInfo, resetDemo } from '../api/demo';
 import { getTemplate, previewImport, importWithDuplicates } from '../api/import';
 import { getAuditLog, type AuditEntry, type GetAuditParams } from '../api/audit';
 import { getAccounts, createAccount, updateAccount, deleteAccount } from '../api/accounts';
@@ -32,8 +33,14 @@ function ChangePasswordTab() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [signingOutAll, setSigningOutAll] = useState(false);
+  const [resettingDemo, setResettingDemo] = useState(false);
+  const [isDemoMode, setIsDemoMode] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  useEffect(() => {
+    getDemoInfo().then(info => setIsDemoMode(info.isDemoMode)).catch(() => {});
+  }, []);
 
   const validate = () => {
     if (!currentPassword) return 'Current password is required.';
@@ -80,7 +87,12 @@ function ChangePasswordTab() {
 
   return (
     <div className={styles.tabSection}>
-      <form className={styles.tabForm} onSubmit={handleSubmit}>
+      {isDemoMode && (
+        <div className={styles.hint} style={{ marginBottom: 16 }}>
+          Password changes are disabled for the demo account.
+        </div>
+      )}
+      <form className={styles.tabForm} onSubmit={handleSubmit} style={isDemoMode ? { display: 'none' } : undefined}>
         <div className={styles.field}>
           <label className={styles.label}>Current Password</label>
           <input
@@ -127,6 +139,38 @@ function ChangePasswordTab() {
           {signingOutAll ? 'Signing out…' : 'Sign Out All Sessions'}
         </button>
       </div>
+
+      {isDemoMode && (
+        <>
+          <hr className={styles.divider} />
+          <div>
+            <div className={styles.sectionTitle}>Demo Data</div>
+            <p className={styles.hint}>Reset all demo data back to its original state. This cannot be undone.</p>
+            {error && <div className={styles.error}>{error}</div>}
+            {success && <div className={styles.success}>{success}</div>}
+            <button
+              className={styles.btnDanger}
+              disabled={resettingDemo}
+              onClick={async () => {
+                if (!confirm('Reset all demo data to its original state?')) return;
+                setResettingDemo(true);
+                setError('');
+                setSuccess('');
+                try {
+                  await resetDemo();
+                  setSuccess('Demo data has been reset successfully.');
+                } catch {
+                  setError('Failed to reset demo data.');
+                } finally {
+                  setResettingDemo(false);
+                }
+              }}
+            >
+              {resettingDemo ? 'Resetting…' : 'Reset Demo Data'}
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
