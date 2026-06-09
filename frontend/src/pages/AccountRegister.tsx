@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { usePageTitle } from '../hooks/usePageTitle';
+import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import { getAccount, getAccounts } from '../api/accounts';
 import { getTransactions, createTransaction, updateTransaction, deleteTransaction, createTransfer } from '../api/transactions';
 import { getUpcoming } from '../api/scheduledTransactions';
@@ -73,6 +74,8 @@ export default function AccountRegister() {
   const [receiptCategoryLabel, setReceiptCategoryLabel] = useState<string | undefined>(undefined);
   const [showScanner, setShowScanner] = useState(false);
   const lastUsedDate = useRef<string>(new Date().toISOString().slice(0, 10));
+
+  useUnsavedChanges(showForm);
 
   // Actions menu
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
@@ -385,10 +388,7 @@ export default function AccountRegister() {
           <select
             className={styles.accountSelect}
             value={accountId}
-            onChange={e => {
-              if (showForm && !confirm('You have an unsaved transaction. Leave anyway?')) return;
-              navigate(`/accounts/${e.target.value}`);
-            }}
+            onChange={e => navigate(`/accounts/${e.target.value}`)}
           >
             {(() => {
               const active   = allAccounts.filter(a => a.isActive)  .sort((a, b) => a.name.localeCompare(b.name));

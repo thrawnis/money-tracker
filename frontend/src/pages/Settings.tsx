@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../api/client';
 import { getDemoInfo, resetDemo } from '../api/demo';
+import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import { getTemplate, previewImport, importWithDuplicates } from '../api/import';
 import { getAuditLog, type AuditEntry, type GetAuditParams } from '../api/audit';
 import { getAccounts, createAccount, updateAccount, deleteAccount } from '../api/accounts';
@@ -41,6 +42,8 @@ function ChangePasswordTab() {
   useEffect(() => {
     getDemoInfo().then(info => setIsDemoMode(info.isDemoMode)).catch(() => {});
   }, []);
+
+  useUnsavedChanges(!loading && (currentPassword !== '' || newPassword !== '' || confirmPassword !== ''));
 
   const validate = () => {
     if (!currentPassword) return 'Current password is required.';
@@ -770,6 +773,12 @@ function AccountsTab() {
   const [showAdd, setShowAdd] = useState(false);
   const [addState, setAddState] = useState<AddState>(BLANK_ADD);
   const [adding, setAdding] = useState(false);
+
+  const accountsDirty = !saving && !adding && (
+    editState !== null ||
+    (showAdd && (addState.name !== '' || addState.accountNumber !== '' || addState.notes !== '' || addState.openingBalance !== '0'))
+  );
+  useUnsavedChanges(accountsDirty);
 
   useEffect(() => {
     Promise.all([getAccounts(true), getInstitutions()])

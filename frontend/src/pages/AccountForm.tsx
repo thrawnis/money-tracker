@@ -1,6 +1,7 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePageTitle } from '../hooks/usePageTitle';
+import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import { createAccount } from '../api/accounts';
 import { getInstitutions, createInstitution } from '../api/institutions';
 import type { AccountType, Institution } from '../types';
@@ -28,6 +29,12 @@ export default function AccountForm({ onCreated }: Props) {
   const [newInstitutionName, setNewInstitutionName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const isDirty = !loading && (
+    name !== '' || openingBalance !== '0' || accountNumber !== '' ||
+    notes !== '' || institutionId !== ''
+  );
+  useUnsavedChanges(isDirty);
 
   useEffect(() => {
     getInstitutions().then(setInstitutions).catch(console.error);

@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { usePageTitle } from '../hooks/usePageTitle';
+import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import {
   getScheduledTransactions,
   createScheduledTransaction,
@@ -77,6 +78,12 @@ export default function BillsReminders() {
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [payeeSuggestions, setPayeeSuggestions] = useState<Payee[]>([]);
+
+  const formDirty = showForm && !saving && (
+    form.name !== '' || form.accountId !== '' || form.amount !== '' ||
+    form.payeeInput !== '' || form.memo !== '' || form.nextDueDate !== ''
+  );
+  useUnsavedChanges(formDirty);
   const [showSugg, setShowSugg] = useState(false);
 
   const load = async () => {
