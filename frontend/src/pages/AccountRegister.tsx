@@ -385,7 +385,10 @@ export default function AccountRegister() {
           <select
             className={styles.accountSelect}
             value={accountId}
-            onChange={e => navigate(`/accounts/${e.target.value}`)}
+            onChange={e => {
+              if (showForm && !confirm('You have an unsaved transaction. Leave anyway?')) return;
+              navigate(`/accounts/${e.target.value}`);
+            }}
           >
             {(() => {
               const active   = allAccounts.filter(a => a.isActive)  .sort((a, b) => a.name.localeCompare(b.name));
