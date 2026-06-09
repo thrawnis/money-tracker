@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
+import AccountsList from './pages/AccountsList';
 import AccountRegister from './pages/AccountRegister';
 import AccountForm from './pages/AccountForm';
 import BillsReminders from './pages/BillsReminders';
@@ -16,8 +16,6 @@ import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
 import SetupTotp from './pages/auth/SetupTotp';
 import TotpVerify from './pages/auth/TotpVerify';
-import { getAccounts } from './api/accounts';
-import type { Account } from './types';
 
 function PrivateRoute() {
   const { user, loading } = useAuth();
@@ -27,16 +25,7 @@ function PrivateRoute() {
 }
 
 function AppRoutes() {
-  const { user, logout } = useAuth();
-  const [accounts, setAccounts] = useState<Account[]>([]);
-
-  useEffect(() => {
-    if (user) {
-      getAccounts().then(setAccounts).catch(console.error);
-    } else {
-      setAccounts([]);
-    }
-  }, [user]);
+  const { logout } = useAuth();
 
   return (
     <Routes>
@@ -45,9 +34,10 @@ function AppRoutes() {
       <Route path="/auth/setup-totp" element={<SetupTotp />} />
       <Route path="/auth/totp" element={<TotpVerify />} />
       <Route element={<PrivateRoute />}>
-        <Route element={<Layout accounts={accounts} onLogout={logout} />}>
+        <Route element={<Layout onLogout={logout} />}>
           <Route index element={<Dashboard />} />
-          <Route path="accounts/new" element={<AccountForm onCreated={() => getAccounts().then(setAccounts)} />} />
+          <Route path="accounts" element={<AccountsList />} />
+          <Route path="accounts/new" element={<AccountForm />} />
           <Route path="accounts/:id" element={<AccountRegister />} />
           <Route path="bills" element={<BillsReminders />} />
           <Route path="reports" element={<Reports />} />

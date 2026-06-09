@@ -52,11 +52,18 @@ public class AccountsController(
 
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var accountIds = accounts.Select(a => a.Id).ToList();
+
         var txSums = await db.Transactions
             .Where(t => accountIds.Contains(t.AccountId) && t.Date <= today)
             .GroupBy(t => t.AccountId)
             .Select(g => new { AccountId = g.Key, Sum = g.Sum(t => t.Amount) })
             .ToDictionaryAsync(x => x.AccountId, x => x.Sum);
+
+        var lastTxDates = await db.Transactions
+            .Where(t => accountIds.Contains(t.AccountId))
+            .GroupBy(t => t.AccountId)
+            .Select(g => new { AccountId = g.Key, Last = g.Max(t => t.Date) })
+            .ToDictionaryAsync(x => x.AccountId, x => x.Last);
 
         return Ok(accounts.Select(a =>
         {
@@ -69,6 +76,7 @@ public class AccountsController(
                 type          = a.Type,
                 openingBalance = a.OpeningBalance,
                 currentBalance,
+                lastTransactionDate = lastTxDates.TryGetValue(a.Id, out var d) ? d : (DateOnly?)null,
                 institutionId = a.InstitutionId,
                 institution   = a.Institution is null ? null : new { a.Institution.Id, a.Institution.Name },
                 accountNumber = encryption.Decrypt(a.AccountNumberEncrypted, user.EncryptedDataKey),

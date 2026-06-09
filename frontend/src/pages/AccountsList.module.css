@@ -1,0 +1,137 @@
+.page {
+  padding: 24px;
+  max-width: 860px;
+}
+
+.pageHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+
+.pageTitle {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: #002a52;
+}
+
+.loading, .errorMsg {
+  color: #667;
+  font-size: 13px;
+  padding: 24px 0;
+}
+
+.errorMsg { color: #c0392b; }
+
+.btnPrimary {
+  padding: 7px 16px;
+  background: #006666;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btnPrimary:hover { background: #007a7a; }
+
+/* ── Table ── */
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.table th {
+  padding: 8px 12px;
+  background: #e8f0f8;
+  color: #336699;
+  font-weight: 600;
+  text-align: left;
+  border-bottom: 2px solid #c8d8e8;
+  white-space: nowrap;
+}
+
+.thBal  { text-align: right; }
+.thDate { white-space: nowrap; }
+
+.row {
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.row:hover { background: #f0f6ff; }
+
+.row td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #e8f0f8;
+  vertical-align: middle;
+}
+
+.rowInactive td { color: #999; }
+.rowInactive .tdName { color: #888; }
+
+.tdName {
+  font-weight: 600;
+  color: #002a52;
+}
+
+.tdType {
+  color: #556;
+  font-size: 12px;
+}
+
+.tdInst {
+  color: #556;
+  font-size: 12px;
+}
+
+.tdDate {
+  color: #667;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.tdBal {
+  text-align: right;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: #002a52;
+}
+
+.negative { color: #c0392b; }
+
+.none { color: #bbb; }
+
+.empty {
+  padding: 20px 12px;
+  color: #999;
+  font-size: 13px;
+}
+
+/* ── Inactive section ── */
+
+.inactiveSection {
+  margin-top: 28px;
+}
+
+.inactiveToggle {
+  background: none;
+  border: none;
+  color: #336699;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 0;
+  margin-bottom: 10px;
+}
+
+.inactiveToggle:hover { color: #002a52; }
+
+.tableInactive {
+  opacity: 0.75;
+}

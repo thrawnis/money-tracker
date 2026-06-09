@@ -7,15 +7,11 @@ import { getInstitutions, createInstitution } from '../api/institutions';
 import type { AccountType, Institution } from '../types';
 import styles from './AccountForm.module.css';
 
-interface Props {
-  onCreated?: () => void;
-}
-
 const ACCOUNT_TYPES: AccountType[] = [
   'Checking', 'Savings', 'CreditCard', 'Cash', 'Loan', 'Investment', 'Other',
 ];
 
-export default function AccountForm({ onCreated }: Props) {
+export default function AccountForm() {
   usePageTitle('Add Account');
   const navigate = useNavigate();
   const [name, setName] = useState('');
@@ -69,7 +65,6 @@ export default function AccountForm({ onCreated }: Props) {
         notes: notes.trim() || undefined,
         isActive: true,
       });
-      onCreated?.();
       navigate(`/accounts/${account.id}`);
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
@@ -176,7 +171,7 @@ export default function AccountForm({ onCreated }: Props) {
           <button type="submit" className={styles.btnPrimary} disabled={loading}>
             {loading ? 'Creating…' : 'Create Account'}
           </button>
-          <button type="button" className={styles.btnSecondary} onClick={() => navigate('/')}>
+          <button type="button" className={styles.btnSecondary} onClick={() => navigate('/accounts')}>
             Cancel
           </button>
         </div>

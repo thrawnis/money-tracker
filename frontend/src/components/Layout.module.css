@@ -70,14 +70,6 @@
   border-bottom: 1px solid rgba(255,255,255,0.07);
 }
 
-.navHeader {
-  padding: 10px 16px 3px;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  color: rgba(200,223,240,0.5);
-}
 
 .navItem {
   display: block;
@@ -105,46 +97,6 @@
   border-left-color: #4dcfcf !important;
 }
 
-.navItemAdd {
-  color: rgba(200,223,240,0.45);
-  font-style: italic;
-  font-size: 12px;
-}
-
-.accountName {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.typeGroup {
-  /* visual grouping, no extra padding needed */
-}
-
-.typeGroupLabel {
-  padding: 7px 16px 2px;
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.8px;
-  color: rgba(200,223,240,0.35);
-}
-
-.manageAccountsBtn {
-  display: block;
-  width: 100%;
-  text-align: left;
-  padding: 6px 16px;
-  background: none;
-  border: none;
-  color: rgba(200,223,240,0.38);
-  font-size: 11px;
-  cursor: pointer;
-  font-style: italic;
-  margin-top: 2px;
-  transition: color var(--transition);
-}
-.manageAccountsBtn:hover { color: rgba(200,223,240,0.75); }
 
 /* ── Sidebar footer ────────────────────────────────────────────────────────── */
 
