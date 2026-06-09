@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { getAccounts } from '../api/accounts';
-import type { Account } from '../types';
+import type { Account, AccountType } from '../types';
 import styles from './AccountsList.module.css';
 
 function formatCurrency(n: number) {
@@ -14,6 +14,20 @@ function formatDate(d: string) {
     month: 'short', day: 'numeric', year: 'numeric',
   });
 }
+
+const TYPE_ORDER: AccountType[] = [
+  'Checking', 'Savings', 'CreditCard', 'Loan', 'Investment', 'Cash', 'Other',
+];
+
+const TYPE_LABELS: Record<AccountType, string> = {
+  Checking:   'Checking',
+  Savings:    'Savings',
+  CreditCard: 'Credit Cards',
+  Loan:       'Loans',
+  Investment: 'Investments',
+  Cash:       'Cash',
+  Other:      'Other',
+};
 
 export default function AccountsList() {
   usePageTitle('Accounts');
@@ -30,8 +44,19 @@ export default function AccountsList() {
       .finally(() => setLoading(false));
   }, []);
 
-  const active   = accounts.filter(a =>  a.isActive).sort((a, b) => a.name.localeCompare(b.name));
+  const active   = accounts.filter(a =>  a.isActive);
   const inactive = accounts.filter(a => !a.isActive).sort((a, b) => a.name.localeCompare(b.name));
+
+  // Group active accounts by type, preserving TYPE_ORDER
+  const groups = TYPE_ORDER
+    .map(type => ({
+      type,
+      label: TYPE_LABELS[type],
+      items: active.filter(a => a.type === type).sort((a, b) => a.name.localeCompare(b.name)),
+    }))
+    .filter(g => g.items.length > 0);
+
+  const showTypeHeaders = groups.length > 1;
 
   if (loading) return <div className={styles.page}><p className={styles.loading}>Loading…</p></div>;
   if (error)   return <div className={styles.page}><p className={styles.errorMsg}>{error}</p></div>;
@@ -45,25 +70,30 @@ export default function AccountsList() {
         </button>
       </div>
 
-      <table className={styles.table}>
-        <thead>
-          <tr>
-            <th className={styles.thName}>Account</th>
-            <th className={styles.thType}>Type</th>
-            <th className={styles.thInst}>Institution</th>
-            <th className={styles.thDate}>Last Transaction</th>
-            <th className={styles.thBal}>Balance</th>
-          </tr>
-        </thead>
-        <tbody>
-          {active.map(acc => (
-            <AccountRow key={acc.id} acc={acc} onClick={() => navigate(`/accounts/${acc.id}`)} />
-          ))}
-          {active.length === 0 && (
-            <tr><td colSpan={5} className={styles.empty}>No active accounts.</td></tr>
-          )}
-        </tbody>
-      </table>
+      {groups.length === 0 ? (
+        <p className={styles.empty}>No active accounts. <button className={styles.btnLink} onClick={() => navigate('/accounts/new')}>Add one</button></p>
+      ) : (
+        groups.map(({ type, label, items }) => (
+          <div key={type} className={styles.group}>
+            {showTypeHeaders && <div className={styles.groupLabel}>{label}</div>}
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th className={styles.thName}>Account</th>
+                  <th className={styles.thInst}>Institution</th>
+                  <th className={styles.thDate}>Last Transaction</th>
+                  <th className={styles.thBal}>Balance</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map(acc => (
+                  <AccountRow key={acc.id} acc={acc} onClick={() => navigate(`/accounts/${acc.id}`)} />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ))
+      )}
 
       {inactive.length > 0 && (
         <div className={styles.inactiveSection}>
@@ -74,11 +104,10 @@ export default function AccountsList() {
             {showInactive ? '▾' : '▸'} Inactive Accounts ({inactive.length})
           </button>
           {showInactive && (
-            <table className={`${styles.table} ${styles.tableInactive}`}>
+            <table className={styles.table}>
               <thead>
                 <tr>
                   <th className={styles.thName}>Account</th>
-                  <th className={styles.thType}>Type</th>
                   <th className={styles.thInst}>Institution</th>
                   <th className={styles.thDate}>Last Transaction</th>
                   <th className={styles.thBal}>Balance</th>
@@ -104,7 +133,6 @@ function AccountRow({ acc, onClick, inactive = false }: { acc: Account; onClick:
       onClick={onClick}
     >
       <td className={styles.tdName}>{acc.name}</td>
-      <td className={styles.tdType}>{acc.type === 'CreditCard' ? 'Credit Card' : acc.type}</td>
       <td className={styles.tdInst}>{acc.institution?.name ?? <span className={styles.none}>—</span>}</td>
       <td className={styles.tdDate}>
         {acc.lastTransactionDate

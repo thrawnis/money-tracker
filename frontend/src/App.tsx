@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { createBrowserRouter, createRoutesFromElements, RouterProvider, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
@@ -17,48 +17,43 @@ import Register from './pages/auth/Register';
 import SetupTotp from './pages/auth/SetupTotp';
 import TotpVerify from './pages/auth/TotpVerify';
 
-function PrivateRoute() {
-  const { user, loading } = useAuth();
+// Combined auth guard + layout — useAuth is available because AuthProvider wraps RouterProvider
+function AppShell() {
+  const { user, loading, logout } = useAuth();
   if (loading) return <div style={{ padding: 40, textAlign: 'center' }}>Loading…</div>;
   if (!user) return <Navigate to="/auth/login" replace />;
-  return <Outlet />;
+  return <Layout onLogout={logout} />;
 }
 
-function AppRoutes() {
-  const { logout } = useAuth();
-
-  return (
-    <Routes>
-      <Route path="/auth/login" element={<Login />} />
-      <Route path="/auth/register" element={<Register />} />
+const router = createBrowserRouter(
+  createRoutesFromElements(
+    <>
+      <Route path="/auth/login"      element={<Login />} />
+      <Route path="/auth/register"   element={<Register />} />
       <Route path="/auth/setup-totp" element={<SetupTotp />} />
-      <Route path="/auth/totp" element={<TotpVerify />} />
-      <Route element={<PrivateRoute />}>
-        <Route element={<Layout onLogout={logout} />}>
-          <Route index element={<Dashboard />} />
-          <Route path="accounts" element={<AccountsList />} />
-          <Route path="accounts/new" element={<AccountForm />} />
-          <Route path="accounts/:id" element={<AccountRegister />} />
-          <Route path="bills" element={<BillsReminders />} />
-          <Route path="reports" element={<Reports />} />
-          <Route path="categories" element={<Categories />} />
-          <Route path="payees" element={<Payees />} />
-          <Route path="transactions" element={<TransactionSearch />} />
-          <Route path="all-transactions" element={<AllTransactions />} />
-          <Route path="settings" element={<Settings />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Route>
+      <Route path="/auth/totp"       element={<TotpVerify />} />
+      <Route element={<AppShell />}>
+        <Route index                          element={<Dashboard />} />
+        <Route path="accounts"                element={<AccountsList />} />
+        <Route path="accounts/new"            element={<AccountForm />} />
+        <Route path="accounts/:id"            element={<AccountRegister />} />
+        <Route path="bills"                   element={<BillsReminders />} />
+        <Route path="reports"                 element={<Reports />} />
+        <Route path="categories"              element={<Categories />} />
+        <Route path="payees"                  element={<Payees />} />
+        <Route path="transactions"            element={<TransactionSearch />} />
+        <Route path="all-transactions"        element={<AllTransactions />} />
+        <Route path="settings"                element={<Settings />} />
+        <Route path="*"                       element={<Navigate to="/" replace />} />
       </Route>
-    </Routes>
-  );
-}
+    </>
+  )
+);
 
 export default function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
-        <AppRoutes />
-      </BrowserRouter>
+      <RouterProvider router={router} />
     </AuthProvider>
   );
 }
