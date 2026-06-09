@@ -73,26 +73,30 @@ export default function AccountsList() {
       {groups.length === 0 ? (
         <p className={styles.empty}>No active accounts. <button className={styles.btnLink} onClick={() => navigate('/accounts/new')}>Add one</button></p>
       ) : (
-        groups.map(({ type, label, items }) => (
-          <div key={type} className={styles.group}>
-            {showTypeHeaders && <div className={styles.groupLabel}>{label}</div>}
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th className={styles.thName}>Account</th>
-                  <th className={styles.thInst}>Institution</th>
-                  <th className={styles.thDate}>Last Transaction</th>
-                  <th className={styles.thBal}>Balance</th>
-                </tr>
-              </thead>
-              <tbody>
+        <table className={styles.table}>
+          <thead>
+            <tr>
+              <th className={styles.thName}>Account</th>
+              <th className={styles.thInst}>Institution</th>
+              <th className={styles.thDate}>Last Transaction</th>
+              <th className={styles.thBal}>Balance</th>
+            </tr>
+          </thead>
+          <tbody>
+            {groups.map(({ type, label, items }) => (
+              <>
+                {showTypeHeaders && (
+                  <tr key={`hdr-${type}`}>
+                    <td colSpan={4} className={styles.groupHeaderCell}>{label}</td>
+                  </tr>
+                )}
                 {items.map(acc => (
                   <AccountRow key={acc.id} acc={acc} onClick={() => navigate(`/accounts/${acc.id}`)} />
                 ))}
-              </tbody>
-            </table>
-          </div>
-        ))
+              </>
+            ))}
+          </tbody>
+        </table>
       )}
 
       {inactive.length > 0 && (
