@@ -168,7 +168,7 @@ public class DemoSeeder(
         var payNetflix      = Payee("Netflix",                   subStream.Id);
         var paySpotify      = Payee("Spotify",                   subStream.Id);
         var payAmazon       = Payee("Amazon",                    subAmazon.Id);
-        var payTarget       = Payee("Target",                    subShop: null);
+        var payTarget       = Payee("Target",                    null);
         var payStarbucks    = Payee("Starbucks",                 subCoffee.Id);
         var payChipotle     = Payee("Chipotle",                  subRestaurant.Id);
         var payOlive        = Payee("Olive Garden",              subRestaurant.Id);
@@ -353,74 +353,74 @@ public class DemoSeeder(
             new() {
                 UserId = user.Id, Name = "Paycheck", AccountId = checking.Id,
                 PayeeId = payEmployer.Id, CategoryId = subSalary.Id,
-                Amount = +2_800m, FrequencyUnit = "biweekly", FrequencyInterval = 1,
+                Amount = +2_800m, FrequencyUnit = FrequencyUnit.Weeks, FrequencyInterval = 2,
                 NextDueDate = NextBiweekly(new DateOnly(today.Year, today.Month, 15)),
                 ReminderDays = 0, IsActive = true,
             },
             new() {
                 UserId = user.Id, Name = "Mortgage Payment", AccountId = checking.Id,
                 PayeeId = payWFMortgage.Id, CategoryId = subMortgage.Id,
-                Amount = -1_650m, FrequencyUnit = "monthly", FrequencyInterval = 1,
+                Amount = -1_650m, FrequencyUnit = FrequencyUnit.Months, FrequencyInterval = 1,
                 NextDueDate = NextOccurrence(1), ReminderDays = 3, IsActive = true,
             },
             new() {
                 UserId = user.Id, Name = "Car Loan", AccountId = checking.Id,
                 PayeeId = payHonda.Id, CategoryId = null,
-                Amount = -285m, FrequencyUnit = "monthly", FrequencyInterval = 1,
+                Amount = -285m, FrequencyUnit = FrequencyUnit.Months, FrequencyInterval = 1,
                 NextDueDate = NextOccurrence(15), ReminderDays = 2, IsActive = true,
             },
             new() {
                 UserId = user.Id, Name = "Electric Bill (PG&E)", AccountId = checking.Id,
                 PayeeId = payPGE.Id, CategoryId = subElectric.Id,
-                Amount = -110m, FrequencyUnit = "monthly", FrequencyInterval = 1,
+                Amount = -110m, FrequencyUnit = FrequencyUnit.Months, FrequencyInterval = 1,
                 NextDueDate = NextOccurrence(5), ReminderDays = 2, IsActive = true,
             },
             new() {
                 UserId = user.Id, Name = "Internet (Comcast)", AccountId = checking.Id,
                 PayeeId = payComcast.Id, CategoryId = subInternet.Id,
-                Amount = -79.99m, FrequencyUnit = "monthly", FrequencyInterval = 1,
+                Amount = -79.99m, FrequencyUnit = FrequencyUnit.Months, FrequencyInterval = 1,
                 NextDueDate = NextOccurrence(10), ReminderDays = 1, IsActive = true,
             },
             new() {
                 UserId = user.Id, Name = "Netflix", AccountId = cc.Id,
                 PayeeId = payNetflix.Id, CategoryId = subStream.Id,
-                Amount = -15.99m, FrequencyUnit = "monthly", FrequencyInterval = 1,
+                Amount = -15.99m, FrequencyUnit = FrequencyUnit.Months, FrequencyInterval = 1,
                 NextDueDate = NextOccurrence(1), ReminderDays = 0, IsActive = true,
             },
             new() {
                 UserId = user.Id, Name = "Spotify", AccountId = cc.Id,
                 PayeeId = paySpotify.Id, CategoryId = subStream.Id,
-                Amount = -9.99m, FrequencyUnit = "monthly", FrequencyInterval = 1,
+                Amount = -9.99m, FrequencyUnit = FrequencyUnit.Months, FrequencyInterval = 1,
                 NextDueDate = NextOccurrence(1), ReminderDays = 0, IsActive = true,
             },
             new() {
                 UserId = user.Id, Name = "AT&T Phone", AccountId = cc.Id,
                 PayeeId = payATT.Id, CategoryId = subPhone.Id,
-                Amount = -85m, FrequencyUnit = "monthly", FrequencyInterval = 1,
+                Amount = -85m, FrequencyUnit = FrequencyUnit.Months, FrequencyInterval = 1,
                 NextDueDate = NextOccurrence(20), ReminderDays = 1, IsActive = true,
             },
             new() {
                 UserId = user.Id, Name = "Planet Fitness", AccountId = cc.Id,
                 PayeeId = payPlanetFit.Id, CategoryId = subGym.Id,
-                Amount = -24.99m, FrequencyUnit = "monthly", FrequencyInterval = 1,
+                Amount = -24.99m, FrequencyUnit = FrequencyUnit.Months, FrequencyInterval = 1,
                 NextDueDate = NextOccurrence(2), ReminderDays = 0, IsActive = true,
             },
             new() {
                 UserId = user.Id, Name = "Home Insurance", AccountId = checking.Id,
                 PayeeId = payStateFarm.Id, CategoryId = subHomeIns.Id,
-                Amount = -142m, FrequencyUnit = "monthly", FrequencyInterval = 1,
+                Amount = -142m, FrequencyUnit = FrequencyUnit.Months, FrequencyInterval = 1,
                 NextDueDate = NextOccurrence(1), ReminderDays = 2, IsActive = true,
             },
             new() {
                 UserId = user.Id, Name = "Car Insurance (GEICO)", AccountId = cc.Id,
                 PayeeId = payGeicoCarIns.Id, CategoryId = subCarIns.Id,
-                Amount = -114m, FrequencyUnit = "monthly", FrequencyInterval = 1,
+                Amount = -114m, FrequencyUnit = FrequencyUnit.Months, FrequencyInterval = 1,
                 NextDueDate = NextOccurrence(8), ReminderDays = 2, IsActive = true,
             },
             new() {
                 UserId = user.Id, Name = "Savings Deposit", AccountId = checking.Id,
                 PayeeId = null, CategoryId = null,
-                Amount = -500m, FrequencyUnit = "monthly", FrequencyInterval = 1,
+                Amount = -500m, FrequencyUnit = FrequencyUnit.Months, FrequencyInterval = 1,
                 NextDueDate = NextOccurrence(28), ReminderDays = 0, IsActive = true,
                 TransferAccountId = savings.Id,
             },
