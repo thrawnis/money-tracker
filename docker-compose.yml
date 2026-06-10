@@ -14,6 +14,31 @@ services:
       timeout: 5s
       retries: 5
 
+  # Nightly pg_dump backups with 14-day retention. Restore with:
+  #   gunzip -c data/backups/moneytracker-<date>.sql.gz | docker compose exec -T db psql -U moneytracker moneytracker
+  db-backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      PGHOST: db
+      PGUSER: moneytracker
+      PGPASSWORD: ${DB_PASSWORD}
+      PGDATABASE: moneytracker
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+    volumes:
+      - ./data/backups:/backups
+    entrypoint: >
+      sh -c 'while true; do
+        ts=$$(date +%Y-%m-%d_%H%M);
+        pg_dump | gzip > "/backups/moneytracker-$$ts.sql.gz" &&
+          echo "backup written: moneytracker-$$ts.sql.gz";
+        find /backups -name "moneytracker-*.sql.gz" -mtime +$$BACKUP_RETENTION_DAYS -delete;
+        sleep 86400;
+      done'
+    depends_on:
+      db:
+        condition: service_healthy
+
   # Local Ollama — only started when OLLAMA_EXTERNAL_URL is not set.
   # rebuild.sh handles passing --profile local-ollama automatically.
   ollama:

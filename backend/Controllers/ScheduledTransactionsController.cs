@@ -19,6 +19,30 @@ public class ScheduledTransactionsController(
 {
     private string? GetUserId() => User.FindFirstValue(ClaimTypes.NameIdentifier);
 
+    /// <summary>
+    /// Verifies all FK references in the DTO belong to the calling user.
+    /// Returns an error message, or null when everything checks out.
+    /// </summary>
+    private async Task<string?> ValidateReferences(ScheduledTransactionDto dto, string userId)
+    {
+        if (!await db.Accounts.AnyAsync(a => a.Id == dto.AccountId && a.UserId == userId))
+            return "Account not found.";
+
+        if (dto.PayeeId.HasValue &&
+            !await db.Payees.AnyAsync(p => p.Id == dto.PayeeId.Value && p.UserId == userId))
+            return "Payee not found.";
+
+        if (dto.CategoryId.HasValue &&
+            !await db.Categories.AnyAsync(c => c.Id == dto.CategoryId.Value && c.UserId == userId))
+            return "Category not found.";
+
+        if (dto.TransferAccountId.HasValue &&
+            !await db.Accounts.AnyAsync(a => a.Id == dto.TransferAccountId.Value && a.UserId == userId))
+            return "Transfer account not found.";
+
+        return null;
+    }
+
     private object MapScheduled(ScheduledTransaction s, string dek) => new
     {
         id           = s.Id,
@@ -111,6 +135,9 @@ public class ScheduledTransactionsController(
         var user = await userManager.FindByIdAsync(userId);
         if (user is null) return Unauthorized();
 
+        if (await ValidateReferences(dto, userId) is string refError)
+            return BadRequest(new { message = refError });
+
         var scheduled = new ScheduledTransaction
         {
             UserId        = userId,
@@ -147,6 +174,9 @@ public class ScheduledTransactionsController(
 
         var user = await userManager.FindByIdAsync(userId);
         if (user is null) return Unauthorized();
+
+        if (await ValidateReferences(dto, userId) is string refError)
+            return BadRequest(new { message = refError });
 
         scheduled.Name          = dto.Name;
         scheduled.AccountId     = dto.AccountId;

@@ -62,8 +62,13 @@ export default function AllTransactions() {
 
   const effectiveIds = selectedIds ? Array.from(selectedIds) : accounts.map(a => a.id);
 
+  // Sequence guard instead of an `if (loading) return` early-out: the stale
+  // `loading` closure used to silently skip reloads triggered mid-flight,
+  // leaving the cleared list empty. Now the latest request always wins.
+  const loadSeq = useRef(0);
+
   const loadPage = useCallback(async (pg: number, replace: boolean) => {
-    if (loading) return;
+    const seq = ++loadSeq.current;
     setLoading(true);
     try {
       const result = await searchTransactions({
@@ -75,13 +80,14 @@ export default function AllTransactions() {
         page: pg,
         pageSize: PAGE_SIZE,
       });
+      if (seq !== loadSeq.current) return;
       setItems(prev => replace ? result.items : [...prev, ...result.items]);
       setTotal(result.total);
       setPage(pg);
     } catch {
-      setError('Failed to load transactions.');
+      if (seq === loadSeq.current) setError('Failed to load transactions.');
     } finally {
-      setLoading(false);
+      if (seq === loadSeq.current) setLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(effectiveIds), appliedFrom, appliedTo, appliedPayee, appliedMemo, accounts.length]);

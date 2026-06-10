@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { extractReceipt, type ExtractedReceipt } from '../api/receipts';
 import styles from './ReceiptScanner.module.css';
 
@@ -21,10 +21,18 @@ export default function ReceiptScanner({ onConfirm, onCancel }: Props) {
   const [memo, setMemo] = useState('');
   const [category, setCategory] = useState('');
 
+  // Revoke object URLs when replaced and on unmount to avoid leaking blobs
+  const previewUrlRef = useRef<string | null>(null);
+  useEffect(() => () => {
+    if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+  }, []);
+
   const handleFile = async (file: File) => {
     setError('');
     setExtracted(null);
+    if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
     const url = URL.createObjectURL(file);
+    previewUrlRef.current = url;
     setPreview(url);
     setExtracting(true);
     try {

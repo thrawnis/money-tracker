@@ -189,12 +189,20 @@ export default function Reports() {
         setSavedReports(prev => [...prev, saved]);
         setActiveSavedId(saved.id);
       }
-    } catch { /* ignore */ }
+    } catch (err) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      alert(msg ?? 'Failed to save report.');
+    }
     finally { setSavingReport(false); }
   };
 
   const handleDeleteSaved = async (id: number) => {
-    await deleteSavedReport(id);
+    try {
+      await deleteSavedReport(id);
+    } catch {
+      alert('Failed to delete saved report.');
+      return;
+    }
     setSavedReports(prev => prev.filter(r => r.id !== id));
     if (activeSavedId === id) {
       setActiveSavedId(null);

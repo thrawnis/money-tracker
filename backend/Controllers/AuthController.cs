@@ -16,6 +16,7 @@ namespace MoneyTracker.Controllers;
 
 [ApiController]
 [Route("api/auth")]
+[Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("auth")]
 public class AuthController(
     UserManager<ApplicationUser>    userManager,
     SignInManager<ApplicationUser>  signInManager,
@@ -53,6 +54,9 @@ public class AuthController(
 
         await audit.LogAsync("REGISTER", "User", null, new { email = request.Email });
 
+        // Allow the just-registered user to proceed to MFA setup
+        HttpContext.Session.SetString("mfaUserId", user.Id);
+
         return Ok(new { userId = user.Id, requiresMfaSetup = true });
     }
 
@@ -76,6 +80,12 @@ public class AuthController(
         // Stash rememberMe so IssueTokensAsync can read it after MFA completes
         HttpContext.Session.SetString("rememberMe", request.RememberMe ? "1" : "0");
 
+        // Mark this session as password-verified for this user. All MFA step-2
+        // endpoints (TOTP setup/enroll/verify, passkey register/login) require
+        // this marker — without it, knowing a userId alone is enough to take
+        // over an account via mfa/totp/setup → enroll.
+        HttpContext.Session.SetString("mfaUserId", user.Id);
+
         // Demo user bypasses MFA
         if (IsDemoMode && user.Email == MoneyTracker.Services.DemoSeeder.DemoEmail)
             return await IssueTokensAsync(user);
@@ -92,6 +102,8 @@ public class AuthController(
     [HttpPost("mfa/totp/setup")]
     public async Task<IActionResult> TotpSetup([FromBody] string userId)
     {
+        if (!MfaStepAuthorized(userId)) return Unauthorized("Password verification required.");
+
         var user = await userManager.FindByIdAsync(userId);
         if (user is null) return NotFound();
 
@@ -106,15 +118,26 @@ public class AuthController(
     [HttpPost("mfa/totp/enroll")]
     public async Task<IActionResult> TotpEnroll([FromBody] TotpEnrollRequest request)
     {
+        if (!MfaStepAuthorized(request.UserId)) return Unauthorized("Password verification required.");
+
         var user = await userManager.FindByIdAsync(request.UserId);
         if (user is null) return NotFound();
+
+        if (await userManager.IsLockedOutAsync(user))
+            return StatusCode(429, "Account locked due to too many failed attempts. Try again later.");
 
         var valid = await userManager.VerifyTwoFactorTokenAsync(
             user,
             userManager.Options.Tokens.AuthenticatorTokenProvider,
             request.Code);
 
-        if (!valid) return BadRequest("Invalid code.");
+        if (!valid)
+        {
+            await userManager.AccessFailedAsync(user);
+            return BadRequest("Invalid code.");
+        }
+
+        await userManager.ResetAccessFailedCountAsync(user);
 
         user.MfaEnrolled = true;
         await userManager.UpdateAsync(user);
@@ -129,15 +152,26 @@ public class AuthController(
     [HttpPost("mfa/totp/verify")]
     public async Task<IActionResult> TotpVerify([FromBody] TotpLoginRequest request)
     {
+        if (!MfaStepAuthorized(request.UserId)) return Unauthorized("Password verification required.");
+
         var user = await userManager.FindByIdAsync(request.UserId);
         if (user is null) return NotFound();
+
+        if (await userManager.IsLockedOutAsync(user))
+            return StatusCode(429, "Account locked due to too many failed attempts. Try again later.");
 
         var valid = await userManager.VerifyTwoFactorTokenAsync(
             user,
             userManager.Options.Tokens.AuthenticatorTokenProvider,
             request.Code);
 
-        if (!valid) return Unauthorized("Invalid or expired code.");
+        if (!valid)
+        {
+            await userManager.AccessFailedAsync(user);
+            return Unauthorized("Invalid or expired code.");
+        }
+
+        await userManager.ResetAccessFailedCountAsync(user);
 
         return await IssueTokensAsync(user);
     }
@@ -147,6 +181,8 @@ public class AuthController(
     [HttpPost("passkey/register/begin")]
     public async Task<IActionResult> PasskeyRegisterBegin([FromBody] string userId)
     {
+        if (!MfaStepAuthorized(userId)) return Unauthorized("Password verification required.");
+
         var user = await userManager.FindByIdAsync(userId);
         if (user is null) return NotFound();
 
@@ -159,6 +195,8 @@ public class AuthController(
     public async Task<IActionResult> PasskeyRegisterComplete(
         [FromBody] PasskeyRegisterCompleteRequest request)
     {
+        if (!MfaStepAuthorized(request.UserId)) return Unauthorized("Password verification required.");
+
         var user = await userManager.FindByIdAsync(request.UserId);
         if (user is null) return NotFound();
 
@@ -184,6 +222,8 @@ public class AuthController(
     [HttpPost("passkey/login/begin")]
     public async Task<IActionResult> PasskeyLoginBegin([FromBody] string userId)
     {
+        if (!MfaStepAuthorized(userId)) return Unauthorized("Password verification required.");
+
         var user = await userManager.FindByIdAsync(userId);
         if (user is null) return NotFound();
 
@@ -201,6 +241,8 @@ public class AuthController(
 
         var credential = await passkeyService.CompleteAuthenticationAsync(
             request.AssertionResponseJson, optionsJson);
+
+        if (!MfaStepAuthorized(credential.UserId)) return Unauthorized("Password verification required.");
 
         await db.SaveChangesAsync();
 
@@ -319,6 +361,14 @@ public class AuthController(
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// True when the current session has completed password verification
+    /// (login or register) for the given user. Required before any MFA
+    /// setup/verify or passkey operation may proceed.
+    /// </summary>
+    private bool MfaStepAuthorized(string userId) =>
+        HttpContext.Session.GetString("mfaUserId") == userId;
+
     private async Task<IActionResult> IssueTokensAsync(ApplicationUser user)
     {
         var roles      = await userManager.GetRolesAsync(user);
@@ -340,6 +390,7 @@ public class AuthController(
         await db.SaveChangesAsync();
 
         SetRefreshCookie(refreshToken, rememberMe ? refreshExpiry : null);
+        HttpContext.Session.Remove("mfaUserId");
         await audit.LogAsync("LOGIN", details: new { email = user.Email, method = "password" });
         return Ok(new TokenResponse(accessToken, expiry, role, user.MfaEnrolled));
     }
@@ -349,7 +400,7 @@ public class AuthController(
         var options = new CookieOptions
         {
             HttpOnly = true,
-            Secure   = true,
+            Secure   = Request.IsHttps, // allow plain-HTTP local dev; HTTPS in production
             SameSite = SameSiteMode.Strict,
         };
         // Persistent cookie only when Remember Me was checked

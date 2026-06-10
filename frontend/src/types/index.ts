@@ -44,6 +44,7 @@ export interface Transaction {
   status: TransactionStatus;
   transferTransactionId?: number;
   transferAccountId?: number;
+  runningBalance?: number; // server-computed over full account history (date order)
   createdAt: string;
   updatedAt: string;
 }
@@ -52,6 +53,7 @@ export interface TransactionPage {
   total: number;
   page: number;
   pageSize: number;
+  currentBalance: number; // server-computed: opening balance + all transactions
   items: Transaction[];
 }
 

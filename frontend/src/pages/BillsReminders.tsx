@@ -79,10 +79,10 @@ export default function BillsReminders() {
   const [saving, setSaving] = useState(false);
   const [payeeSuggestions, setPayeeSuggestions] = useState<Payee[]>([]);
 
-  const formDirty = showForm && !saving && (
-    form.name !== '' || form.accountId !== '' || form.amount !== '' ||
-    form.payeeInput !== '' || form.memo !== '' || form.nextDueDate !== ''
-  );
+  // Dirty = form differs from its snapshot at open time (an untouched form,
+  // new or editing, is not dirty — emptyForm() pre-fills nextDueDate)
+  const [formBaseline, setFormBaseline] = useState(() => JSON.stringify(emptyForm()));
+  const formDirty = showForm && !saving && JSON.stringify(form) !== formBaseline;
   useUnsavedChanges(formDirty);
   const [showSugg, setShowSugg] = useState(false);
 
@@ -199,7 +199,7 @@ export default function BillsReminders() {
 
   const handleEdit = (item: ScheduledTransaction) => {
     setEditId(item.id);
-    setForm({
+    const f: FormState = {
       name: item.name,
       accountId: String(item.accountId),
       isTransfer: !!item.transferAccountId,
@@ -214,7 +214,9 @@ export default function BillsReminders() {
       nextDueDate: item.nextDueDate.slice(0, 10),
       reminderDays: String(item.reminderDays),
       isActive: item.isActive,
-    });
+    };
+    setForm(f);
+    setFormBaseline(JSON.stringify(f));
     setShowForm(true);
   };
 
@@ -235,7 +237,7 @@ export default function BillsReminders() {
     <div className={styles.page}>
       <div className={styles.pageHeader}>
         <h2 className={styles.pageTitle}>Bills &amp; Reminders</h2>
-        <button className={styles.btnPrimary} onClick={() => { setEditId(null); setForm(emptyForm()); setShowForm(s => !s); }}>
+        <button className={styles.btnPrimary} onClick={() => { setEditId(null); const f = emptyForm(); setForm(f); setFormBaseline(JSON.stringify(f)); setShowForm(s => !s); }}>
           {showForm && editId === null ? 'Cancel' : '+ Add Bill'}
         </button>
       </div>

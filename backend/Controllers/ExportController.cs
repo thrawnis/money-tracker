@@ -19,6 +19,7 @@ public class ExportController(
     AppDbContext db,
     IEncryptionService encryption,
     UserManager<ApplicationUser> userManager,
+    SignInManager<ApplicationUser> signInManager,
     ExportService exportService) : ControllerBase
 {
     private string? GetUserId() => User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -34,11 +35,18 @@ public class ExportController(
         var user = await userManager.FindByIdAsync(userId);
         if (user is null) return Unauthorized();
 
+        if (await userManager.IsLockedOutAsync(user))
+            return StatusCode(429, "Account locked due to too many failed attempts. Try again later.");
+
         bool verified = false;
 
         if (!string.IsNullOrWhiteSpace(request.Password))
         {
-            verified = await userManager.CheckPasswordAsync(user, request.Password);
+            // lockoutOnFailure ensures re-auth attempts count toward lockout
+            var check = await signInManager.CheckPasswordSignInAsync(user, request.Password, lockoutOnFailure: true);
+            if (check.IsLockedOut)
+                return StatusCode(429, "Account locked due to too many failed attempts. Try again later.");
+            verified = check.Succeeded;
         }
         else if (!string.IsNullOrWhiteSpace(request.TotpCode))
         {
@@ -46,10 +54,13 @@ public class ExportController(
                 user,
                 userManager.Options.Tokens.AuthenticatorTokenProvider,
                 request.TotpCode);
+            if (!verified) await userManager.AccessFailedAsync(user);
         }
 
         if (!verified)
             return Unauthorized("Identity verification failed.");
+
+        await userManager.ResetAccessFailedCountAsync(user);
 
         // Expire any previous unused tokens for this user
         var old = db.ExportTokens.Where(t => t.UserId == userId && !t.IsUsed && t.ExpiresAt > DateTime.UtcNow);

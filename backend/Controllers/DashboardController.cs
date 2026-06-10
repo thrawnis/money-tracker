@@ -36,8 +36,10 @@ public class DashboardController(
             .Include(a => a.Institution)
             .ToListAsync();
 
+        // "As of today" — exclude future-dated transactions, matching AccountsController
+        var balanceCutoff = DateOnly.FromDateTime(DateTime.UtcNow);
         var transactionSums = await db.Transactions
-            .Where(t => t.Account.UserId == userId)
+            .Where(t => t.Account.UserId == userId && t.Date <= balanceCutoff)
             .GroupBy(t => t.AccountId)
             .Select(g => new { AccountId = g.Key, Sum = g.Sum(t => t.Amount) })
             .ToListAsync();

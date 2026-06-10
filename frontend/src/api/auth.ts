@@ -18,8 +18,10 @@ export const setupTotp = (userId: string) =>
 export const enrollTotp = (userId: string, code: string) =>
   api.post<TokenResponse>('/auth/mfa/totp/enroll', { userId, code }).then(r => r.data);
 
+// withCredentials is set globally on the client (required for the refresh
+// cookie and the MFA-step session cookie on all auth calls)
 export const refreshTokens = () =>
-  api.post<TokenResponse>('/auth/refresh', {}, { withCredentials: true }).then(r => r.data);
+  api.post<TokenResponse>('/auth/refresh').then(r => r.data);
 
 export const logout = () =>
-  api.post('/auth/logout', {}, { withCredentials: true });
+  api.post('/auth/logout');

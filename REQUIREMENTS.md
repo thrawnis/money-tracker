@@ -13,7 +13,10 @@ Update this file whenever requirements change or new features are defined.
 - Optional WebAuthn/FIDO2 passkey login (build flag `FIDO2_AVAILABLE`)
 - Password change requires current password; blocked for demo account
 - "Sign out all sessions" invalidates all refresh tokens for the user
-- Account lockout after repeated failed login attempts
+- Account lockout after repeated failed login attempts — applies to passwords, TOTP codes, and export re-authentication
+- MFA step-2 endpoints (TOTP setup/enroll/verify, passkeys) require a session that has completed password verification — a userId alone is never sufficient
+- Auth and demo endpoints are rate-limited per IP (30 requests/minute)
+- Expired access tokens are silently refreshed and the request retried (axios interceptor); a failed refresh redirects to login
 
 ---
 
@@ -81,6 +84,7 @@ Update this file whenever requirements change or new features are defined.
 - Supports scheduled transfers between accounts
 - Bills can be active or inactive
 - Bills & Reminders page shows upcoming items sorted by due date
+- **Automatic posting**: a background job (every 6 hours and at startup) materializes due scheduled transactions into real transactions (Uncleared status) and advances the next due date; missed occurrences are back-filled
 
 ---
 
@@ -107,9 +111,12 @@ Update this file whenever requirements change or new features are defined.
 ## Data Integrity & Security
 
 - All sensitive text fields encrypted at rest with AES-256-GCM per-user DEK
-- Every API endpoint enforces per-user data isolation; no cross-user data leakage
-- Transfers created and deleted as an atomic pair
+- Every API endpoint enforces per-user data isolation; no cross-user data leakage — including FK references (payee/category/account IDs in requests are verified against the caller)
+- Transfers created and deleted as an atomic pair (wrapped in DB transactions)
 - Unique-name enforcement for accounts, payees, categories, institutions (case-insensitive)
+- Running balances are computed server-side over the full account history in date order, independent of pagination, filters, or sort
+- Account balances exclude future-dated transactions ("as of today") consistently across Dashboard, Accounts page, and register
+- Nightly `pg_dump` backups via the `db-backup` compose service (default 14-day retention, `./data/backups`)
 
 ---
 

@@ -68,13 +68,19 @@ public class TransfersController(
             UpdatedAt         = DateTime.UtcNow,
         };
 
-        db.Transactions.Add(debit);
-        db.Transactions.Add(credit);
-        await db.SaveChangesAsync();
+        // Insert + cross-link atomically so a crash can't leave unlinked halves
+        await using (var dbTx = await db.Database.BeginTransactionAsync())
+        {
+            db.Transactions.Add(debit);
+            db.Transactions.Add(credit);
+            await db.SaveChangesAsync();
 
-        debit.TransferTransactionId  = credit.Id;
-        credit.TransferTransactionId = debit.Id;
-        await db.SaveChangesAsync();
+            debit.TransferTransactionId  = credit.Id;
+            credit.TransferTransactionId = debit.Id;
+            await db.SaveChangesAsync();
+
+            await dbTx.CommitAsync();
+        }
 
         await audit.LogAsync("CREATE", "Transfer", debit.Id, new
         {

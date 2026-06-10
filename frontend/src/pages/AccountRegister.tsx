@@ -25,6 +25,17 @@ function formatDate(d: string) {
 const PAST_PAGE_SIZE = 50;
 const FUTURE_BATCH = 5;
 
+interface TxFilters {
+  from?: string;
+  to?: string;
+  minAmount?: number;
+  maxAmount?: number;
+  payeeName?: string;
+  categoryId?: number;
+  memo?: string;
+  uncategorizedOnly?: boolean;
+}
+
 export default function AccountRegister() {
   const { id } = useParams<{ id: string }>();
   const accountId = Number(id);
@@ -44,6 +55,10 @@ export default function AccountRegister() {
   const [pastTotal, setPastTotal] = useState(0);
   const [pastPage, setPastPage] = useState(1);
   const [loadingPast, setLoadingPast] = useState(false);
+  // Server-computed: opening balance + all transactions (independent of paging/filters)
+  const [accountBalance, setAccountBalance] = useState(0);
+  // Guards against a slow response for a previous account overwriting newer data
+  const requestSeq = useRef(0);
 
   // Future scheduled transactions
   const [showFuture, setShowFuture] = useState(true);
@@ -55,7 +70,9 @@ export default function AccountRegister() {
   const [futureTotal, setFutureTotal] = useState(0);
   const [loadingFuture, setLoadingFuture] = useState(false);
 
-  // Filters
+  // Filters — draft inputs (the panel) vs. applied (what fetches actually use).
+  // All pages of a result set must be fetched with the same applied filters,
+  // otherwise pagination mixes filtered and unfiltered rows.
   const [filterOpen, setFilterOpen] = useState(false);
   const [filterFrom, setFilterFrom] = useState('');
   const [filterTo, setFilterTo] = useState('');
@@ -65,6 +82,7 @@ export default function AccountRegister() {
   const [filterCategoryId, setFilterCategoryId] = useState('');
   const [filterMemo, setFilterMemo] = useState('');
   const [filterUncategorized, setFilterUncategorized] = useState(false);
+  const [appliedFilters, setAppliedFilters] = useState<TxFilters>({});
 
   // Sort
   const [sortBy, setSortBy] = useState('date');
@@ -121,64 +139,106 @@ export default function AccountRegister() {
   const hasMorePast = pastTxs.length < pastTotal;
   const hasMoreFuture = futureSkip + FUTURE_BATCH < futureTotal;
 
-  // ── Initial load ───────────────────────────────────────────────────────────
+  // ── Data loading ───────────────────────────────────────────────────────────
 
-  const loadInitial = useCallback(async (overrideSortBy = sortBy, overrideSortDir = sortDir) => {
+  const draftFilters = (): TxFilters => ({
+    from: filterFrom || undefined,
+    to: filterTo || undefined,
+    minAmount: filterMinAmount ? Number(filterMinAmount) : undefined,
+    maxAmount: filterMaxAmount ? Number(filterMaxAmount) : undefined,
+    payeeName: filterPayee || undefined,
+    categoryId: filterCategoryId ? Number(filterCategoryId) : undefined,
+    memo: filterMemo || undefined,
+    uncategorizedOnly: filterUncategorized || undefined,
+  });
+
+  /** Fetches page 1 with explicit filters/sort. `full` also reloads account,
+   *  categories, accounts, and institutions (used on mount / account change). */
+  const loadPage1 = useCallback(async (
+    filters: TxFilters,
+    sb: string,
+    sd: 'asc' | 'desc',
+    full: boolean,
+  ) => {
     if (!accountId) return;
+    const seq = ++requestSeq.current;
     setInitialLoading(true);
     setError('');
     try {
-      const [acc, txResult, cats, accs, insts] = await Promise.all([
-        getAccount(accountId),
-        getTransactions(accountId, { page: 1, pageSize: PAST_PAGE_SIZE, sortBy: overrideSortBy, sortDir: overrideSortDir }),
-        getCategories(),
-        getAccounts(true),
-        getInstitutions(),
-      ]);
-      setAccount(acc);
-      setAllAccounts(accs);
-      setInstitutions(insts);
-      setPastTxs(txResult.items);
-      setPastTotal(txResult.total);
-      setPastPage(1);
-      setCategories(cats);
-    } catch {
-      setError('Failed to load account data.');
+      const txParams = { ...filters, sortBy: sb, sortDir: sd, page: 1, pageSize: PAST_PAGE_SIZE };
+      if (full) {
+        const [acc, txResult, cats, accs, insts] = await Promise.all([
+          getAccount(accountId),
+          getTransactions(accountId, txParams),
+          getCategories(),
+          getAccounts(true),
+          getInstitutions(),
+        ]);
+        if (seq !== requestSeq.current) return; // a newer request superseded this one
+        setAccount(acc);
+        setAllAccounts(accs);
+        setInstitutions(insts);
+        setCategories(cats);
+        setPastTxs(txResult.items);
+        setPastTotal(txResult.total);
+        setAccountBalance(txResult.currentBalance);
+        setPastPage(1);
+      } else {
+        const txResult = await getTransactions(accountId, txParams);
+        if (seq !== requestSeq.current) return;
+        setPastTxs(txResult.items);
+        setPastTotal(txResult.total);
+        setAccountBalance(txResult.currentBalance);
+        setPastPage(1);
+      }
+    } catch (err) {
+      if (seq !== requestSeq.current) return;
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setError(msg ?? 'Failed to load account data.');
     } finally {
-      setInitialLoading(false);
+      if (seq === requestSeq.current) setInitialLoading(false);
     }
-  }, [accountId, sortBy, sortDir]);
+  }, [accountId]);
 
-  useEffect(() => { loadInitial(); }, [loadInitial]);
+  // Refetch page 1 with the currently applied filters and sort (after mutations)
+  const reload = useCallback(
+    () => loadPage1(appliedFilters, sortBy, sortDir, false),
+    [loadPage1, appliedFilters, sortBy, sortDir],
+  );
+
+  // Full load on mount and whenever the account changes; filters reset per account
+  useEffect(() => {
+    setFilterFrom(''); setFilterTo(''); setFilterMinAmount(''); setFilterMaxAmount('');
+    setFilterPayee(''); setFilterCategoryId(''); setFilterMemo(''); setFilterUncategorized(false);
+    setAppliedFilters({});
+    loadPage1({}, 'date', 'desc', true);
+    setSortBy('date');
+    setSortDir('desc');
+  }, [accountId, loadPage1]);
 
   // ── Load more past (scroll up) ─────────────────────────────────────────────
 
   const loadMorePast = useCallback(async () => {
     if (loadingPast || !hasMorePast) return;
     setLoadingPast(true);
+    const seq = requestSeq.current; // abandon if a new page-1 load happens meanwhile
     try {
       const nextPage = pastPage + 1;
       const result = await getTransactions(accountId, {
-        from: filterFrom || undefined,
-        to: filterTo || undefined,
-        minAmount: filterMinAmount ? Number(filterMinAmount) : undefined,
-        maxAmount: filterMaxAmount ? Number(filterMaxAmount) : undefined,
-        payeeName: filterPayee || undefined,
-        categoryId: filterCategoryId ? Number(filterCategoryId) : undefined,
-        memo: filterMemo || undefined,
-        uncategorizedOnly: filterUncategorized || undefined,
+        ...appliedFilters,
         sortBy, sortDir,
         page: nextPage,
         pageSize: PAST_PAGE_SIZE,
       });
+      if (seq !== requestSeq.current) return;
       setPastTxs(prev => [...prev, ...result.items]);
       setPastPage(nextPage);
     } catch {
-      // silently ignore pagination errors
+      // pagination errors are retried by the next sentinel intersection
     } finally {
       setLoadingPast(false);
     }
-  }, [loadingPast, hasMorePast, pastPage, accountId, filterFrom, filterTo, filterMinAmount, filterMaxAmount, filterPayee, filterCategoryId, filterMemo, filterUncategorized, sortBy, sortDir]);
+  }, [loadingPast, hasMorePast, pastPage, accountId, appliedFilters, sortBy, sortDir]);
 
   // ── Load future bills ──────────────────────────────────────────────────────
 
@@ -206,10 +266,13 @@ export default function AccountRegister() {
   }, [loadingFuture, accountId, futureDays]);
 
   useEffect(() => {
+    setFutureBills([]);
+    setFutureSkip(0);
+    setFutureTotal(0);
     if (showFuture) {
       loadFutureBills(0, true);
     }
-  }, [showFuture, futureDays]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [showFuture, futureDays, accountId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Infinite scroll via IntersectionObserver ───────────────────────────────
 
@@ -233,61 +296,35 @@ export default function AccountRegister() {
 
   // ── Filters ────────────────────────────────────────────────────────────────
 
-  const applyFilters = useCallback(async () => {
-    setInitialLoading(true);
-    try {
-      const result = await getTransactions(accountId, {
-        from: filterFrom || undefined,
-        to: filterTo || undefined,
-        minAmount: filterMinAmount ? Number(filterMinAmount) : undefined,
-        maxAmount: filterMaxAmount ? Number(filterMaxAmount) : undefined,
-        payeeName: filterPayee || undefined,
-        categoryId: filterCategoryId ? Number(filterCategoryId) : undefined,
-        memo: filterMemo || undefined,
-        uncategorizedOnly: filterUncategorized || undefined,
-        sortBy, sortDir,
-        page: 1,
-        pageSize: PAST_PAGE_SIZE,
-      });
-      setPastTxs(result.items);
-      setPastTotal(result.total);
-      setPastPage(1);
-    } catch {
-      setError('Failed to apply filters.');
-    } finally {
-      setInitialLoading(false);
-    }
-  }, [accountId, filterFrom, filterTo, filterMinAmount, filterMaxAmount, filterPayee, filterCategoryId, filterMemo, filterUncategorized, sortBy, sortDir]);
+  const applyFilters = () => {
+    const filters = draftFilters();
+    setAppliedFilters(filters);
+    loadPage1(filters, sortBy, sortDir, false);
+  };
 
   const clearFilters = () => {
     setFilterFrom(''); setFilterTo(''); setFilterMinAmount(''); setFilterMaxAmount('');
     setFilterPayee(''); setFilterCategoryId(''); setFilterMemo(''); setFilterUncategorized(false);
+    setAppliedFilters({});
+    // Pass {} explicitly — state updates above won't be visible to this call yet
+    loadPage1({}, sortBy, sortDir, false);
   };
 
   const handleSort = (field: string) => {
     const newDir = sortBy === field && sortDir === 'desc' ? 'asc' : 'desc';
     setSortBy(field);
     setSortDir(newDir);
-    loadInitial(field, newDir);
+    loadPage1(appliedFilters, field, newDir, false);
   };
 
   // ── CRUD ───────────────────────────────────────────────────────────────────
-
-  const insertSorted = (prev: Transaction[], tx: Transaction) => {
-    const effDate = (t: Transaction) => t.postDate ?? t.date;
-    const idx = prev.findIndex(t =>
-      effDate(t) < effDate(tx) ||
-      (effDate(t) === effDate(tx) && t.createdAt <= tx.createdAt)
-    );
-    const next = [...prev];
-    next.splice(idx === -1 ? next.length : idx, 0, tx);
-    return next;
-  };
+  // Mutations refetch page 1 from the server: running balances are computed
+  // server-side over the full history, so in-place list edits would show
+  // stale balances on every other row.
 
   const handleSaveTx = async (data: Omit<Transaction, 'id' | 'accountId' | 'createdAt' | 'updatedAt'> & { targetAccountId?: number; transferDestAccountId?: number }) => {
     if (data.transferDestAccountId) {
-      // Create a transfer
-      const result = await createTransfer({
+      await createTransfer({
         sourceAccountId:      accountId,
         destinationAccountId: data.transferDestAccountId,
         date:                 data.date,
@@ -296,35 +333,29 @@ export default function AccountRegister() {
         memo:                 data.memo,
       });
       lastUsedDate.current = data.date;
-      // Only add the debit side to this account's register
-      setPastTxs(prev => insertSorted(prev, result.debit));
-      setPastTotal(prev => prev + 1);
     } else if (editingTx) {
-      const updated = await updateTransaction(accountId, editingTx.id, data);
-      if (data.targetAccountId && data.targetAccountId !== accountId) {
-        setPastTxs(prev => prev.filter(t => t.id !== editingTx.id));
-        setPastTotal(prev => prev - 1);
-      } else {
-        setPastTxs(prev => prev.map(t => t.id === editingTx.id ? updated : t));
-      }
+      await updateTransaction(accountId, editingTx.id, data);
     } else {
-      const created = await createTransaction(accountId, data);
+      await createTransaction(accountId, data);
       lastUsedDate.current = data.date;
-      setPastTxs(prev => insertSorted(prev, created));
-      setPastTotal(prev => prev + 1);
     }
     setShowForm(false);
     setEditingTx(null);
     setReceiptPrefill(null);
     setReceiptPayeeName(undefined);
     setReceiptCategoryLabel(undefined);
+    await reload();
   };
 
   const handleDelete = async (txId: number) => {
     if (!confirm('Delete this transaction?')) return;
-    await deleteTransaction(accountId, txId);
-    setPastTxs(prev => prev.filter(t => t.id !== txId));
-    setPastTotal(prev => prev - 1);
+    try {
+      await deleteTransaction(accountId, txId);
+      await reload();
+    } catch (err) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setError(msg ?? 'Failed to delete transaction.');
+    }
   };
 
   const handleEdit = (tx: Transaction) => {
@@ -336,8 +367,14 @@ export default function AccountRegister() {
     const next: Transaction['status'] =
       tx.status === 'Uncleared' ? 'Cleared' :
       tx.status === 'Cleared'   ? 'Reconciled' : 'Uncleared';
+    const previous = tx.status;
+    // Optimistic update with rollback on failure
     setPastTxs(prev => prev.map(t => t.id === tx.id ? { ...t, status: next } : t));
-    await updateTransaction(accountId, tx.id, { status: next });
+    try {
+      await updateTransaction(accountId, tx.id, { status: next });
+    } catch {
+      setPastTxs(prev => prev.map(t => t.id === tx.id ? { ...t, status: previous } : t));
+    }
   };
 
   const handleReceiptConfirm = (data: ExtractedReceipt) => {
@@ -353,21 +390,9 @@ export default function AccountRegister() {
     setShowForm(true);
   };
 
-  // ── Running balance ────────────────────────────────────────────────────────
-
-  const openingBalance = account?.openingBalance ?? 0;
-  // Transactions come back newest-first; compute balance from the full set
-  const balanceMap = new Map<number, number>();
-  {
-    // Oldest first for running balance computation
-    const sorted = [...pastTxs].reverse();
-    let running = openingBalance;
-    for (const tx of sorted) {
-      running += tx.amount;
-      balanceMap.set(tx.id, running);
-    }
-  }
-  const currentBalance = balanceMap.get(pastTxs[0]?.id) ?? openingBalance;
+  // Running balances come from the server (computed over the full account
+  // history in date order, regardless of paging/filters/sort), as does the
+  // header total (accountBalance).
 
   const allCategories: { id: number; label: string }[] = [];
   for (const cat of categories) {
@@ -416,7 +441,7 @@ export default function AccountRegister() {
           </select>
           {account && (
             <div className={styles.accountMeta}>
-              {account.type} &bull; Balance: <strong>{formatCurrency(currentBalance)}</strong>
+              {account.type} &bull; Balance: <strong>{formatCurrency(accountBalance)}</strong>
             </div>
           )}
         </div>
@@ -536,7 +561,7 @@ export default function AccountRegister() {
           </div>
           <div className={styles.filterActions}>
             <button className={styles.btnPrimary} onClick={applyFilters}>Apply</button>
-            <button className={styles.btnSecondary} onClick={() => { clearFilters(); applyFilters(); }}>Clear</button>
+            <button className={styles.btnSecondary} onClick={clearFilters}>Clear</button>
           </div>
         </div>
       )}
@@ -630,8 +655,8 @@ export default function AccountRegister() {
                   <td className={`${styles.right} ${tx.amount < 0 ? styles.debit : styles.credit}`}>
                     {formatCurrency(tx.amount)}
                   </td>
-                  <td className={`${styles.right} ${(balanceMap.get(tx.id) ?? 0) < 0 ? styles.debit : ''}`}>
-                    {formatCurrency(balanceMap.get(tx.id) ?? 0)}
+                  <td className={`${styles.right} ${(tx.runningBalance ?? 0) < 0 ? styles.debit : ''}`}>
+                    {tx.runningBalance != null ? formatCurrency(tx.runningBalance) : '—'}
                   </td>
                   <td className={styles.statusCell}>
                     <button

@@ -208,6 +208,9 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
         targetAccountId,
         transferDestAccountId: isTransfer ? transferDestAccountId : undefined,
       });
+    } catch (err) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setSaveError(msg ?? 'Failed to save transaction.');
     } finally {
       setSubmitting(false);
     }

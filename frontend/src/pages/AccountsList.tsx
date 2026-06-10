@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { getAccounts } from '../api/accounts';
@@ -84,16 +84,16 @@ export default function AccountsList() {
           </thead>
           <tbody>
             {groups.map(({ type, label, items }) => (
-              <>
+              <Fragment key={type}>
                 {showTypeHeaders && (
-                  <tr key={`hdr-${type}`}>
+                  <tr>
                     <td colSpan={4} className={styles.groupHeaderCell}>{label}</td>
                   </tr>
                 )}
                 {items.map(acc => (
                   <AccountRow key={acc.id} acc={acc} onClick={() => navigate(`/accounts/${acc.id}`)} />
                 ))}
-              </>
+              </Fragment>
             ))}
           </tbody>
         </table>

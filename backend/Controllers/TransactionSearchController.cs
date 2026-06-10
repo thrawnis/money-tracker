@@ -89,7 +89,7 @@ public class TransactionSearchController(
             {
                 id          = t.Id,
                 accountId   = t.AccountId,
-                accountName = encryption.Decrypt(t.Account.Name, dek),
+                accountName = t.Account.Name, // Account.Name is stored as plaintext
                 date        = t.Date,
                 payee       = t.Payee is null ? null : encryption.Decrypt(t.Payee.NameEncrypted, dek),
                 category    = t.Category is null ? null : encryption.Decrypt(t.Category.NameEncrypted, dek),

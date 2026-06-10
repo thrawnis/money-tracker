@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { searchTransactions, type SearchTransaction } from '../api/transactionSearch';
 import { usePageTitle } from '../hooks/usePageTitle';
@@ -28,22 +28,41 @@ export default function TransactionSearch() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    setPage(1);
-    setItems([]);
-  }, [categoryId, payeeId]);
+  // Sequence guard: only the most recent request may update state, so a
+  // param change mid-load can't append the old query's pages out of order
+  const seqRef = useRef(0);
 
   useEffect(() => {
     if (!categoryId && !payeeId) return;
+    const seq = ++seqRef.current;
+    setItems([]);
+    setPage(1);
     setLoading(true);
-    searchTransactions({ categoryId, payeeId, page, pageSize: PAGE_SIZE })
+    setError('');
+    searchTransactions({ categoryId, payeeId, page: 1, pageSize: PAGE_SIZE })
       .then(r => {
-        setItems(prev => page === 1 ? r.items : [...prev, ...r.items]);
+        if (seq !== seqRef.current) return;
+        setItems(r.items);
         setTotal(r.total);
       })
-      .catch(() => setError('Failed to load transactions.'))
-      .finally(() => setLoading(false));
-  }, [categoryId, payeeId, page]);
+      .catch(() => { if (seq === seqRef.current) setError('Failed to load transactions.'); })
+      .finally(() => { if (seq === seqRef.current) setLoading(false); });
+  }, [categoryId, payeeId]);
+
+  const loadMore = () => {
+    const next = page + 1;
+    const seq = ++seqRef.current;
+    setLoading(true);
+    searchTransactions({ categoryId, payeeId, page: next, pageSize: PAGE_SIZE })
+      .then(r => {
+        if (seq !== seqRef.current) return;
+        setItems(prev => [...prev, ...r.items]);
+        setTotal(r.total);
+        setPage(next);
+      })
+      .catch(() => { if (seq === seqRef.current) setError('Failed to load transactions.'); })
+      .finally(() => { if (seq === seqRef.current) setLoading(false); });
+  };
 
   const hasMore = items.length < total;
 
@@ -99,7 +118,7 @@ export default function TransactionSearch() {
       </div>
 
       {hasMore && (
-        <button className={styles.loadMore} onClick={() => setPage(p => p + 1)} disabled={loading}>
+        <button className={styles.loadMore} onClick={loadMore} disabled={loading}>
           {loading ? 'Loading…' : `Load more (${total - items.length} remaining)`}
         </button>
       )}

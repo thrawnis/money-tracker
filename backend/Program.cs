@@ -1,6 +1,8 @@
 using System.Text;
 using System.Text.Encodings.Web;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -63,6 +65,22 @@ builder.Services.AddAuthentication(options =>
 
 builder.Services.AddAuthorization();
 
+// ── Rate limiting (auth + demo endpoints) ─────────────────────────────────────
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("auth", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 30,
+                Window      = TimeSpan.FromMinutes(1),
+                QueueLimit  = 0,
+            }));
+});
+
 // ── Session (used for passkey challenge round-trip) ───────────────────────────
 
 builder.Services.AddDistributedMemoryCache();
@@ -71,7 +89,7 @@ builder.Services.AddSession(options =>
     options.IdleTimeout        = TimeSpan.FromMinutes(5);
     options.Cookie.HttpOnly    = true;
     options.Cookie.IsEssential = true;
-    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+    options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest; // allow plain-HTTP local dev
     options.Cookie.SameSite    = SameSiteMode.Strict;
 });
 
@@ -123,6 +141,7 @@ builder.Services.AddSingleton<IEncryptionService, EncryptionService>();
 builder.Services.AddSingleton(UrlEncoder.Default);
 builder.Services.AddScoped<ExportService>();
 builder.Services.AddScoped<DemoSeeder>();
+builder.Services.AddHostedService<ScheduledTransactionPostingService>();
 
 // ── MVC & Swagger ─────────────────────────────────────────────────────────────
 
@@ -170,6 +189,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseCors();
+app.UseRateLimiter();
 app.UseSession();
 app.UseAuthentication();
 app.UseAuthorization();

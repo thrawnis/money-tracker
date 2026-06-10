@@ -25,7 +25,28 @@ public class TransactionsController(
     private async Task<bool> AccountBelongsToUser(int accountId, string userId) =>
         await db.Accounts.AnyAsync(a => a.Id == accountId && a.UserId == userId);
 
-    private object MapTransaction(Transaction tx, string dek) => new
+    /// <summary>
+    /// Verifies that all FK references in the DTO belong to the calling user.
+    /// Returns an error message, or null when everything checks out.
+    /// </summary>
+    private async Task<string?> ValidateReferences(TransactionDto dto, string userId)
+    {
+        if (dto.PayeeId.HasValue &&
+            !await db.Payees.AnyAsync(p => p.Id == dto.PayeeId.Value && p.UserId == userId))
+            return "Payee not found.";
+
+        if (dto.CategoryId.HasValue &&
+            !await db.Categories.AnyAsync(c => c.Id == dto.CategoryId.Value && c.UserId == userId))
+            return "Category not found.";
+
+        if (dto.TransferTransactionId.HasValue &&
+            !await db.Transactions.AnyAsync(t => t.Id == dto.TransferTransactionId.Value && t.Account.UserId == userId))
+            return "Linked transfer transaction not found.";
+
+        return null;
+    }
+
+    private object MapTransaction(Transaction tx, string dek, decimal? runningBalance = null) => new
     {
         id                    = tx.Id,
         accountId             = tx.AccountId,
@@ -50,6 +71,7 @@ public class TransactionsController(
         status                = tx.Status,
         transferTransactionId = tx.TransferTransactionId,
         transferAccountId     = tx.TransferAccountId,
+        runningBalance,
         createdAt             = tx.CreatedAt,
         updatedAt             = tx.UpdatedAt,
     };
@@ -146,14 +168,39 @@ public class TransactionsController(
                 : loaded.OrderByDescending(t => t.PostDate ?? t.Date).ThenByDescending(t => t.CreatedAt).ToList(),
         };
 
+        // ── Running balances ──────────────────────────────────────────────────
+        // Always computed over the FULL account history in effective-date order,
+        // independent of active filters, sort, or pagination — so each row shows
+        // its true historical balance and the header total is always correct.
+        var balanceRows = await db.Transactions
+            .Where(t => t.AccountId == accountId)
+            .Select(t => new { t.Id, t.Date, t.PostDate, t.Amount, t.CreatedAt })
+            .ToListAsync();
+
+        var openingBalance = await db.Accounts
+            .Where(a => a.Id == accountId)
+            .Select(a => a.OpeningBalance)
+            .FirstAsync();
+
+        var balances = new Dictionary<int, decimal>(balanceRows.Count);
+        var running = openingBalance;
+        foreach (var row in balanceRows
+                     .OrderBy(r => r.PostDate ?? r.Date)
+                     .ThenBy(r => r.CreatedAt)
+                     .ThenBy(r => r.Id))
+        {
+            running += row.Amount;
+            balances[row.Id] = running;
+        }
+
         var total = loaded.Count;
         var items = loaded
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(t => MapTransaction(t, dek))
+            .Select(t => MapTransaction(t, dek, balances.GetValueOrDefault(t.Id)))
             .ToList();
 
-        return Ok(new { total, page, pageSize, items });
+        return Ok(new { total, page, pageSize, currentBalance = running, items });
     }
 
     [HttpGet("{id}")]
@@ -183,6 +230,9 @@ public class TransactionsController(
 
         var user = await userManager.FindByIdAsync(userId);
         if (user is null) return Unauthorized();
+
+        if (await ValidateReferences(dto, userId) is string refError)
+            return BadRequest(new { message = refError });
 
         var tx = new Transaction
         {
@@ -223,6 +273,9 @@ public class TransactionsController(
         var user = await userManager.FindByIdAsync(userId);
         if (user is null) return Unauthorized();
 
+        if (await ValidateReferences(dto, userId) is string refError)
+            return BadRequest(new { message = refError });
+
         int? previousPayeeId = tx.PayeeId != dto.PayeeId ? tx.PayeeId : null;
 
         if (dto.TargetAccountId.HasValue && dto.TargetAccountId.Value != accountId)
@@ -241,29 +294,36 @@ public class TransactionsController(
         tx.Status               = dto.Status;
         tx.UpdatedAt            = DateTime.UtcNow;
 
-        await db.SaveChangesAsync();
-
-        // Sync linked transfer transaction
-        if (tx.TransferTransactionId.HasValue)
+        // Apply the edit, linked-transfer sync, and payee cleanup atomically
+        await using (var dbTx = await db.Database.BeginTransactionAsync())
         {
-            var linked = await db.Transactions.FindAsync(tx.TransferTransactionId.Value);
-            if (linked is not null)
+            // Sync linked transfer transaction (amount, date, and memo mirror;
+            // PostDate stays on the credit side only)
+            if (tx.TransferTransactionId.HasValue)
             {
-                linked.Amount    = -tx.Amount;
-                linked.Date      = tx.Date;
-                linked.UpdatedAt = DateTime.UtcNow;
-                await db.SaveChangesAsync();
+                var linked = await db.Transactions.FindAsync(tx.TransferTransactionId.Value);
+                if (linked is not null)
+                {
+                    linked.Amount        = -tx.Amount;
+                    linked.Date          = tx.Date;
+                    linked.MemoEncrypted = tx.MemoEncrypted;
+                    linked.UpdatedAt     = DateTime.UtcNow;
+                }
             }
-        }
 
-        if (previousPayeeId.HasValue)
-        {
-            bool payeeStillInUse = await db.Transactions.AnyAsync(t => t.PayeeId == previousPayeeId);
-            if (!payeeStillInUse)
+            await db.SaveChangesAsync();
+
+            if (previousPayeeId.HasValue)
             {
-                var payee = await db.Payees.FindAsync(previousPayeeId.Value);
-                if (payee is not null) { db.Payees.Remove(payee); await db.SaveChangesAsync(); }
+                bool payeeStillInUse = await db.Transactions.AnyAsync(t => t.PayeeId == previousPayeeId);
+                if (!payeeStillInUse)
+                {
+                    var payee = await db.Payees.FindAsync(previousPayeeId.Value);
+                    if (payee is not null) { db.Payees.Remove(payee); await db.SaveChangesAsync(); }
+                }
             }
+
+            await dbTx.CommitAsync();
         }
 
         await db.Entry(tx).Reference(t => t.Payee).LoadAsync();
@@ -285,24 +345,31 @@ public class TransactionsController(
 
         int? payeeId = tx.PayeeId;
         int? linkedTransferId = tx.TransferTransactionId;
-        db.Transactions.Remove(tx);
-        await db.SaveChangesAsync();
 
-        // Cascade-delete the linked transfer transaction
-        if (linkedTransferId.HasValue)
+        // Delete the transaction, its transfer pair, and orphaned payee atomically
+        await using (var dbTx = await db.Database.BeginTransactionAsync())
         {
-            var linked = await db.Transactions.FindAsync(linkedTransferId.Value);
-            if (linked is not null) { db.Transactions.Remove(linked); await db.SaveChangesAsync(); }
-        }
+            db.Transactions.Remove(tx);
 
-        if (payeeId.HasValue)
-        {
-            bool payeeStillInUse = await db.Transactions.AnyAsync(t => t.PayeeId == payeeId);
-            if (!payeeStillInUse)
+            if (linkedTransferId.HasValue)
             {
-                var payee = await db.Payees.FindAsync(payeeId.Value);
-                if (payee is not null) { db.Payees.Remove(payee); await db.SaveChangesAsync(); }
+                var linked = await db.Transactions.FindAsync(linkedTransferId.Value);
+                if (linked is not null) db.Transactions.Remove(linked);
             }
+
+            await db.SaveChangesAsync();
+
+            if (payeeId.HasValue)
+            {
+                bool payeeStillInUse = await db.Transactions.AnyAsync(t => t.PayeeId == payeeId);
+                if (!payeeStillInUse)
+                {
+                    var payee = await db.Payees.FindAsync(payeeId.Value);
+                    if (payee is not null) { db.Payees.Remove(payee); await db.SaveChangesAsync(); }
+                }
+            }
+
+            await dbTx.CommitAsync();
         }
 
         await audit.LogAsync("DELETE", "Transaction", id, new { accountId });

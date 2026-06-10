@@ -24,15 +24,28 @@ public class EncryptionService : IEncryptionService
         var raw = config["EncryptionKey"]
             ?? throw new InvalidOperationException("EncryptionKey must be set in configuration.");
 
-        // Accept either a raw string (padded/truncated to 32 bytes) or base64
+        // Accept either a raw string (padded/truncated to 32 bytes) or base64.
+        // NOTE: derivation must stay stable — changing it would make existing
+        // DEKs undecryptable. Short keys are accepted for compatibility but
+        // flagged loudly, since zero-padding weakens the effective key.
+        bool fromBase64;
         try
         {
             _masterKey = Convert.FromBase64String(raw);
+            fromBase64 = true;
         }
         catch
         {
             _masterKey = PadOrTruncate(Encoding.UTF8.GetBytes(raw), KeySize);
+            fromBase64 = false;
         }
+
+        int effectiveBytes = fromBase64 ? _masterKey.Length : Math.Min(Encoding.UTF8.GetByteCount(raw), KeySize);
+        if (effectiveBytes < KeySize)
+            Console.Error.WriteLine(
+                $"WARNING: EncryptionKey provides only {effectiveBytes} bytes of key material " +
+                $"(zero-padded to {KeySize}). Use a full 32-byte (256-bit) key — e.g. " +
+                "`openssl rand -base64 32` — for production deployments.");
 
         if (_masterKey.Length != KeySize)
             _masterKey = PadOrTruncate(_masterKey, KeySize);
