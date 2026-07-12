@@ -1,9 +1,9 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { getAccounts } from '../api/accounts';
 import { searchTransactions, type SearchTransaction } from '../api/transactionSearch';
 import type { Account } from '../types';
+import TransactionDetailPanel from '../components/TransactionDetailPanel';
 import styles from './AllTransactions.module.css';
 
 function formatCurrency(n: number) {
@@ -17,7 +17,8 @@ const PAGE_SIZE = 50;
 
 export default function AllTransactions() {
   usePageTitle('Transactions');
-  const navigate = useNavigate();
+
+  const [selectedTx, setSelectedTx] = useState<SearchTransaction | null>(null);
 
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<number> | null>(null); // null = all
@@ -258,8 +259,8 @@ export default function AllTransactions() {
               <tr
                 key={tx.id}
                 className={styles.txRow}
-                onClick={() => navigate(`/accounts/${tx.accountId}`)}
-                title="Open account register"
+                onClick={() => setSelectedTx(tx)}
+                title="View transaction details"
               >
                 <td className={styles.noWrap}>{formatDate(tx.date)}</td>
                 <td className={styles.accountCell}>{tx.accountName}</td>
@@ -298,6 +299,17 @@ export default function AllTransactions() {
         >
           {loading ? 'Loading…' : `Load more (${(total - items.length).toLocaleString()} remaining)`}
         </button>
+      )}
+
+      {selectedTx && (
+        <TransactionDetailPanel
+          accountId={selectedTx.accountId}
+          transactionId={selectedTx.id}
+          accountName={selectedTx.accountName}
+          accounts={accounts}
+          onClose={() => setSelectedTx(null)}
+          onChanged={() => loadPage(1, true)}
+        />
       )}
     </div>
   );

@@ -21,6 +21,9 @@ export const getTransactions = (accountId: number, params?: GetTransactionsParam
     .get<TransactionPage>(`/accounts/${accountId}/transactions`, { params })
     .then(r => r.data);
 
+export const getTransaction = (accountId: number, id: number) =>
+  api.get<Transaction>(`/accounts/${accountId}/transactions/${id}`).then(r => r.data);
+
 export const createTransaction = (accountId: number, data: Omit<Transaction, 'id' | 'accountId' | 'createdAt' | 'updatedAt'>) =>
   api.post<Transaction>(`/accounts/${accountId}/transactions`, data).then(r => r.data);
 
