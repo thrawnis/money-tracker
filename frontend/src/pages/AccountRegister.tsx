@@ -690,16 +690,6 @@ export default function AccountRegister() {
             </tr>
           </thead>
           <tbody>
-            {/* ── Load-more-past sentinel (top) ── */}
-            {hasMorePast && (
-              <tr>
-                <td colSpan={8} className={styles.sentinelCell}>
-                  <div ref={topSentinelRef} className={styles.sentinel} />
-                  {loadingPast && <span className={styles.loadingMore}>Loading older transactions…</span>}
-                </td>
-              </tr>
-            )}
-
             {/* ── Past / current transactions (newest first) ── */}
             {pastTxs.length === 0 && !initialLoading ? (
               <tr>
@@ -765,6 +755,16 @@ export default function AccountRegister() {
                   </td>
                 </tr>
               ))
+            )}
+
+            {/* ── Load-more-past sentinel (bottom of loaded past transactions) ── */}
+            {hasMorePast && (
+              <tr>
+                <td colSpan={8} className={styles.sentinelCell}>
+                  <div ref={topSentinelRef} className={styles.sentinel} />
+                  {loadingPast && <span className={styles.loadingMore}>Loading older transactions…</span>}
+                </td>
+              </tr>
             )}
 
             {/* ── Today divider ── */}
