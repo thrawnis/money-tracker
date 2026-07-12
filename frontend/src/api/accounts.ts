@@ -13,5 +13,5 @@ export const createAccount = (data: Omit<Account, 'id' | 'createdAt'>) =>
 export const updateAccount = (id: number, data: Partial<Account>) =>
   api.put<Account>(`/accounts/${id}`, data).then(r => r.data);
 
-export const deleteAccount = (id: number) =>
-  api.delete(`/accounts/${id}`);
+export const deleteAccount = (id: number, note?: string) =>
+  api.delete(`/accounts/${id}`, { params: note ? { note } : {} });

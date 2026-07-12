@@ -141,6 +141,7 @@ builder.Services.AddSingleton<IEncryptionService, EncryptionService>();
 builder.Services.AddSingleton(UrlEncoder.Default);
 builder.Services.AddScoped<ExportService>();
 builder.Services.AddScoped<DemoSeeder>();
+builder.Services.AddSingleton<IAccountBackupService, AccountBackupService>();
 builder.Services.AddHostedService<ScheduledTransactionPostingService>();
 
 // ── MVC & Swagger ─────────────────────────────────────────────────────────────

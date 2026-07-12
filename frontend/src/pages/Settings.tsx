@@ -7,11 +7,12 @@ import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import { getTemplate, previewImport, importWithDuplicates, type PreviewResult } from '../api/import';
 import { getAuditLog, type AuditEntry, type GetAuditParams } from '../api/audit';
 import { getAccounts } from '../api/accounts';
+import { listAccountBackups, downloadAccountBackup, type AccountBackupSummary } from '../api/accountBackups';
 import type { Account } from '../types';
 import ExportModal from '../components/ExportModal';
 import styles from './Settings.module.css';
 
-type Tab = 'password' | 'export' | 'import' | 'audit';
+type Tab = 'password' | 'export' | 'import' | 'backups' | 'audit';
 
 // ── Change Password ──
 
@@ -449,6 +450,94 @@ function ImportTab() {
   );
 }
 
+// ── Account Backups ──
+
+function formatBytes(n: number) {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function BackupsTab() {
+  const [backups, setBackups] = useState<AccountBackupSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [downloadingFile, setDownloadingFile] = useState<string | null>(null);
+
+  useEffect(() => {
+    listAccountBackups()
+      .then(setBackups)
+      .catch(() => setError('Failed to load backups.'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleDownload = async (fileName: string) => {
+    setDownloadingFile(fileName);
+    try {
+      const blob = await downloadAccountBackup(fileName);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      alert('Failed to download backup.');
+    } finally {
+      setDownloadingFile(null);
+    }
+  };
+
+  return (
+    <div className={styles.tabSection}>
+      <p className={styles.hint}>
+        A full backup (account details, transactions, and splits) is automatically saved on the server before an
+        account is deleted. Up to 5 backups are kept; the oldest is removed once a new one is created.
+      </p>
+
+      {loading && <p className={styles.hint}>Loading…</p>}
+      {error && <div className={styles.error}>{error}</div>}
+
+      {!loading && !error && backups.length === 0 && (
+        <p className={styles.hint}>No account backups yet.</p>
+      )}
+
+      {backups.length > 0 && (
+        <table className={styles.dupTable}>
+          <thead>
+            <tr>
+              <th>Account</th>
+              <th>Backed Up</th>
+              <th>Note</th>
+              <th>Size</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {backups.map(b => (
+              <tr key={b.fileName}>
+                <td>{b.accountName}</td>
+                <td>{new Date(b.backedUpAt).toLocaleString()}</td>
+                <td>{b.note ?? ''}</td>
+                <td>{formatBytes(b.sizeBytes)}</td>
+                <td>
+                  <button
+                    className={styles.btnSecondary}
+                    onClick={() => handleDownload(b.fileName)}
+                    disabled={downloadingFile === b.fileName}
+                  >
+                    {downloadingFile === b.fileName ? 'Downloading…' : 'Download'}
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
 // ── Audit Log ──
 
 const ENTITY_TYPES = ['All', 'Transaction', 'Account', 'Category', 'Payee', 'User'];
@@ -669,6 +758,12 @@ export default function Settings() {
           Import Data
         </button>
         <button
+          className={`${styles.tab} ${tab === 'backups' ? styles.tabActive : ''}`}
+          onClick={() => setTab('backups')}
+        >
+          Account Backups
+        </button>
+        <button
           className={`${styles.tab} ${tab === 'audit' ? styles.tabActive : ''}`}
           onClick={() => setTab('audit')}
         >
@@ -679,6 +774,7 @@ export default function Settings() {
         {tab === 'password' && <ChangePasswordTab />}
         {tab === 'export' && <ExportTab />}
         {tab === 'import' && <ImportTab />}
+        {tab === 'backups' && <BackupsTab />}
         {tab === 'audit' && <AuditLogTab />}
       </div>
     </div>

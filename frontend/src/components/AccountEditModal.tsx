@@ -50,10 +50,11 @@ export default function AccountEditModal({ account, institutions: initialInstitu
   };
 
   const handleDelete = async () => {
-    if (!confirm(`Delete "${account.name}"? This permanently deletes the account and all its transactions. This cannot be undone.`)) return;
+    if (!confirm(`Delete "${account.name}"? This permanently deletes the account and all its transactions. This cannot be undone. A backup is saved on the server first.`)) return;
+    const note = prompt('Optional note for the backup (why you\'re deleting this account):') ?? undefined;
     setDeleting(true); setError('');
     try {
-      await deleteAccount(account.id);
+      await deleteAccount(account.id, note || undefined);
       onDeleted();
     } catch {
       setError('Failed to delete account.');

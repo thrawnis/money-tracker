@@ -17,7 +17,8 @@ public class AccountsController(
     AppDbContext db,
     IEncryptionService encryption,
     UserManager<ApplicationUser> userManager,
-    IAuditService audit) : ControllerBase
+    IAuditService audit,
+    IAccountBackupService accountBackups) : ControllerBase
 {
     private string? GetUserId() => User.FindFirstValue(ClaimTypes.NameIdentifier);
 
@@ -134,6 +135,7 @@ public class AccountsController(
             InstitutionId          = dto.InstitutionId,
             AccountNumberEncrypted = encryption.Encrypt(dto.AccountNumber, user.EncryptedDataKey),
             NotesEncrypted         = encryption.Encrypt(dto.Notes, user.EncryptedDataKey),
+            IsActive               = dto.IsActive,
             CreatedAt              = DateTime.UtcNow,
         };
 
@@ -170,6 +172,7 @@ public class AccountsController(
         account.InstitutionId          = dto.InstitutionId;
         account.AccountNumberEncrypted = encryption.Encrypt(dto.AccountNumber, user.EncryptedDataKey);
         account.NotesEncrypted         = encryption.Encrypt(dto.Notes, user.EncryptedDataKey);
+        account.IsActive               = dto.IsActive;
 
         await db.SaveChangesAsync();
         await db.Entry(account).Reference(a => a.Institution).LoadAsync();
@@ -180,18 +183,55 @@ public class AccountsController(
     }
 
     [HttpDelete("{id}")]
-    public async Task<IActionResult> Deactivate(int id)
+    public async Task<IActionResult> Delete(int id, [FromQuery] string? note)
     {
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
 
-        var account = await db.Accounts.FirstOrDefaultAsync(a => a.Id == id && a.UserId == userId);
+        var account = await db.Accounts
+            .Include(a => a.Institution)
+            .FirstOrDefaultAsync(a => a.Id == id && a.UserId == userId);
         if (account is null) return NotFound();
 
-        account.IsActive = false;
-        await db.SaveChangesAsync();
+        var transactions = await db.Transactions
+            .Where(t => t.AccountId == id)
+            .Include(t => t.Payee)
+            .Include(t => t.Category)
+            .Include(t => t.Splits).ThenInclude(s => s.Category)
+            .ToListAsync();
 
-        await audit.LogAsync("DELETE", "Account", id, new { name = account.Name });
+        // Full backup first — before anything is touched — so a failure past
+        // this point can never leave the account deleted with no backup.
+        var backupFile = await accountBackups.CreateBackupAsync(account, transactions, note);
+
+        await using (var dbTx = await db.Database.BeginTransactionAsync())
+        {
+            // Any transaction in another account whose transfer partner lives in
+            // the account being deleted becomes a plain (unlinked) transaction
+            // instead of pointing at a row that's about to be cascade-deleted.
+            var accountTxIds = transactions.Select(t => t.Id).ToList();
+            if (accountTxIds.Count > 0)
+            {
+                var linkedElsewhere = await db.Transactions
+                    .Where(t => t.AccountId != id && t.TransferTransactionId != null && accountTxIds.Contains(t.TransferTransactionId.Value))
+                    .ToListAsync();
+                foreach (var linked in linkedElsewhere)
+                {
+                    linked.TransferTransactionId = null;
+                    linked.TransferAccountId = null;
+                }
+                if (linkedElsewhere.Count > 0) await db.SaveChangesAsync();
+            }
+
+            // Cascades to this account's Transactions (+ their Splits) and
+            // ScheduledTransactions at the database level.
+            db.Accounts.Remove(account);
+            await db.SaveChangesAsync();
+
+            await dbTx.CommitAsync();
+        }
+
+        await audit.LogAsync("DELETE", "Account", id, new { name = account.Name, backupFile });
 
         return NoContent();
     }
@@ -203,4 +243,5 @@ public record AccountDto(
     decimal OpeningBalance,
     int? InstitutionId,
     string? AccountNumber,
-    string? Notes);
+    string? Notes,
+    bool IsActive = true);

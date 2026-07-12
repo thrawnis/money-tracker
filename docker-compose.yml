@@ -85,6 +85,8 @@ services:
       # Google Gemini
       Receipt__Gemini__ApiKey: ${GEMINI_API_KEY:-}
       Receipt__Gemini__Model: ${GEMINI_MODEL:-gemini-1.5-flash}
+    volumes:
+      - ./data/account-backups:/app/data/account-backups
     ports:
       - "5012:8080"
     depends_on:
