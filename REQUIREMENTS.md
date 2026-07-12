@@ -47,6 +47,8 @@ Update this file whenever requirements change or new features are defined.
 - Create, edit, delete on the account register page
 - All unsaved form changes must prompt before navigating away
 - Bulk CSV import with preview and duplicate detection (per account)
+- CSV import auto-detects transfers: an imported row is linked to an existing unlinked transaction in another of the user's accounts when date, opposite-sign amount, and memo all match (ambiguous multi-candidate matches are left unlinked); also matches transfer pairs within a single multi-account import file
+- Right-click a transaction for a context menu; transfer transactions get a "Go to Other Account" option that jumps to and highlights the matching leg
 - Transaction search across accounts with: date range, account, category, payee, regex memo/check# pattern
 
 ---

@@ -21,6 +21,7 @@ export interface PreviewResult {
   total: number;
   duplicates: DuplicateRow[];
   newTransactions: number;
+  transferMatches: number;
   error?: string;
 }
 
@@ -33,9 +34,9 @@ export const previewImport = (file: File): Promise<PreviewResult> => {
 export const importWithDuplicates = (
   file: File,
   includeDuplicateIds: number[],
-): Promise<{ imported: number; errors?: string[] }> => {
+): Promise<{ imported: number; transfersLinked: number; errors?: string[] }> => {
   const fd = new FormData();
   fd.append('file', file);
   fd.append('includeDuplicateIds', JSON.stringify(includeDuplicateIds));
-  return api.post<{ imported: number; errors?: string[] }>('/import', fd).then(r => r.data);
+  return api.post<{ imported: number; transfersLinked: number; errors?: string[] }>('/import', fd).then(r => r.data);
 };
