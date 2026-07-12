@@ -164,7 +164,7 @@ export default function AccountRegister() {
   const hasMorePast = pastTxs.length < pastTotal;
   const hasMoreFuture = futureSkip + FUTURE_BATCH < futureTotal;
 
-  // ── Data loading ──────────────────────────────────────────────────────────
+  // ── Data loading ──
 
   const draftFilters = (): TxFilters => ({
     from: filterFrom || undefined,
@@ -295,7 +295,7 @@ export default function AccountRegister() {
     return () => clearTimeout(t);
   }, [highlightTxId, pastTxs]);
 
-  // ── Load more past (scroll up) ───────────────────────────────────────────────
+  // ── Load more past (scroll up) ──
 
   const loadMorePast = useCallback(async () => {
     if (loadingPast || !hasMorePast) return;
@@ -319,7 +319,7 @@ export default function AccountRegister() {
     }
   }, [loadingPast, hasMorePast, pastPage, accountId, appliedFilters, sortBy, sortDir]);
 
-  // ── Load future bills ───────────────────────────────────────────────
+  // ── Load future bills ──
 
   const loadFutureBills = useCallback(async (skip = 0, replace = false) => {
     if (loadingFuture) return;
@@ -353,7 +353,7 @@ export default function AccountRegister() {
     }
   }, [showFuture, futureDays, accountId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Infinite scroll via IntersectionObserver ─────────────────────────────────
+  // ── Infinite scroll via IntersectionObserver ──
 
   useEffect(() => {
     const observer = new IntersectionObserver(entries => {
@@ -373,7 +373,7 @@ export default function AccountRegister() {
     return () => observer.disconnect();
   }, [hasMorePast, loadMorePast, showFuture, hasMoreFuture, loadFutureBills, futureSkip]);
 
-  // ── Filters ──────────────────────────────────────────────────────────
+  // ── Filters ──
 
   const applyFilters = () => {
     const filters = draftFilters();
@@ -396,7 +396,7 @@ export default function AccountRegister() {
     loadPage1(appliedFilters, field, newDir, false);
   };
 
-  // ── CRUD ──────────────────────────────────────────────────────────
+  // ── CRUD ──
   // Mutations refetch page 1 from the server: running balances are computed
   // server-side over the full history, so in-place list edits would show
   // stale balances on every other row.
@@ -492,7 +492,7 @@ export default function AccountRegister() {
 
   return (
     <div className={styles.page}>
-      {/* ── Header ───────────────────────────────────────────────────────────────── */}
+      {/* ── Header ── */}
       <div className={styles.pageHeader}>
         <div>
           <select
@@ -596,7 +596,7 @@ export default function AccountRegister() {
         </div>
       </div>
 
-      {/* ── Filter panel ──────────────────────────────────────────────────────── */}
+      {/* ── Filter panel ── */}
       {filterOpen && (
         <div className={styles.filterPanel}>
           <div className={styles.filterRow}>
@@ -645,7 +645,7 @@ export default function AccountRegister() {
         </div>
       )}
 
-      {/* ── Transaction entry form ───────────────────────────────────────────────── */}
+      {/* ── Transaction entry form ── */}
       {showForm && (
         <TransactionForm
           accountId={accountId}
@@ -665,7 +665,7 @@ export default function AccountRegister() {
         />
       )}
 
-      {/* ── Register table ───────────────────────────────────────────────── */}
+      {/* ── Register table ── */}
       <div className={styles.tableWrapper}>
         <table className={styles.table}>
           <thead>
@@ -693,7 +693,7 @@ export default function AccountRegister() {
             </tr>
           </thead>
           <tbody>
-            {/* ── Load-more-past sentinel (top) ─────────────────────────── */}
+            {/* ── Load-more-past sentinel (top) ── */}
             {hasMorePast && (
               <tr>
                 <td colSpan={8} className={styles.sentinelCell}>
@@ -703,7 +703,7 @@ export default function AccountRegister() {
               </tr>
             )}
 
-            {/* ── Past / current transactions (newest first) ─────────────── */}
+            {/* ── Past / current transactions (newest first) ── */}
             {pastTxs.length === 0 && !initialLoading ? (
               <tr>
                 <td colSpan={8} className={styles.emptyMsg}>No transactions found.</td>
@@ -770,7 +770,7 @@ export default function AccountRegister() {
               ))
             )}
 
-            {/* ── Today divider ──────────────────────────────────────── */}
+            {/* ── Today divider ── */}
             <tr className={styles.todayRow}>
               <td colSpan={8}>
                 <div className={styles.todayDivider}>
@@ -779,7 +779,7 @@ export default function AccountRegister() {
               </td>
             </tr>
 
-            {/* ── Future scheduled transactions ────────────────────────── */}
+            {/* ── Future scheduled transactions ── */}
             {showFuture && (
               <>
                 {loadingFuture && futureBills.length === 0 ? (
