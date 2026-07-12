@@ -4,14 +4,14 @@ import { useAuth } from '../contexts/AuthContext';
 import api from '../api/client';
 import { getDemoInfo, resetDemo } from '../api/demo';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
-import { getTemplate, previewImport, importWithDuplicates } from '../api/import';
+import { getTemplate, previewImport, importWithDuplicates, type PreviewResult } from '../api/import';
 import { getAuditLog, type AuditEntry, type GetAuditParams } from '../api/audit';
 import ExportModal from '../components/ExportModal';
 import styles from './Settings.module.css';
 
 type Tab = 'password' | 'export' | 'import' | 'audit';
 
-// ── Change Password ──────────────────────────────────────────────────────────
+// ── Change Password ───────────────────────────────────────────────
 
 function ChangePasswordTab() {
   const { logout } = useAuth();
@@ -164,7 +164,7 @@ function ChangePasswordTab() {
   );
 }
 
-// ── Export Data ──────────────────────────────────────────────────────────────
+// ── Export Data ───────────────────────────────────────────────
 
 function ExportTab() {
   const [open, setOpen] = useState(false);
@@ -182,22 +182,7 @@ function ExportTab() {
   );
 }
 
-// ── Import Data ──────────────────────────────────────────────────────────────
-
-interface DuplicateRow {
-  date: string;
-  payee: string;
-  amount: number;
-  memo?: string;
-  matchedTransactionId: number;
-}
-
-interface PreviewResult {
-  total: number;
-  duplicates: DuplicateRow[];
-  newTransactions: number;
-  error?: string;
-}
+// ── Import Data ───────────────────────────────────────────────
 
 function ImportTab() {
   const [dragging, setDragging] = useState(false);
@@ -207,7 +192,7 @@ function ImportTab() {
   const [checkedDups, setCheckedDups] = useState<Set<number>>(new Set());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [result, setResult] = useState<{ imported: number; errors?: string[] } | null>(null);
+  const [result, setResult] = useState<{ imported: number; transfersLinked: number; errors?: string[] } | null>(null);
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -285,6 +270,9 @@ function ImportTab() {
       <div className={styles.tabSection}>
         <div className={styles.resultSuccess}>
           {result.imported} transaction{result.imported !== 1 ? 's' : ''} imported successfully.
+          {result.transfersLinked > 0 && (
+            <> {result.transfersLinked} linked as transfer{result.transfersLinked !== 1 ? 's' : ''} to existing transactions.</>
+          )}
         </div>
         {result.errors && result.errors.length > 0 && (
           <div className={styles.resultErrors}>
@@ -305,6 +293,9 @@ function ImportTab() {
         <p className={styles.hint}>
           <strong>{preview.newTransactions}</strong> new transaction{preview.newTransactions !== 1 ? 's' : ''} and{' '}
           <strong>{preview.duplicates.length}</strong> potential duplicate{preview.duplicates.length !== 1 ? 's' : ''} found.
+          {preview.transferMatches > 0 && (
+            <> <strong>{preview.transferMatches}</strong> of the new transactions look like transfer{preview.transferMatches !== 1 ? 's' : ''} to existing accounts and will be linked automatically.</>
+          )}
         </p>
 
         {preview.duplicates.length > 0 && (
@@ -422,7 +413,7 @@ function ImportTab() {
   );
 }
 
-// ── Audit Log ────────────────────────────────────────────────────────────────
+// ── Audit Log ───────────────────────────────────────────────
 
 const ENTITY_TYPES = ['All', 'Transaction', 'Account', 'Category', 'Payee', 'User'];
 
@@ -611,7 +602,7 @@ function AuditLogTab() {
   );
 }
 
-// ── Settings page ────────────────────────────────────────────────────────────
+// ── Settings page ────────────────────────────────────────────
 
 export default function Settings() {
   usePageTitle('Settings');
