@@ -281,12 +281,48 @@ public class ImportController(
                         payeeId = payee.Id;
                     }
 
+                    // Resolve category (and subcategory, if present)
+                    int? categoryId = null;
+                    if (!string.IsNullOrWhiteSpace(row.Category))
+                    {
+                        var catName = row.Category.Trim();
+                        var allCategories = await db.Categories.Where(c => c.UserId == userId).ToListAsync();
+
+                        var parent = allCategories.FirstOrDefault(c => c.ParentId == null &&
+                            string.Equals(encryption.Decrypt(c.NameEncrypted, dek), catName, StringComparison.OrdinalIgnoreCase));
+                        if (parent is null)
+                        {
+                            parent = new Category { UserId = userId, NameEncrypted = encryption.Encrypt(catName, dek)! };
+                            db.Categories.Add(parent);
+                            await db.SaveChangesAsync();
+                        }
+
+                        if (!string.IsNullOrWhiteSpace(row.SubCategory))
+                        {
+                            var subName = row.SubCategory.Trim();
+                            var sub = allCategories.FirstOrDefault(c => c.ParentId == parent.Id &&
+                                string.Equals(encryption.Decrypt(c.NameEncrypted, dek), subName, StringComparison.OrdinalIgnoreCase));
+                            if (sub is null)
+                            {
+                                sub = new Category { UserId = userId, ParentId = parent.Id, NameEncrypted = encryption.Encrypt(subName, dek)! };
+                                db.Categories.Add(sub);
+                                await db.SaveChangesAsync();
+                            }
+                            categoryId = sub.Id;
+                        }
+                        else
+                        {
+                            categoryId = parent.Id;
+                        }
+                    }
+
                     var tx = new Transaction
                     {
                         AccountId = rowAccountId,
                         Date = date,
                         Amount = amount,
                         PayeeId = payeeId,
+                        CategoryId = categoryId,
                         CheckNumberEncrypted = string.IsNullOrWhiteSpace(row.CheckNumber)
                             ? null
                             : encryption.Encrypt(row.CheckNumber.Trim(), dek),
