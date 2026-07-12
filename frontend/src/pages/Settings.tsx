@@ -11,7 +11,7 @@ import styles from './Settings.module.css';
 
 type Tab = 'password' | 'export' | 'import' | 'audit';
 
-// ── Change Password ───────────────────────────────────────────────
+// ── Change Password ──
 
 function ChangePasswordTab() {
   const { logout } = useAuth();
@@ -164,7 +164,7 @@ function ChangePasswordTab() {
   );
 }
 
-// ── Export Data ───────────────────────────────────────────────
+// ── Export Data ──
 
 function ExportTab() {
   const [open, setOpen] = useState(false);
@@ -182,7 +182,7 @@ function ExportTab() {
   );
 }
 
-// ── Import Data ───────────────────────────────────────────────
+// ── Import Data ──
 
 function ImportTab() {
   const [dragging, setDragging] = useState(false);
@@ -413,7 +413,7 @@ function ImportTab() {
   );
 }
 
-// ── Audit Log ───────────────────────────────────────────────
+// ── Audit Log ──
 
 const ENTITY_TYPES = ['All', 'Transaction', 'Account', 'Category', 'Payee', 'User'];
 
@@ -602,7 +602,7 @@ function AuditLogTab() {
   );
 }
 
-// ── Settings page ────────────────────────────────────────────
+// ── Settings page ──
 
 export default function Settings() {
   usePageTitle('Settings');
