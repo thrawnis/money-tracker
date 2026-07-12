@@ -173,14 +173,6 @@ public class ImportController(
             .Where(a => a.UserId == userId && a.IsActive)
             .ToListAsync();
 
-        HashSet<int> skipIds = [];
-        if (!string.IsNullOrWhiteSpace(includeDuplicateIds))
-        {
-            // includeDuplicateIds is the list of IDs to INCLUDE (not skip)
-            // but we need to figure out which duplicates to skip
-            // The IDs passed are the ones the user chose to INCLUDE
-        }
-
         var includedIds = new HashSet<int>();
         if (!string.IsNullOrWhiteSpace(includeDuplicateIds))
         {

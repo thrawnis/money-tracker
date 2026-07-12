@@ -1,7 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { usePageTitle } from '../hooks/usePageTitle';
-import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import { getAccount, getAccounts, deleteAccount } from '../api/accounts';
 import { getTransactions, createTransaction, updateTransaction, deleteTransaction, createTransfer } from '../api/transactions';
 import { getUpcoming } from '../api/scheduledTransactions';
@@ -97,8 +96,6 @@ export default function AccountRegister() {
   const [receiptCategoryLabel, setReceiptCategoryLabel] = useState<string | undefined>(undefined);
   const [showScanner, setShowScanner] = useState(false);
   const lastUsedDate = useRef<string>(new Date().toISOString().slice(0, 10));
-
-  useUnsavedChanges(showForm);
 
   // Actions menu
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);

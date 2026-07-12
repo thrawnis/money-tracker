@@ -222,8 +222,12 @@ export default function BillsReminders() {
 
   const handleDelete = async (id: number) => {
     if (!confirm('Delete this bill?')) return;
-    await deleteScheduledTransaction(id);
-    load();
+    try {
+      await deleteScheduledTransaction(id);
+      load();
+    } catch {
+      setError('Failed to delete bill.');
+    }
   };
 
   const daysUntil = (dateStr: string) => {

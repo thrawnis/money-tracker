@@ -98,7 +98,7 @@ public class CategoriesController(
         db.Categories.Add(category);
         await db.SaveChangesAsync();
 
-        await audit.LogAsync("CREATE", "Category", category.Id, new { name = dto.Name, parentId = dto.ParentId });
+        await audit.LogAsync("CREATE", "Category", category.Id, new { parentId = dto.ParentId });
 
         return CreatedAtAction(nameof(GetAll), new { },
             new { id = category.Id, name = dto.Name, category.ParentId });
@@ -124,13 +124,12 @@ public class CategoriesController(
         if (duplicate)
             return Conflict(new { message = $"A category named \"{dto.Name}\" already exists." });
 
-        var oldName = encryption.Decrypt(category.NameEncrypted, user.EncryptedDataKey);
         category.NameEncrypted = encryption.Encrypt(dto.Name, user.EncryptedDataKey)!;
         category.ParentId      = dto.ParentId;
 
         await db.SaveChangesAsync();
 
-        await audit.LogAsync("UPDATE", "Category", id, new { before = oldName, after = dto.Name, parentId = dto.ParentId });
+        await audit.LogAsync("UPDATE", "Category", id, new { parentId = dto.ParentId });
 
         return Ok(new { id = category.Id, name = dto.Name, category.ParentId });
     }
@@ -144,13 +143,10 @@ public class CategoriesController(
         var category = await db.Categories.FirstOrDefaultAsync(c => c.Id == id && c.UserId == userId);
         if (category is null) return NotFound();
 
-        var user = await userManager.FindByIdAsync(userId);
-        var name = user is null ? null : encryption.Decrypt(category.NameEncrypted, user.EncryptedDataKey);
-
         db.Categories.Remove(category);
         await db.SaveChangesAsync();
 
-        await audit.LogAsync("DELETE", "Category", id, new { name });
+        await audit.LogAsync("DELETE", "Category", id);
 
         return NoContent();
     }

@@ -30,6 +30,9 @@ public class TransfersController(
         if (dto.SourceAccountId == dto.DestinationAccountId)
             return BadRequest("Source and destination accounts must be different.");
 
+        if (dto.Amount == 0)
+            return BadRequest("Transfer amount must be non-zero.");
+
         var source = await db.Accounts.FirstOrDefaultAsync(a => a.Id == dto.SourceAccountId && a.UserId == userId);
         if (source is null) return NotFound("Source account not found.");
 

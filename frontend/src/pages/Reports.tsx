@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { usePageTitle } from '../hooks/usePageTitle';
+import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import {
   getMonthlyReport,
   getCategoryReport,
@@ -68,6 +69,12 @@ export default function Reports() {
   const [savedReports, setSavedReports] = useState<SavedReport[]>([]);
   const [saveReportName, setSaveReportName] = useState('');
   const [savingReport, setSavingReport] = useState(false);
+
+  // saveReportName doubles as the display title for a loaded saved report, so
+  // "dirty" means it differs from what's actually saved — not just non-empty.
+  const activeSavedName = activeSavedId !== null ? savedReports.find(r => r.id === activeSavedId)?.name : undefined;
+  const hasUnsavedReportName = activeSavedId === null ? saveReportName !== '' : saveReportName !== activeSavedName;
+  useUnsavedChanges(hasUnsavedReportName);
 
   const defaultRange = presetRange('last6');
   const [mFromYear, setMFromYear] = useState(defaultRange.fromYear);

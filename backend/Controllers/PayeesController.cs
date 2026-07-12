@@ -79,7 +79,7 @@ public class PayeesController(
         db.Payees.Add(payee);
         await db.SaveChangesAsync();
 
-        await audit.LogAsync("CREATE", "Payee", payee.Id, new { name = dto.Name, defaultCategoryId = dto.DefaultCategoryId });
+        await audit.LogAsync("CREATE", "Payee", payee.Id, new { defaultCategoryId = dto.DefaultCategoryId });
 
         return CreatedAtAction(nameof(GetAll), new { },
             new { id = payee.Id, name = dto.Name, payee.DefaultCategoryId });
@@ -103,13 +103,12 @@ public class PayeesController(
         if (duplicate)
             return Conflict(new { message = $"A payee named \"{dto.Name}\" already exists." });
 
-        var oldName = encryption.Decrypt(payee.NameEncrypted, user.EncryptedDataKey);
         payee.NameEncrypted     = encryption.Encrypt(dto.Name, user.EncryptedDataKey)!;
         payee.DefaultCategoryId = dto.DefaultCategoryId;
 
         await db.SaveChangesAsync();
 
-        await audit.LogAsync("UPDATE", "Payee", id, new { before = oldName, after = dto.Name, defaultCategoryId = dto.DefaultCategoryId });
+        await audit.LogAsync("UPDATE", "Payee", id, new { defaultCategoryId = dto.DefaultCategoryId });
 
         return Ok(new { id = payee.Id, name = dto.Name, payee.DefaultCategoryId });
     }
@@ -123,13 +122,10 @@ public class PayeesController(
         var payee = await db.Payees.FirstOrDefaultAsync(p => p.Id == id && p.UserId == userId);
         if (payee is null) return NotFound();
 
-        var user = await userManager.FindByIdAsync(userId);
-        var name = user is null ? null : encryption.Decrypt(payee.NameEncrypted, user.EncryptedDataKey);
-
         db.Payees.Remove(payee);
         await db.SaveChangesAsync();
 
-        await audit.LogAsync("DELETE", "Payee", id, new { name });
+        await audit.LogAsync("DELETE", "Payee", id);
 
         return NoContent();
     }

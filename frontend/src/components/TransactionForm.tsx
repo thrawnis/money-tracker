@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, type FormEvent } from 'react';
 import type { Transaction, Category, Payee, Account } from '../types';
 import { getCategories, createCategory } from '../api/categories';
 import { getPayees, createPayee } from '../api/payees';
+import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import styles from './TransactionForm.module.css';
 
 interface Props {
@@ -108,17 +109,33 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
   const [saveError, setSaveError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  // Snapshot of field values once the initial category/payee resolution settles,
+  // so unsaved-changes tracking reflects actual edits rather than firing the
+  // moment the form opens (categoryInput starts empty and is filled in below).
+  const [formBaseline, setFormBaseline] = useState<string | null>(null);
+  const isDirty = formBaseline !== null && JSON.stringify({
+    date, payeeInput, payeeId, memo, amount, postDate,
+    categoryInput, isTransfer, transferDestAccountId, targetAccountId,
+  }) !== formBaseline;
+  useUnsavedChanges(isDirty);
+
   useEffect(() => {
     Promise.all([getCategories(), getPayees()]).then(([cats, pays]) => {
       setCategories(cats);
       setPayees(pays);
+      let resolvedCategoryInput = '';
       if (initialCategoryLabel) {
-        setCategoryInput(initialCategoryLabel);
+        resolvedCategoryInput = initialCategoryLabel;
       } else if (initial?.categoryId) {
         const flat = flattenCategories(cats);
         const found = flat.find(c => c.id === initial.categoryId);
-        if (found) setCategoryInput(found.label);
+        if (found) resolvedCategoryInput = found.label;
       }
+      if (resolvedCategoryInput) setCategoryInput(resolvedCategoryInput);
+      setFormBaseline(JSON.stringify({
+        date, payeeInput, payeeId, memo, amount, postDate,
+        categoryInput: resolvedCategoryInput, isTransfer, transferDestAccountId, targetAccountId,
+      }));
     }).catch(console.error);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

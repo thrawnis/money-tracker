@@ -277,11 +277,13 @@ public class TransactionsController(
             return BadRequest(new { message = refError });
 
         int? previousPayeeId = tx.PayeeId != dto.PayeeId ? tx.PayeeId : null;
+        bool accountChanged = false;
 
         if (dto.TargetAccountId.HasValue && dto.TargetAccountId.Value != accountId)
         {
             if (!await AccountBelongsToUser(dto.TargetAccountId.Value, userId)) return BadRequest("Target account not found.");
             tx.AccountId = dto.TargetAccountId.Value;
+            accountChanged = true;
         }
 
         tx.Date                 = dto.Date;
@@ -298,7 +300,9 @@ public class TransactionsController(
         await using (var dbTx = await db.Database.BeginTransactionAsync())
         {
             // Sync linked transfer transaction (amount, date, and memo mirror;
-            // PostDate stays on the credit side only)
+            // PostDate stays on the credit side only). If this leg moved to a
+            // different account, the linked leg's TransferAccountId must follow
+            // so the pair still points at each other's current accounts.
             if (tx.TransferTransactionId.HasValue)
             {
                 var linked = await db.Transactions.FindAsync(tx.TransferTransactionId.Value);
@@ -308,6 +312,7 @@ public class TransactionsController(
                     linked.Date          = tx.Date;
                     linked.MemoEncrypted = tx.MemoEncrypted;
                     linked.UpdatedAt     = DateTime.UtcNow;
+                    if (accountChanged) linked.TransferAccountId = tx.AccountId;
                 }
             }
 
