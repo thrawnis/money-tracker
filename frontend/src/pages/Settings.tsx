@@ -6,6 +6,8 @@ import { getDemoInfo, resetDemo } from '../api/demo';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import { getTemplate, previewImport, importWithDuplicates, type PreviewResult } from '../api/import';
 import { getAuditLog, type AuditEntry, type GetAuditParams } from '../api/audit';
+import { getAccounts } from '../api/accounts';
+import type { Account } from '../types';
 import ExportModal from '../components/ExportModal';
 import styles from './Settings.module.css';
 
@@ -194,16 +196,26 @@ function ImportTab() {
   const [error, setError] = useState('');
   const [result, setResult] = useState<{ imported: number; transfersLinked: number; errors?: string[] } | null>(null);
 
+  // QIF files often don't embed an account name (Money Sunset exports one
+  // account at a time) — the user picks the destination account up front.
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [qifAccountId, setQifAccountId] = useState<number | ''>('');
+  const isQif = !!file?.name.toLowerCase().endsWith('.qif');
+
+  useEffect(() => {
+    getAccounts().then(setAccounts).catch(() => {});
+  }, []);
+
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setDragging(false);
     const f = e.dataTransfer.files[0];
-    if (f) { setFile(f); setError(''); }
+    if (f) { setFile(f); setError(''); setQifAccountId(''); }
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0] ?? null;
-    if (f) { setFile(f); setError(''); }
+    if (f) { setFile(f); setError(''); setQifAccountId(''); }
   };
 
   const handlePreview = async () => {
@@ -211,7 +223,7 @@ function ImportTab() {
     setLoading(true);
     setError('');
     try {
-      const res = await previewImport(file);
+      const res = await previewImport(file, isQif && qifAccountId !== '' ? qifAccountId : undefined);
       if (res.error) { setError(res.error); setLoading(false); return; }
       setPreview(res);
       setCheckedDups(new Set());
@@ -232,7 +244,7 @@ function ImportTab() {
       const includeDuplicateIds = includeChecked
         ? Array.from(checkedDups)
         : [];
-      const res = await importWithDuplicates(file, includeDuplicateIds);
+      const res = await importWithDuplicates(file, includeDuplicateIds, isQif && qifAccountId !== '' ? qifAccountId : undefined);
       setResult(res);
       setStep('done');
     } catch (err: unknown) {
@@ -297,6 +309,13 @@ function ImportTab() {
             <> <strong>{preview.transferMatches}</strong> of the new transactions look like transfer{preview.transferMatches !== 1 ? 's' : ''} to existing accounts and will be linked automatically.</>
           )}
         </p>
+
+        {preview.warnings && preview.warnings.length > 0 && (
+          <div className={styles.resultErrors}>
+            <div className={styles.resultErrorTitle}>Warnings:</div>
+            <ul>{preview.warnings.map((w, i) => <li key={i}>{w}</li>)}</ul>
+          </div>
+        )}
 
         {preview.duplicates.length > 0 && (
           <>
@@ -389,6 +408,23 @@ function ImportTab() {
           </div>
         )}
       </div>
+
+      {isQif && (
+        <div className={styles.field} style={{ maxWidth: 320 }}>
+          <label className={styles.label}>
+            Import into account
+            <span className={styles.hint}> (only needed if the QIF file doesn't already specify one)</span>
+          </label>
+          <select
+            className={styles.input}
+            value={qifAccountId}
+            onChange={e => setQifAccountId(e.target.value ? Number(e.target.value) : '')}
+          >
+            <option value="">— Use account from file, if present —</option>
+            {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </select>
+        </div>
+      )}
 
       {file && (
         <button className={styles.btnPrimary} onClick={handlePreview} disabled={loading}>

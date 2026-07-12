@@ -57,16 +57,16 @@ public class ImportController(
     // ── Preview ──
 
     [HttpPost("preview")]
-    public async Task<IActionResult> Preview(IFormFile file)
+    public async Task<IActionResult> Preview(IFormFile file, [FromForm] int? accountId)
     {
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
 
         var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
-        if (ext is ".qif" or ".ofx" or ".qfx")
-            return Ok(new { total = 0, duplicates = Array.Empty<object>(), newTransactions = 0, transferMatches = 0, error = "QIF/OFX import coming soon" });
+        if (ext is ".ofx" or ".qfx")
+            return Ok(new { total = 0, duplicates = Array.Empty<object>(), newTransactions = 0, transferMatches = 0, error = "OFX import coming soon" });
 
-        if (ext is not ".csv" and not ".xlsx")
+        if (ext is not ".csv" and not ".xlsx" and not ".qif")
             return BadRequest(new { message = "Unsupported file format." });
 
         var user = await userManager.FindByIdAsync(userId);
@@ -77,10 +77,26 @@ public class ImportController(
             .Where(a => a.UserId == userId && a.IsActive)
             .ToListAsync();
 
+        if (accountId.HasValue && userAccounts.All(a => a.Id != accountId.Value))
+            return BadRequest(new { message = "Selected account not found." });
+
         List<CsvRow> rows;
+        List<string> parseWarnings;
         try
         {
-            rows = ParseCsv(file);
+            if (ext == ".qif")
+            {
+                (rows, parseWarnings) = ParseQif(file);
+                if (rows.Count == 0)
+                    return BadRequest(new { message = "No transactions found in QIF file." });
+                if (!accountId.HasValue && rows.All(r => string.IsNullOrWhiteSpace(r.Account)))
+                    return BadRequest(new { message = "This QIF file doesn't specify an account. Please select an account to import into." });
+            }
+            else
+            {
+                rows = ParseCsv(file);
+                parseWarnings = [];
+            }
         }
         catch (Exception ex)
         {
@@ -94,7 +110,7 @@ public class ImportController(
 
         foreach (var row in rows)
         {
-            if (!TryParseRow(row, userAccounts, out var date, out var amount, out var accountId, out _))
+            if (!TryParseRow(row, userAccounts, out var date, out var amount, out var rowAccountId, out _, accountId))
             {
                 newCount++;
                 continue;
@@ -102,7 +118,7 @@ public class ImportController(
 
             var existing = await db.Transactions
                 .Include(t => t.Payee)
-                .Where(t => t.AccountId == accountId && t.Date == date && t.Amount == amount)
+                .Where(t => t.AccountId == rowAccountId && t.Date == date && t.Amount == amount)
                 .FirstOrDefaultAsync();
 
             if (existing is not null)
@@ -130,7 +146,7 @@ public class ImportController(
                 // Best-effort preview of transfer auto-linking: only checks against
                 // already-committed transactions in the user's other accounts (a full
                 // simulation of intra-file matches happens at actual import time).
-                var match = await FindTransferMatchAsync(userId, dek, accountId, date, amount, row.Memo, [], claimedTransferIds);
+                var match = await FindTransferMatchAsync(userId, dek, rowAccountId, date, amount, row.Memo, [], claimedTransferIds);
                 if (match is not null)
                 {
                     claimedTransferIds.Add(match.Id);
@@ -145,6 +161,7 @@ public class ImportController(
             duplicates,
             newTransactions = newCount,
             transferMatches = transferMatchCount,
+            warnings = parseWarnings.Count > 0 ? parseWarnings : null,
         });
     }
 
@@ -153,16 +170,17 @@ public class ImportController(
     [HttpPost]
     public async Task<IActionResult> Import(
         [FromForm] IFormFile file,
-        [FromForm] string? includeDuplicateIds)
+        [FromForm] string? includeDuplicateIds,
+        [FromForm] int? accountId)
     {
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
 
         var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
-        if (ext is ".qif" or ".ofx" or ".qfx")
-            return Ok(new { imported = 0, errors = new[] { "QIF/OFX import coming soon" } });
+        if (ext is ".ofx" or ".qfx")
+            return Ok(new { imported = 0, errors = new[] { "OFX import coming soon" } });
 
-        if (ext is not ".csv" and not ".xlsx")
+        if (ext is not ".csv" and not ".xlsx" and not ".qif")
             return BadRequest(new { message = "Unsupported file format." });
 
         var user = await userManager.FindByIdAsync(userId);
@@ -172,6 +190,9 @@ public class ImportController(
         var userAccounts = await db.Accounts
             .Where(a => a.UserId == userId && a.IsActive)
             .ToListAsync();
+
+        if (accountId.HasValue && userAccounts.All(a => a.Id != accountId.Value))
+            return BadRequest(new { message = "Selected account not found." });
 
         var includedIds = new HashSet<int>();
         if (!string.IsNullOrWhiteSpace(includeDuplicateIds))
@@ -186,9 +207,22 @@ public class ImportController(
         }
 
         List<CsvRow> rows;
+        List<string> parseWarnings;
         try
         {
-            rows = ParseCsv(file);
+            if (ext == ".qif")
+            {
+                (rows, parseWarnings) = ParseQif(file);
+                if (rows.Count == 0)
+                    return BadRequest(new { message = "No transactions found in QIF file." });
+                if (!accountId.HasValue && rows.All(r => string.IsNullOrWhiteSpace(r.Account)))
+                    return BadRequest(new { message = "This QIF file doesn't specify an account. Please select an account to import into." });
+            }
+            else
+            {
+                rows = ParseCsv(file);
+                parseWarnings = [];
+            }
         }
         catch (Exception ex)
         {
@@ -196,7 +230,7 @@ public class ImportController(
         }
 
         var imported = 0;
-        var errors = new List<string>();
+        var errors = new List<string>(parseWarnings);
 
         // Newly-created rows from this same import call that haven't been claimed as
         // a transfer match yet — lets both legs of a transfer land together when a
@@ -211,7 +245,7 @@ public class ImportController(
             {
                 try
                 {
-                    if (!TryParseRow(row, userAccounts, out var date, out var amount, out var accountId, out var status))
+                    if (!TryParseRow(row, userAccounts, out var date, out var amount, out var rowAccountId, out var status, accountId))
                     {
                         errors.Add($"Could not parse row: {row.Date} {row.Payee} {row.Amount}");
                         continue;
@@ -219,7 +253,7 @@ public class ImportController(
 
                     // Check for duplicate
                     var existing = await db.Transactions
-                        .Where(t => t.AccountId == accountId && t.Date == date && t.Amount == amount)
+                        .Where(t => t.AccountId == rowAccountId && t.Date == date && t.Amount == amount)
                         .FirstOrDefaultAsync();
 
                     if (existing is not null && !includedIds.Contains(existing.Id))
@@ -249,7 +283,7 @@ public class ImportController(
 
                     var tx = new Transaction
                     {
-                        AccountId = accountId,
+                        AccountId = rowAccountId,
                         Date = date,
                         Amount = amount,
                         PayeeId = payeeId,
@@ -264,11 +298,11 @@ public class ImportController(
 
                     // Detect a matching transfer leg: same date, opposite-sign amount,
                     // matching memo, in a different account, not already linked.
-                    var match = await FindTransferMatchAsync(userId, dek, accountId, date, amount, row.Memo, openBatchTransactions, claimedExistingIds);
+                    var match = await FindTransferMatchAsync(userId, dek, rowAccountId, date, amount, row.Memo, openBatchTransactions, claimedExistingIds);
                     if (match is not null)
                     {
                         tx.TransferAccountId = match.AccountId;
-                        match.TransferAccountId = accountId;
+                        match.TransferAccountId = rowAccountId;
                         pendingLinks.Add((tx, match));
 
                         if (match.Id != 0) claimedExistingIds.Add(match.Id);
@@ -367,7 +401,8 @@ public class ImportController(
         out DateOnly date,
         out decimal amount,
         out int accountId,
-        out TransactionStatus status)
+        out TransactionStatus status,
+        int? fallbackAccountId = null)
     {
         date = default;
         amount = 0;
@@ -377,10 +412,17 @@ public class ImportController(
         if (!DateOnly.TryParse(row.Date, out date)) return false;
         if (!decimal.TryParse(row.Amount, NumberStyles.Any, CultureInfo.InvariantCulture, out amount)) return false;
 
-        var acct = userAccounts.FirstOrDefault(a =>
-            string.Equals(a.Name, row.Account?.Trim(), StringComparison.OrdinalIgnoreCase));
-        if (acct is null) return false;
-        accountId = acct.Id;
+        if (string.IsNullOrWhiteSpace(row.Account) && fallbackAccountId.HasValue)
+        {
+            accountId = fallbackAccountId.Value;
+        }
+        else
+        {
+            var acct = userAccounts.FirstOrDefault(a =>
+                string.Equals(a.Name, row.Account?.Trim(), StringComparison.OrdinalIgnoreCase));
+            if (acct is null) return false;
+            accountId = acct.Id;
+        }
 
         status = row.Status?.Trim().ToLowerInvariant() switch
         {
@@ -390,5 +432,182 @@ public class ImportController(
         };
 
         return true;
+    }
+
+    // ── QIF (loose) ──
+    //
+    // Tolerant QIF parser: skips/ignores anything it doesn't understand rather
+    // than failing the whole file. Supports the common Money-Sunset export
+    // shapes — a single !Type:Bank/CCard/Cash/Oth A/Oth L section with no
+    // embedded account (the caller supplies accountId), and multi-account
+    // exports using !Account blocks. !Type:Invst (investment) sections are
+    // skipped with a warning since this app has no security/quantity model.
+
+    private static (List<CsvRow> Rows, List<string> Warnings) ParseQif(IFormFile file)
+    {
+        using var stream = file.OpenReadStream();
+        using var reader = new StreamReader(stream);
+        var text = reader.ReadToEnd();
+        var lines = text.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+
+        var rows = new List<CsvRow>();
+        var warnings = new List<string>();
+
+        string? currentAccountName = null;
+        bool inAccountHeader = false;
+        bool skipSection = false;
+        string? pendingAccountName = null;
+        CsvRow? current = null;
+
+        void FlushRecord()
+        {
+            if (current is null) return;
+            if (!string.IsNullOrWhiteSpace(current.Date) || !string.IsNullOrWhiteSpace(current.Amount))
+            {
+                current.Account = currentAccountName;
+                rows.Add(current);
+            }
+            current = null;
+        }
+
+        foreach (var rawLine in lines)
+        {
+            var line = rawLine.TrimEnd();
+            if (line.Length == 0) continue;
+
+            if (line[0] == '!')
+            {
+                FlushRecord();
+                var header = line.Trim();
+                if (header.Equals("!Account", StringComparison.OrdinalIgnoreCase))
+                {
+                    inAccountHeader = true;
+                    pendingAccountName = null;
+                    continue;
+                }
+                if (header.StartsWith("!Type:", StringComparison.OrdinalIgnoreCase))
+                {
+                    var type = header["!Type:".Length..].Trim();
+                    skipSection = type.Equals("Invst", StringComparison.OrdinalIgnoreCase);
+                    if (skipSection)
+                        warnings.Add("Skipped an investment (!Type:Invst) section — not supported.");
+                    inAccountHeader = false;
+                    continue;
+                }
+                // Unrecognized header (!Option:, !Clear, !Category, memorized txns, etc.) — ignore loosely
+                inAccountHeader = false;
+                continue;
+            }
+
+            if (inAccountHeader)
+            {
+                if (line[0] == 'N') pendingAccountName = line[1..].Trim();
+                else if (line == "^")
+                {
+                    currentAccountName = string.IsNullOrWhiteSpace(pendingAccountName) ? currentAccountName : pendingAccountName;
+                    inAccountHeader = false;
+                }
+                continue; // T (account type), D (description), etc. inside the header — ignore
+            }
+
+            if (line == "^")
+            {
+                FlushRecord();
+                continue;
+            }
+
+            if (skipSection) continue;
+
+            current ??= new CsvRow();
+            var code = line[0];
+            var value = line.Length > 1 ? line[1..].Trim() : "";
+
+            switch (code)
+            {
+                case 'D':
+                    current.Date = NormalizeQifDate(value) ?? value;
+                    break;
+                case 'T':
+                case 'U':
+                    current.Amount = (value.StartsWith('(') && value.EndsWith(')'))
+                        ? "-" + value[1..^1]
+                        : value;
+                    break;
+                case 'P':
+                    current.Payee = value;
+                    break;
+                case 'M':
+                    current.Memo = value;
+                    break;
+                case 'N':
+                    current.CheckNumber = value;
+                    break;
+                case 'C':
+                    current.Status = value switch
+                    {
+                        "" => "",
+                        "X" or "R" or "x" or "r" => "reconciled",
+                        _ => "cleared",
+                    };
+                    break;
+                case 'L':
+                    // "[Account Name]" marks a transfer — the existing date/amount/memo
+                    // matching already links transfer pairs, so just drop it as a category
+                    // rather than treating an account name as a category.
+                    if (!value.StartsWith('['))
+                    {
+                        var colonIdx = value.IndexOf(':');
+                        if (colonIdx >= 0)
+                        {
+                            current.Category = value[..colonIdx].Trim();
+                            current.SubCategory = value[(colonIdx + 1)..].Trim();
+                        }
+                        else
+                        {
+                            current.Category = value;
+                        }
+                    }
+                    break;
+                default:
+                    // Loosely ignore unsupported field codes (A address, S/E/$ splits, etc.)
+                    break;
+            }
+        }
+
+        FlushRecord(); // tolerate a missing trailing ^
+
+        return (rows, warnings);
+    }
+
+    // Loosely normalizes common QIF date shapes (M/D/YYYY, M/D/YY, M/ D'YY,
+    // YYYY-MM-DD, etc.) to an ISO "yyyy-MM-dd" string. Returns null if it can't
+    // make sense of the input, so the caller can fall back to reporting a
+    // per-row parse error rather than throwing.
+    private static string? NormalizeQifDate(string raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return null;
+
+        var s = raw.Replace(" ", "").Replace("'", "/").Replace('-', '/').Replace('.', '/');
+        var parts = s.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length != 3) return null;
+        if (!int.TryParse(parts[0], out var p1)) return null;
+        if (!int.TryParse(parts[1], out var p2)) return null;
+        if (!int.TryParse(parts[2], out var p3)) return null;
+
+        try
+        {
+            // ISO: yyyy/MM/dd
+            if (parts[0].Length == 4)
+                return new DateOnly(p1, p2, p3).ToString("yyyy-MM-dd");
+
+            // Otherwise assume US M/D/Y (Money's default export locale)
+            var year = p3;
+            if (year < 100) year += year < 50 ? 2000 : 1900;
+            return new DateOnly(year, p1, p2).ToString("yyyy-MM-dd");
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            return null;
+        }
     }
 }

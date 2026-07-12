@@ -22,21 +22,27 @@ export interface PreviewResult {
   duplicates: DuplicateRow[];
   newTransactions: number;
   transferMatches: number;
+  warnings?: string[];
   error?: string;
 }
 
-export const previewImport = (file: File): Promise<PreviewResult> => {
+// accountId is required for a QIF file that has no embedded account section
+// (the common single-account Money-Sunset export); harmless to omit otherwise.
+export const previewImport = (file: File, accountId?: number): Promise<PreviewResult> => {
   const fd = new FormData();
   fd.append('file', file);
+  if (accountId != null) fd.append('accountId', String(accountId));
   return api.post<PreviewResult>('/import/preview', fd).then(r => r.data);
 };
 
 export const importWithDuplicates = (
   file: File,
   includeDuplicateIds: number[],
+  accountId?: number,
 ): Promise<{ imported: number; transfersLinked: number; errors?: string[] }> => {
   const fd = new FormData();
   fd.append('file', file);
   fd.append('includeDuplicateIds', JSON.stringify(includeDuplicateIds));
+  if (accountId != null) fd.append('accountId', String(accountId));
   return api.post<{ imported: number; transfersLinked: number; errors?: string[] }>('/import', fd).then(r => r.data);
 };
