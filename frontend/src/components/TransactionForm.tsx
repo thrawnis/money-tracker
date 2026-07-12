@@ -5,13 +5,19 @@ import { getPayees, createPayee } from '../api/payees';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import styles from './TransactionForm.module.css';
 
+export interface SplitInput {
+  categoryId?: number;
+  amount: number;
+  memo?: string;
+}
+
 interface Props {
   accountId: number;
   accounts?: Account[];
   initial?: Partial<Transaction>;
   initialPayeeName?: string;
   initialCategoryLabel?: string;
-  onSave: (data: Omit<Transaction, 'id' | 'accountId' | 'createdAt' | 'updatedAt'> & { targetAccountId?: number; transferDestAccountId?: number }) => Promise<void>;
+  onSave: (data: Omit<Transaction, 'id' | 'accountId' | 'createdAt' | 'updatedAt' | 'splits'> & { targetAccountId?: number; transferDestAccountId?: number; splits?: SplitInput[] }) => Promise<void>;
   onCancel: () => void;
 }
 
@@ -74,6 +80,14 @@ async function resolveCategory(
   }
 }
 
+let splitRowSeq = 0;
+interface SplitRow {
+  key: number;
+  categoryInput: string;
+  amount: string;
+  memo: string;
+}
+
 export default function TransactionForm({ accountId: _accountId, accounts, initial, initialPayeeName, initialCategoryLabel, onSave, onCancel }: Props) {
   const today = new Date().toISOString().slice(0, 10);
   const [date, setDate] = useState(initial?.date ?? today);
@@ -94,6 +108,12 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
   const [showCatSuggestions, setShowCatSuggestions] = useState(false);
   const categoryRef = useRef<HTMLInputElement>(null);
 
+  // Split across multiple categories — mutually exclusive with the single
+  // category field above and disallowed on transfers.
+  const [isSplit, setIsSplit] = useState(!!(initial?.splits && initial.splits.length > 0));
+  const [splitRows, setSplitRows] = useState<SplitRow[]>([]);
+  const [splitError, setSplitError] = useState('');
+
   // Payee autocomplete
   const [payeeSuggestions, setPayeeSuggestions] = useState<Payee[]>([]);
   const [showPayeeSuggestions, setShowPayeeSuggestions] = useState(false);
@@ -113,9 +133,11 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
   // so unsaved-changes tracking reflects actual edits rather than firing the
   // moment the form opens (categoryInput starts empty and is filled in below).
   const [formBaseline, setFormBaseline] = useState<string | null>(null);
+  const splitSnapshot = () => splitRows.map(r => ({ categoryInput: r.categoryInput, amount: r.amount, memo: r.memo }));
   const isDirty = formBaseline !== null && JSON.stringify({
     date, payeeInput, payeeId, memo, amount, postDate,
     categoryInput, isTransfer, transferDestAccountId, targetAccountId,
+    isSplit, splits: splitSnapshot(),
   }) !== formBaseline;
   useUnsavedChanges(isDirty);
 
@@ -132,9 +154,20 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
         if (found) resolvedCategoryInput = found.label;
       }
       if (resolvedCategoryInput) setCategoryInput(resolvedCategoryInput);
+
+      const flat = flattenCategories(cats);
+      const resolvedSplitRows: SplitRow[] = (initial?.splits ?? []).map(s => ({
+        key: splitRowSeq++,
+        categoryInput: s.categoryId ? (flat.find(c => c.id === s.categoryId)?.label ?? '') : '',
+        amount: s.amount.toString(),
+        memo: s.memo ?? '',
+      }));
+      if (resolvedSplitRows.length > 0) setSplitRows(resolvedSplitRows);
+
       setFormBaseline(JSON.stringify({
         date, payeeInput, payeeId, memo, amount, postDate,
         categoryInput: resolvedCategoryInput, isTransfer, transferDestAccountId, targetAccountId,
+        isSplit, splits: resolvedSplitRows.map(r => ({ categoryInput: r.categoryInput, amount: r.amount, memo: r.memo })),
       }));
     }).catch(console.error);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -180,13 +213,46 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
     setShowPayeeSuggestions(false);
   };
 
+  // ── Splits ─────────────────────────────────────────────────────────────
+  const splitTotal = splitRows.reduce((sum, r) => sum + (parseFloat(r.amount) || 0), 0);
+  const splitRemaining = (parseFloat(amount) || 0) - splitTotal;
+
+  const toggleSplit = () => {
+    if (isSplit) {
+      setIsSplit(false);
+      setSplitRows([]);
+      setSplitError('');
+    } else {
+      setIsSplit(true);
+      setSplitRows([
+        { key: splitRowSeq++, categoryInput, amount, memo: '' },
+        { key: splitRowSeq++, categoryInput: '', amount: '', memo: '' },
+      ]);
+    }
+  };
+
+  const addSplitRow = () => setSplitRows(prev => [...prev, { key: splitRowSeq++, categoryInput: '', amount: '', memo: '' }]);
+  const removeSplitRow = (key: number) => setSplitRows(prev => prev.filter(r => r.key !== key));
+  const updateSplitRow = (key: number, patch: Partial<SplitRow>) =>
+    setSplitRows(prev => prev.map(r => r.key === key ? { ...r, ...patch } : r));
+
   const validate = () => {
     const e: Record<string, string> = {};
     if (!date) e.date = 'Date required';
     if (!amount || isNaN(Number(amount))) e.amount = 'Valid amount required';
     if (isTransfer && !transferDestAccountId) e.transferDest = 'Destination account required';
     if (isTransfer && transferDestAccountId === _accountId) e.transferDest = 'Source and destination must differ';
+    if (isSplit) {
+      if (splitRows.length < 2) {
+        e.splits = 'Add at least two splits, or turn off splitting.';
+      } else if (splitRows.some(r => !r.amount || isNaN(Number(r.amount)))) {
+        e.splits = 'Every split needs a valid amount.';
+      } else if (Math.abs(splitRemaining) > 0.004) {
+        e.splits = `Splits must add up to the total (${splitRemaining > 0 ? 'short' : 'over'} by ${Math.abs(splitRemaining).toFixed(2)}).`;
+      }
+    }
     setErrors(e);
+    setSplitError(e.splits ?? '');
     return Object.keys(e).length === 0;
   };
 
@@ -212,7 +278,20 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
         }
       }
 
-      const resolvedCategoryId = await resolveCategory(categoryInput, categories, setCategories);
+      let resolvedCategoryId: number | undefined;
+      let resolvedSplits: { categoryId?: number; amount: number; memo?: string }[] | undefined;
+
+      if (isTransfer) {
+        // no category on transfers
+      } else if (isSplit) {
+        resolvedSplits = [];
+        for (const row of splitRows) {
+          const catId = await resolveCategory(row.categoryInput, categories, setCategories);
+          resolvedSplits.push({ categoryId: catId, amount: Number(row.amount), memo: row.memo || undefined });
+        }
+      } else {
+        resolvedCategoryId = await resolveCategory(categoryInput, categories, setCategories);
+      }
 
       await onSave({
         date,
@@ -224,6 +303,7 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
         status,
         targetAccountId,
         transferDestAccountId: isTransfer ? transferDestAccountId : undefined,
+        splits: resolvedSplits,
       });
     } catch (err) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
@@ -252,6 +332,7 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
               onChange={e => {
                 setIsTransfer(e.target.checked);
                 if (!e.target.checked) setTransferDestAccountId(undefined);
+                if (e.target.checked) { setIsSplit(false); setSplitRows([]); setSplitError(''); }
               }}
               disabled={isExistingTransfer}
             />
@@ -343,26 +424,44 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
             </div>
 
             <div className={styles.fieldRelative}>
-              <label className={styles.label}>Category</label>
-              <input
-                ref={categoryRef}
-                type="text"
-                className={styles.input}
-                value={categoryInput}
-                onChange={e => handleCategoryInput(e.target.value)}
-                onBlur={() => setTimeout(() => setShowCatSuggestions(false), 150)}
-                tabIndex={3}
-                autoComplete="off"
-                placeholder="e.g. Food or Food: Groceries"
-              />
-              {showCatSuggestions && categorySuggestions.length > 0 && (
-                <ul className={styles.suggestions}>
-                  {categorySuggestions.map(c => (
-                    <li key={c.id} onMouseDown={() => selectCategory(c)} className={styles.suggestion}>
-                      {c.label}
-                    </li>
-                  ))}
-                </ul>
+              <label className={styles.label}>
+                Category
+                <button
+                  type="button"
+                  className={styles.postDateToggle}
+                  onClick={toggleSplit}
+                  title={isSplit ? 'Use a single category' : 'Split across multiple categories'}
+                >
+                  {isSplit ? '⛙−' : '⛙+'}
+                </button>
+              </label>
+              {isSplit ? (
+                <div className={styles.input} style={{ color: '#667', fontStyle: 'italic' }}>
+                  Split across {splitRows.length} categories
+                </div>
+              ) : (
+                <>
+                  <input
+                    ref={categoryRef}
+                    type="text"
+                    className={styles.input}
+                    value={categoryInput}
+                    onChange={e => handleCategoryInput(e.target.value)}
+                    onBlur={() => setTimeout(() => setShowCatSuggestions(false), 150)}
+                    tabIndex={3}
+                    autoComplete="off"
+                    placeholder="e.g. Food or Food: Groceries"
+                  />
+                  {showCatSuggestions && categorySuggestions.length > 0 && (
+                    <ul className={styles.suggestions}>
+                      {categorySuggestions.map(c => (
+                        <li key={c.id} onMouseDown={() => selectCategory(c)} className={styles.suggestion}>
+                          {c.label}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </>
               )}
             </div>
           </>
@@ -392,6 +491,55 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
           {errors.amount && <span className={styles.error}>{errors.amount}</span>}
         </div>
       </div>
+
+      {isSplit && !isTransfer && (
+        <div className={styles.splitsSection}>
+          <div className={styles.splitsHeader}>
+            <span className={styles.label}>Splits</span>
+            <span className={splitRemaining === 0 ? styles.splitsRemainingOk : styles.splitsRemainingBad}>
+              Remaining: {splitRemaining.toFixed(2)}
+            </span>
+          </div>
+          {splitRows.map(row => (
+            <div key={row.key} className={styles.splitRow}>
+              <input
+                type="text"
+                className={styles.input}
+                placeholder="Category"
+                value={row.categoryInput}
+                onChange={e => updateSplitRow(row.key, { categoryInput: e.target.value })}
+                autoComplete="off"
+              />
+              <input
+                type="text"
+                className={styles.input}
+                placeholder="Memo"
+                value={row.memo}
+                onChange={e => updateSplitRow(row.key, { memo: e.target.value })}
+              />
+              <input
+                type="number"
+                step="0.01"
+                className={styles.input}
+                placeholder="Amount"
+                value={row.amount}
+                onChange={e => updateSplitRow(row.key, { amount: e.target.value })}
+              />
+              <button
+                type="button"
+                className={styles.splitRemoveBtn}
+                onClick={() => removeSplitRow(row.key)}
+                disabled={splitRows.length <= 2}
+                title="Remove split"
+              >✕</button>
+            </div>
+          ))}
+          <button type="button" className={styles.btnSecondaryLink} onClick={addSplitRow}>
+            + Add Split
+          </button>
+          {splitError && <div className={styles.error}>{splitError}</div>}
+        </div>
+      )}
 
       {initial?.id && accounts && accounts.filter(a => a.id !== _accountId).length > 0 && (
         <div className={styles.moveRow}>

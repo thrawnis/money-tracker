@@ -265,7 +265,7 @@ export default function AllTransactions() {
                 <td className={styles.noWrap}>{formatDate(tx.date)}</td>
                 <td className={styles.accountCell}>{tx.accountName}</td>
                 <td>{tx.payee ?? '—'}</td>
-                <td>{tx.category ?? ''}</td>
+                <td>{tx.splitCount ? `Split (${tx.splitCount})` : tx.category ?? ''}</td>
                 <td className={styles.memoCell}>{tx.memo ?? ''}</td>
                 <td className={`${styles.right} ${styles.noWrap} ${tx.amount < 0 ? styles.debit : styles.credit}`}>
                   {formatCurrency(tx.amount)}

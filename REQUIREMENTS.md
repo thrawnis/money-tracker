@@ -45,6 +45,7 @@ Update this file whenever requirements change or new features are defined.
 
 - Fields: date, post date (optional), amount, payee (optional), category (optional), memo (encrypted, optional), check number (encrypted, optional), status (Uncleared / Cleared / Reconciled)
 - Create, edit, delete on the account register page
+- **Split transactions**: a transaction can be divided across multiple categories, each with its own amount and memo (encrypted), summing exactly to the transaction total. One payee and one total amount per transaction — only the category breakdown is split. Not supported on transfer legs. The register, All Transactions, search, and the transaction detail panel show "Split (N)" in place of a single category name; the edit form shows the full per-split breakdown. QIF import parses S/E/$ split lines into real splits (falls back to a plain transaction with a warning if the split amounts don't add up to the total)
 - All unsaved form changes must prompt before navigating away
 - Bulk CSV and loose-QIF import with preview and duplicate detection (per account); OFX/QFX not yet implemented
 - QIF import is tolerant: unrecognized field codes and malformed lines are skipped rather than failing the file; supports both a single !Type section (no embedded account — the user selects a destination account) and multi-account exports using !Account blocks; !Type:Invst sections are skipped with a warning (no security/quantity data model)
@@ -68,7 +69,7 @@ Update this file whenever requirements change or new features are defined.
 - Hierarchical: optional parent category per category
 - Names are case-insensitively unique per user (enforced in memory after decryption)
 - Category name is encrypted (AES-256-GCM)
-- Create, edit, delete on Categories page; deletions blocked if the category is in use
+- Create, edit, delete on Categories page; deletions blocked if the category has subcategories, or is referenced by a transaction, a transaction split, or a scheduled transaction
 
 ---
 
@@ -96,6 +97,7 @@ Update this file whenever requirements change or new features are defined.
 
 - **Monthly Summary**: income vs. expense bar/line chart for last N months; filterable by accounts and categories
 - **Transactions by Category**: totals per category for a date range; filterable by account
+- Both reports are split-aware: a split transaction's amount is attributed to each split's own category rather than the whole transaction landing in one bucket
 - Reports can be saved (name, type, parameters); one report can be set as the default
 - Date range defaults: current month or last 6 months depending on report type
 

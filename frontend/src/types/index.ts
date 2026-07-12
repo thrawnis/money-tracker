@@ -30,6 +30,14 @@ export interface Account {
 
 export type TransactionStatus = 'Uncleared' | 'Cleared' | 'Reconciled';
 
+export interface TransactionSplit {
+  id: number;
+  categoryId?: number;
+  category?: Category;
+  amount: number;
+  memo?: string;
+}
+
 export interface Transaction {
   id: number;
   accountId: number;
@@ -45,6 +53,9 @@ export interface Transaction {
   status: TransactionStatus;
   transferTransactionId?: number;
   transferAccountId?: number;
+  // Present only when split across multiple categories; categoryId/category
+  // are null/undefined in that case — the splits carry the breakdown.
+  splits?: TransactionSplit[];
   runningBalance?: number; // server-computed over full account history (date order)
   createdAt: string;
   updatedAt: string;

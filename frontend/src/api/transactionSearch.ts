@@ -8,6 +8,7 @@ export interface SearchTransaction {
   payee?: string;
   category?: string;
   categoryParentId?: number;
+  splitCount?: number;
   memo?: string;
   amount: number;
   status: string;

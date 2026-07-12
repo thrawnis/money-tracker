@@ -94,6 +94,38 @@
   font-style: italic;
 }
 
+.splitList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.splitItem {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12.5px;
+}
+
+.splitCategory {
+  font-weight: 600;
+  color: #334;
+}
+
+.splitMemo {
+  color: #889;
+  font-style: italic;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.splitAmount {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
 .amount {
   font-size: 15px;
   font-weight: 700;

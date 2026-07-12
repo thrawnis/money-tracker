@@ -1,5 +1,6 @@
 import api from './client';
 import type { Transaction, TransactionPage } from '../types';
+import type { SplitInput } from '../components/TransactionForm';
 
 export interface GetTransactionsParams {
   from?: string;
@@ -24,10 +25,10 @@ export const getTransactions = (accountId: number, params?: GetTransactionsParam
 export const getTransaction = (accountId: number, id: number) =>
   api.get<Transaction>(`/accounts/${accountId}/transactions/${id}`).then(r => r.data);
 
-export const createTransaction = (accountId: number, data: Omit<Transaction, 'id' | 'accountId' | 'createdAt' | 'updatedAt'>) =>
+export const createTransaction = (accountId: number, data: Omit<Transaction, 'id' | 'accountId' | 'createdAt' | 'updatedAt' | 'splits'> & { splits?: SplitInput[] }) =>
   api.post<Transaction>(`/accounts/${accountId}/transactions`, data).then(r => r.data);
 
-export const updateTransaction = (accountId: number, id: number, data: Partial<Transaction> & { targetAccountId?: number }) =>
+export const updateTransaction = (accountId: number, id: number, data: Omit<Partial<Transaction>, 'splits'> & { targetAccountId?: number; splits?: SplitInput[] }) =>
   api.put<Transaction>(`/accounts/${accountId}/transactions/${id}`, data).then(r => r.data);
 
 export const deleteTransaction = (accountId: number, id: number) =>

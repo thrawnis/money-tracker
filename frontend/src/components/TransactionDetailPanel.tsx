@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getTransaction, updateTransaction, deleteTransaction } from '../api/transactions';
 import type { Account, Transaction } from '../types';
-import TransactionForm from './TransactionForm';
+import TransactionForm, { type SplitInput } from './TransactionForm';
 import styles from './TransactionDetailPanel.module.css';
 
 interface Props {
@@ -46,7 +46,7 @@ export default function TransactionDetailPanel({ accountId, transactionId, accou
     return () => document.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  const handleSave = async (data: Omit<Transaction, 'id' | 'accountId' | 'createdAt' | 'updatedAt'> & { targetAccountId?: number; transferDestAccountId?: number }) => {
+  const handleSave = async (data: Omit<Transaction, 'id' | 'accountId' | 'createdAt' | 'updatedAt' | 'splits'> & { targetAccountId?: number; transferDestAccountId?: number; splits?: SplitInput[] }) => {
     await updateTransaction(accountId, transactionId, data);
     const updated = await getTransaction(data.targetAccountId ?? accountId, transactionId);
     setTx(updated);
@@ -119,10 +119,27 @@ export default function TransactionDetailPanel({ accountId, transactionId, accou
                     <span className={styles.label}>Payee</span>
                     <span>{tx.payee?.name ?? '—'}</span>
                   </div>
-                  <div className={styles.field}>
-                    <span className={styles.label}>Category</span>
-                    <span>{tx.category?.name ?? '—'}</span>
-                  </div>
+                  {tx.splits && tx.splits.length > 0 ? (
+                    <div className={styles.field}>
+                      <span className={styles.label}>Categories (Split)</span>
+                      <div className={styles.splitList}>
+                        {tx.splits.map(s => (
+                          <div key={s.id} className={styles.splitItem}>
+                            <span className={styles.splitCategory}>{s.category?.name ?? 'Uncategorized'}</span>
+                            {s.memo && <span className={styles.splitMemo}>{s.memo}</span>}
+                            <span className={`${styles.splitAmount} ${s.amount < 0 ? styles.debit : styles.credit}`}>
+                              {formatCurrency(s.amount)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className={styles.field}>
+                      <span className={styles.label}>Category</span>
+                      <span>{tx.category?.name ?? '—'}</span>
+                    </div>
+                  )}
                 </>
               )}
 

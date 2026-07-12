@@ -7,7 +7,7 @@ import { getUpcoming } from '../api/scheduledTransactions';
 import { getCategories } from '../api/categories';
 import { getInstitutions } from '../api/institutions';
 import type { Account, Transaction, Category, ScheduledTransaction, Institution } from '../types';
-import TransactionForm from '../components/TransactionForm';
+import TransactionForm, { type SplitInput } from '../components/TransactionForm';
 import ReceiptScanner from '../components/ReceiptScanner';
 import AccountEditModal from '../components/AccountEditModal';
 import type { ExtractedReceipt } from '../api/receipts';
@@ -398,7 +398,7 @@ export default function AccountRegister() {
   // server-side over the full history, so in-place list edits would show
   // stale balances on every other row.
 
-  const handleSaveTx = async (data: Omit<Transaction, 'id' | 'accountId' | 'createdAt' | 'updatedAt'> & { targetAccountId?: number; transferDestAccountId?: number }) => {
+  const handleSaveTx = async (data: Omit<Transaction, 'id' | 'accountId' | 'createdAt' | 'updatedAt' | 'splits'> & { targetAccountId?: number; transferDestAccountId?: number; splits?: SplitInput[] }) => {
     if (data.transferDestAccountId) {
       await createTransfer({
         sourceAccountId:      accountId,
@@ -857,6 +857,7 @@ export default function AccountRegister() {
 }
 
 function getCategoryLabel(tx: Transaction, categories: Category[]): string {
+  if (tx.splits && tx.splits.length > 0) return `Split (${tx.splits.length})`;
   if (!tx.categoryId) return '';
   for (const cat of categories) {
     if (cat.id === tx.categoryId) return cat.name;

@@ -103,7 +103,7 @@ export default function TransactionSearch() {
                 <td>{formatDate(tx.date)}</td>
                 <td>{tx.accountName}</td>
                 <td>{tx.payee ?? '—'}</td>
-                <td>{tx.category ?? '—'}</td>
+                <td>{tx.splitCount ? `Split (${tx.splitCount})` : tx.category ?? '—'}</td>
                 <td>{tx.memo ?? ''}</td>
                 <td className={`${styles.right} ${tx.amount < 0 ? styles.negative : ''}`}>
                   {formatCurrency(tx.amount)}
