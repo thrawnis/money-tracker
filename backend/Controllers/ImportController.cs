@@ -23,7 +23,7 @@ public class ImportController(
 {
     private string? GetUserId() => User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-    // ── CSV row DTO ─────────────────────────────────────────────────────────────────────────────
+    // ── CSV row DTO ──
 
     private class CsvRow
     {
@@ -38,7 +38,7 @@ public class ImportController(
         public string? Status { get; set; }
     }
 
-    // ── Template download ─────────────────────────────────────────────────────────────────────
+    // ── Template download ──
 
     [HttpGet("template/{format}")]
     public IActionResult GetTemplate(string format)
@@ -54,7 +54,7 @@ public class ImportController(
         return File(csvBytes, "text/csv", "template.csv");
     }
 
-    // ── Preview ─────────────────────────────────────────────────────────────────────────────
+    // ── Preview ──
 
     [HttpPost("preview")]
     public async Task<IActionResult> Preview(IFormFile file)
@@ -148,7 +148,7 @@ public class ImportController(
         });
     }
 
-    // ── Import ─────────────────────────────────────────────────────────────────────────────
+    // ── Import ──
 
     [HttpPost]
     public async Task<IActionResult> Import(
@@ -315,7 +315,7 @@ public class ImportController(
         return Ok(new { imported, transfersLinked = pendingLinks.Count, errors = errors.Count > 0 ? errors : null });
     }
 
-    // ── Helpers ─────────────────────────────────────────────────────────────────────────────
+    // ── Helpers ──
 
     private static string? NormalizeMemo(string? memo) =>
         string.IsNullOrWhiteSpace(memo) ? null : memo.Trim();
