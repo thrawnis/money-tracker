@@ -79,6 +79,7 @@ export default function AccountsList() {
               <th className={styles.thName}>Account</th>
               <th className={styles.thInst}>Institution</th>
               <th className={styles.thDate}>Last Transaction</th>
+              <th className={styles.thCount}># Transactions</th>
               <th className={styles.thBal}>Balance</th>
             </tr>
           </thead>
@@ -87,7 +88,7 @@ export default function AccountsList() {
               <Fragment key={type}>
                 {showTypeHeaders && (
                   <tr>
-                    <td colSpan={4} className={styles.groupHeaderCell}>{label}</td>
+                    <td colSpan={5} className={styles.groupHeaderCell}>{label}</td>
                   </tr>
                 )}
                 {items.map(acc => (
@@ -114,6 +115,7 @@ export default function AccountsList() {
                   <th className={styles.thName}>Account</th>
                   <th className={styles.thInst}>Institution</th>
                   <th className={styles.thDate}>Last Transaction</th>
+                  <th className={styles.thCount}># Transactions</th>
                   <th className={styles.thBal}>Balance</th>
                 </tr>
               </thead>
@@ -142,6 +144,9 @@ function AccountRow({ acc, onClick, inactive = false }: { acc: Account; onClick:
         {acc.lastTransactionDate
           ? formatDate(acc.lastTransactionDate)
           : <span className={styles.none}>—</span>}
+      </td>
+      <td className={styles.tdCount}>
+        {acc.transactionCount ?? 0}
       </td>
       <td className={`${styles.tdBal} ${(acc.currentBalance ?? 0) < 0 ? styles.negative : ''}`}>
         {formatCurrency(acc.currentBalance ?? acc.openingBalance)}

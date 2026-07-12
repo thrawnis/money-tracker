@@ -65,6 +65,12 @@ public class AccountsController(
             .Select(g => new { AccountId = g.Key, Last = g.Max(t => t.Date) })
             .ToDictionaryAsync(x => x.AccountId, x => x.Last);
 
+        var txCounts = await db.Transactions
+            .Where(t => accountIds.Contains(t.AccountId))
+            .GroupBy(t => t.AccountId)
+            .Select(g => new { AccountId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.AccountId, x => x.Count);
+
         return Ok(accounts.Select(a =>
         {
             var txSum = txSums.TryGetValue(a.Id, out var s) ? s : 0m;
@@ -77,6 +83,7 @@ public class AccountsController(
                 openingBalance = a.OpeningBalance,
                 currentBalance,
                 lastTransactionDate = lastTxDates.TryGetValue(a.Id, out var d) ? d : (DateOnly?)null,
+                transactionCount = txCounts.TryGetValue(a.Id, out var c) ? c : 0,
                 institutionId = a.InstitutionId,
                 institution   = a.Institution is null ? null : new { a.Institution.Id, a.Institution.Name },
                 accountNumber = encryption.Decrypt(a.AccountNumberEncrypted, user.EncryptedDataKey),

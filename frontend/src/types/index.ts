@@ -19,6 +19,7 @@ export interface Account {
   openingBalance: number;
   currentBalance?: number;
   lastTransactionDate?: string;
+  transactionCount?: number;
   institutionId?: number;
   institution?: Institution;
   accountNumber?: string;
