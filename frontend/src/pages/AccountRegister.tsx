@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import { getAccount, getAccounts, deleteAccount } from '../api/accounts';
@@ -40,6 +40,7 @@ export default function AccountRegister() {
   const { id } = useParams<{ id: string }>();
   const accountId = Number(id);
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [account, setAccount] = useState<Account | null>(null);
   const [allAccounts, setAllAccounts] = useState<Account[]>([]);
@@ -103,6 +104,14 @@ export default function AccountRegister() {
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
+  // Right-click context menu
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; tx: Transaction } | null>(null);
+  const contextMenuRef = useRef<HTMLDivElement>(null);
+
+  // Jump-to-transaction (from a transfer's "Go to Other Account" link)
+  const [highlightTxId, setHighlightTxId] = useState<number | null>(null);
+  const rowRefs = useRef<Map<number, HTMLTableRowElement>>(new Map());
+
   // Infinite scroll sentinels
   const topSentinelRef = useRef<HTMLDivElement>(null);
   const bottomSentinelRef = useRef<HTMLDivElement>(null);
@@ -131,15 +140,31 @@ export default function AccountRegister() {
       if (settingsRef.current && !settingsRef.current.contains(e.target as Node)) {
         setSettingsOpen(false);
       }
+      if (contextMenuRef.current && !contextMenuRef.current.contains(e.target as Node)) {
+        setContextMenu(null);
+      }
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
+  // Close context menu on Escape or scroll
+  useEffect(() => {
+    if (!contextMenu) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setContextMenu(null); };
+    const onScroll = () => setContextMenu(null);
+    document.addEventListener('keydown', onKey);
+    window.addEventListener('scroll', onScroll, true);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener('scroll', onScroll, true);
+    };
+  }, [contextMenu]);
+
   const hasMorePast = pastTxs.length < pastTotal;
   const hasMoreFuture = futureSkip + FUTURE_BATCH < futureTotal;
 
-  // ── Data loading ───────────────────────────────────────────────────────────
+  // ── Data loading ──────────────────────────────────────────────────────────
 
   const draftFilters = (): TxFilters => ({
     from: filterFrom || undefined,
@@ -206,17 +231,71 @@ export default function AccountRegister() {
     [loadPage1, appliedFilters, sortBy, sortDir],
   );
 
+  // Loads unfiltered pages (newest first) until the target transaction is found,
+  // then flags it for scroll-into-view + highlight. Used when arriving via a
+  // transfer's "Go to Other Account" link, so the matching leg is visible.
+  const jumpToTransaction = useCallback(async (txId: number) => {
+    const seq = ++requestSeq.current;
+    setInitialLoading(true);
+    setError('');
+    try {
+      let page = 1;
+      let accumulated: Transaction[] = [];
+      let total = 0;
+      let balance = 0;
+      const maxPages = 100; // safety cap (~5000 transactions)
+      let found = false;
+      while (page <= maxPages) {
+        const result = await getTransactions(accountId, { sortBy: 'date', sortDir: 'desc', page, pageSize: PAST_PAGE_SIZE });
+        if (seq !== requestSeq.current) return;
+        accumulated = accumulated.concat(result.items);
+        total = result.total;
+        balance = result.currentBalance;
+        found = result.items.some(t => t.id === txId);
+        if (found || accumulated.length >= total) break;
+        page++;
+      }
+      setPastTxs(accumulated);
+      setPastTotal(total);
+      setAccountBalance(balance);
+      setPastPage(page);
+      if (found) setHighlightTxId(txId);
+    } catch (err) {
+      if (seq !== requestSeq.current) return;
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setError(msg ?? 'Failed to load account data.');
+    } finally {
+      if (seq === requestSeq.current) setInitialLoading(false);
+    }
+  }, [accountId]);
+
   // Full load on mount and whenever the account changes; filters reset per account
   useEffect(() => {
     setFilterFrom(''); setFilterTo(''); setFilterMinAmount(''); setFilterMaxAmount('');
     setFilterPayee(''); setFilterCategoryId(''); setFilterMemo(''); setFilterUncategorized(false);
     setAppliedFilters({});
-    loadPage1({}, 'date', 'desc', true);
     setSortBy('date');
     setSortDir('desc');
-  }, [accountId, loadPage1]);
 
-  // ── Load more past (scroll up) ─────────────────────────────────────────────
+    const targetTx = searchParams.get('tx');
+    if (targetTx) {
+      setSearchParams(prev => { const p = new URLSearchParams(prev); p.delete('tx'); return p; }, { replace: true });
+      loadPage1({}, 'date', 'desc', true).then(() => jumpToTransaction(Number(targetTx)));
+    } else {
+      loadPage1({}, 'date', 'desc', true);
+    }
+  }, [accountId, loadPage1]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Scroll the highlighted row into view once it's rendered; clear after a moment
+  useEffect(() => {
+    if (highlightTxId == null) return;
+    const el = rowRefs.current.get(highlightTxId);
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const t = setTimeout(() => setHighlightTxId(null), 2500);
+    return () => clearTimeout(t);
+  }, [highlightTxId, pastTxs]);
+
+  // ── Load more past (scroll up) ───────────────────────────────────────────────
 
   const loadMorePast = useCallback(async () => {
     if (loadingPast || !hasMorePast) return;
@@ -240,7 +319,7 @@ export default function AccountRegister() {
     }
   }, [loadingPast, hasMorePast, pastPage, accountId, appliedFilters, sortBy, sortDir]);
 
-  // ── Load future bills ──────────────────────────────────────────────────────
+  // ── Load future bills ───────────────────────────────────────────────
 
   const loadFutureBills = useCallback(async (skip = 0, replace = false) => {
     if (loadingFuture) return;
@@ -274,7 +353,7 @@ export default function AccountRegister() {
     }
   }, [showFuture, futureDays, accountId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Infinite scroll via IntersectionObserver ───────────────────────────────
+  // ── Infinite scroll via IntersectionObserver ─────────────────────────────────
 
   useEffect(() => {
     const observer = new IntersectionObserver(entries => {
@@ -294,7 +373,7 @@ export default function AccountRegister() {
     return () => observer.disconnect();
   }, [hasMorePast, loadMorePast, showFuture, hasMoreFuture, loadFutureBills, futureSkip]);
 
-  // ── Filters ────────────────────────────────────────────────────────────────
+  // ── Filters ──────────────────────────────────────────────────────────
 
   const applyFilters = () => {
     const filters = draftFilters();
@@ -317,7 +396,7 @@ export default function AccountRegister() {
     loadPage1(appliedFilters, field, newDir, false);
   };
 
-  // ── CRUD ───────────────────────────────────────────────────────────────────
+  // ── CRUD ──────────────────────────────────────────────────────────
   // Mutations refetch page 1 from the server: running balances are computed
   // server-side over the full history, so in-place list edits would show
   // stale balances on every other row.
@@ -413,7 +492,7 @@ export default function AccountRegister() {
 
   return (
     <div className={styles.page}>
-      {/* ── Header ──────────────────────────────────────────────────────────── */}
+      {/* ── Header ───────────────────────────────────────────────────────────────── */}
       <div className={styles.pageHeader}>
         <div>
           <select
@@ -517,7 +596,7 @@ export default function AccountRegister() {
         </div>
       </div>
 
-      {/* ── Filter panel ────────────────────────────────────────────────────── */}
+      {/* ── Filter panel ──────────────────────────────────────────────────────── */}
       {filterOpen && (
         <div className={styles.filterPanel}>
           <div className={styles.filterRow}>
@@ -566,7 +645,7 @@ export default function AccountRegister() {
         </div>
       )}
 
-      {/* ── Transaction entry form ───────────────────────────────────────────── */}
+      {/* ── Transaction entry form ───────────────────────────────────────────────── */}
       {showForm && (
         <TransactionForm
           accountId={accountId}
@@ -586,7 +665,7 @@ export default function AccountRegister() {
         />
       )}
 
-      {/* ── Register table ──────────────────────────────────────────────────── */}
+      {/* ── Register table ───────────────────────────────────────────────── */}
       <div className={styles.tableWrapper}>
         <table className={styles.table}>
           <thead>
@@ -614,7 +693,7 @@ export default function AccountRegister() {
             </tr>
           </thead>
           <tbody>
-            {/* ── Load-more-past sentinel (top) ────────────────────────────── */}
+            {/* ── Load-more-past sentinel (top) ─────────────────────────── */}
             {hasMorePast && (
               <tr>
                 <td colSpan={8} className={styles.sentinelCell}>
@@ -624,14 +703,19 @@ export default function AccountRegister() {
               </tr>
             )}
 
-            {/* ── Past / current transactions (newest first) ───────────────── */}
+            {/* ── Past / current transactions (newest first) ─────────────── */}
             {pastTxs.length === 0 && !initialLoading ? (
               <tr>
                 <td colSpan={8} className={styles.emptyMsg}>No transactions found.</td>
               </tr>
             ) : (
               pastTxs.map(tx => (
-                <tr key={tx.id} className={styles.txRow}>
+                <tr
+                  key={tx.id}
+                  ref={el => { if (el) rowRefs.current.set(tx.id, el); else rowRefs.current.delete(tx.id); }}
+                  className={`${styles.txRow} ${highlightTxId === tx.id ? styles.txRowHighlight : ''}`}
+                  onContextMenu={e => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, tx }); }}
+                >
                   <td>
                     {/* Transfer source side: always show transaction date (post date belongs to destination) */}
                     {tx.transferTransactionId && tx.amount < 0 ? formatDate(tx.date) :
@@ -686,7 +770,7 @@ export default function AccountRegister() {
               ))
             )}
 
-            {/* ── Today divider ────────────────────────────────────────────── */}
+            {/* ── Today divider ──────────────────────────────────────── */}
             <tr className={styles.todayRow}>
               <td colSpan={8}>
                 <div className={styles.todayDivider}>
@@ -695,7 +779,7 @@ export default function AccountRegister() {
               </td>
             </tr>
 
-            {/* ── Future scheduled transactions ────────────────────────────── */}
+            {/* ── Future scheduled transactions ────────────────────────── */}
             {showFuture && (
               <>
                 {loadingFuture && futureBills.length === 0 ? (
@@ -737,6 +821,30 @@ export default function AccountRegister() {
           </tbody>
         </table>
       </div>
+
+      {contextMenu && (
+        <div
+          ref={contextMenuRef}
+          className={styles.contextMenu}
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+        >
+          {contextMenu.tx.transferTransactionId && contextMenu.tx.transferAccountId && (
+            <button
+              className={styles.dropdownGoto}
+              onClick={() => {
+                const dest = contextMenu.tx.transferAccountId;
+                const destTxId = contextMenu.tx.transferTransactionId;
+                setContextMenu(null);
+                navigate(`/accounts/${dest}?tx=${destTxId}`);
+              }}
+            >
+              Go to Other Account →
+            </button>
+          )}
+          <button className={styles.dropdownEdit} onClick={() => { const tx = contextMenu.tx; setContextMenu(null); handleEdit(tx); }}>Edit</button>
+          <button className={styles.dropdownDelete} onClick={() => { const id = contextMenu.tx.id; setContextMenu(null); handleDelete(id); }}>Delete</button>
+        </div>
+      )}
 
       {showEditModal && account && (
         <AccountEditModal
