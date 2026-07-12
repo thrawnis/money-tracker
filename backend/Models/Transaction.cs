@@ -27,6 +27,8 @@ public class Transaction
     public int? PayeeId { get; set; }
     public Payee? Payee { get; set; }
 
+    // Null when the transaction has Splits — the split lines carry the
+    // category breakdown instead of a single category on the transaction.
     public int? CategoryId { get; set; }
     public Category? Category { get; set; }
 
@@ -43,6 +45,25 @@ public class Transaction
     public int? TransferTransactionId { get; set; }
     public int? TransferAccountId { get; set; }
 
+    // Present only when this transaction is split across multiple categories;
+    // when non-empty, CategoryId is null and Splits.Sum(Amount) == Amount.
+    public ICollection<TransactionSplit> Splits { get; set; } = [];
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+}
+
+public class TransactionSplit
+{
+    public int Id { get; set; }
+    public int TransactionId { get; set; }
+    public Transaction Transaction { get; set; } = null!;
+
+    public int? CategoryId { get; set; }
+    public Category? Category { get; set; }
+
+    public decimal Amount { get; set; }
+
+    // Stored encrypted
+    public string? MemoEncrypted { get; set; }
 }

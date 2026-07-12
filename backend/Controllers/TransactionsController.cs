@@ -26,7 +26,8 @@ public class TransactionsController(
         await db.Accounts.AnyAsync(a => a.Id == accountId && a.UserId == userId);
 
     /// <summary>
-    /// Verifies that all FK references in the DTO belong to the calling user.
+    /// Verifies that all FK references in the DTO belong to the calling user,
+    /// and that Splits (if present) are internally consistent.
     /// Returns an error message, or null when everything checks out.
     /// </summary>
     private async Task<string?> ValidateReferences(TransactionDto dto, string userId)
@@ -42,6 +43,22 @@ public class TransactionsController(
         if (dto.TransferTransactionId.HasValue &&
             !await db.Transactions.AnyAsync(t => t.Id == dto.TransferTransactionId.Value && t.Account.UserId == userId))
             return "Linked transfer transaction not found.";
+
+        if (dto.Splits is { Count: > 0 })
+        {
+            if (dto.TransferTransactionId.HasValue)
+                return "Splits are not supported on transfer transactions.";
+
+            foreach (var split in dto.Splits)
+            {
+                if (split.CategoryId.HasValue &&
+                    !await db.Categories.AnyAsync(c => c.Id == split.CategoryId.Value && c.UserId == userId))
+                    return "Split category not found.";
+            }
+
+            if (dto.Splits.Sum(s => s.Amount) != dto.Amount)
+                return "Split amounts must add up to the transaction total.";
+        }
 
         return null;
     }
@@ -71,6 +88,19 @@ public class TransactionsController(
         status                = tx.Status,
         transferTransactionId = tx.TransferTransactionId,
         transferAccountId     = tx.TransferAccountId,
+        splits                = tx.Splits.Count == 0 ? null : tx.Splits.Select(s => new
+        {
+            id         = s.Id,
+            categoryId = s.CategoryId,
+            category   = s.Category is null ? null : new
+            {
+                id       = s.Category.Id,
+                name     = encryption.Decrypt(s.Category.NameEncrypted, dek),
+                parentId = s.Category.ParentId,
+            },
+            amount = s.Amount,
+            memo   = encryption.Decrypt(s.MemoEncrypted, dek),
+        }),
         runningBalance,
         createdAt             = tx.CreatedAt,
         updatedAt             = tx.UpdatedAt,
@@ -107,6 +137,7 @@ public class TransactionsController(
             .Where(t => t.AccountId == accountId)
             .Include(t => t.Payee)
             .Include(t => t.Category)
+            .Include(t => t.Splits).ThenInclude(s => s.Category)
             .AsQueryable();
 
         if (from.HasValue)        query = query.Where(t => t.Date >= from.Value);
@@ -115,8 +146,9 @@ public class TransactionsController(
         if (amountMax.HasValue)   query = query.Where(t => t.Amount <= amountMax.Value);
         if (payeeId.HasValue)     query = query.Where(t => t.PayeeId == payeeId.Value);
         if (categoryId.HasValue)  query = query.Where(t =>
-            t.CategoryId == categoryId.Value || t.Category!.ParentId == categoryId.Value);
-        if (uncategorized == true) query = query.Where(t => t.CategoryId == null);
+            t.CategoryId == categoryId.Value || t.Category!.ParentId == categoryId.Value ||
+            t.Splits.Any(s => s.CategoryId == categoryId.Value || s.Category!.ParentId == categoryId.Value));
+        if (uncategorized == true) query = query.Where(t => t.CategoryId == null && !t.Splits.Any());
 
         // Fetch into memory — needed for encrypted-field filtering and flexible sort
         var loaded = await query.ToListAsync();
@@ -216,6 +248,7 @@ public class TransactionsController(
         var tx = await db.Transactions
             .Include(t => t.Payee)
             .Include(t => t.Category)
+            .Include(t => t.Splits).ThenInclude(s => s.Category)
             .FirstOrDefaultAsync(t => t.Id == id && t.AccountId == accountId);
 
         return tx is null ? NotFound() : Ok(MapTransaction(tx, user.EncryptedDataKey));
@@ -234,6 +267,8 @@ public class TransactionsController(
         if (await ValidateReferences(dto, userId) is string refError)
             return BadRequest(new { message = refError });
 
+        bool hasSplits = dto.Splits is { Count: > 0 };
+
         var tx = new Transaction
         {
             AccountId             = accountId,
@@ -241,7 +276,7 @@ public class TransactionsController(
             PostDate              = dto.PostDate,
             CheckNumberEncrypted  = encryption.Encrypt(dto.CheckNumber, user.EncryptedDataKey),
             PayeeId               = dto.PayeeId,
-            CategoryId            = dto.CategoryId,
+            CategoryId            = hasSplits ? null : dto.CategoryId,
             MemoEncrypted         = encryption.Encrypt(dto.Memo, user.EncryptedDataKey),
             Amount                = dto.Amount,
             Status                = dto.Status,
@@ -250,10 +285,32 @@ public class TransactionsController(
             UpdatedAt             = DateTime.UtcNow,
         };
 
-        db.Transactions.Add(tx);
-        await db.SaveChangesAsync();
+        await using (var dbTx = await db.Database.BeginTransactionAsync())
+        {
+            db.Transactions.Add(tx);
+            await db.SaveChangesAsync();
+
+            if (hasSplits)
+            {
+                foreach (var split in dto.Splits!)
+                {
+                    db.TransactionSplits.Add(new TransactionSplit
+                    {
+                        TransactionId = tx.Id,
+                        CategoryId    = split.CategoryId,
+                        Amount        = split.Amount,
+                        MemoEncrypted = encryption.Encrypt(split.Memo, user.EncryptedDataKey),
+                    });
+                }
+                await db.SaveChangesAsync();
+            }
+
+            await dbTx.CommitAsync();
+        }
+
         await db.Entry(tx).Reference(t => t.Payee).LoadAsync();
         await db.Entry(tx).Reference(t => t.Category).LoadAsync();
+        await db.Entry(tx).Collection(t => t.Splits).Query().Include(s => s.Category).LoadAsync();
 
         var mapped = MapTransaction(tx, user.EncryptedDataKey);
         await audit.LogAsync("CREATE", "Transaction", tx.Id, new { accountId, date = tx.Date, amount = tx.Amount });
@@ -286,17 +343,20 @@ public class TransactionsController(
             accountChanged = true;
         }
 
+        bool hasSplits = dto.Splits is { Count: > 0 };
+
         tx.Date                 = dto.Date;
         tx.PostDate             = dto.PostDate;
         tx.CheckNumberEncrypted = encryption.Encrypt(dto.CheckNumber, user.EncryptedDataKey);
         tx.PayeeId              = dto.PayeeId;
-        tx.CategoryId           = dto.CategoryId;
+        tx.CategoryId           = hasSplits ? null : dto.CategoryId;
         tx.MemoEncrypted        = encryption.Encrypt(dto.Memo, user.EncryptedDataKey);
         tx.Amount               = dto.Amount;
         tx.Status               = dto.Status;
         tx.UpdatedAt            = DateTime.UtcNow;
 
-        // Apply the edit, linked-transfer sync, and payee cleanup atomically
+        // Apply the edit, linked-transfer sync, split replacement, and payee
+        // cleanup atomically
         await using (var dbTx = await db.Database.BeginTransactionAsync())
         {
             // Sync linked transfer transaction (amount, date, and memo mirror;
@@ -313,6 +373,24 @@ public class TransactionsController(
                     linked.MemoEncrypted = tx.MemoEncrypted;
                     linked.UpdatedAt     = DateTime.UtcNow;
                     if (accountChanged) linked.TransferAccountId = tx.AccountId;
+                }
+            }
+
+            // Replace the split set wholesale: simpler and safer than diffing,
+            // and the whole edit is one atomic save from the client's point of view.
+            var existingSplits = await db.TransactionSplits.Where(s => s.TransactionId == id).ToListAsync();
+            db.TransactionSplits.RemoveRange(existingSplits);
+            if (hasSplits)
+            {
+                foreach (var split in dto.Splits!)
+                {
+                    db.TransactionSplits.Add(new TransactionSplit
+                    {
+                        TransactionId = id,
+                        CategoryId    = split.CategoryId,
+                        Amount        = split.Amount,
+                        MemoEncrypted = encryption.Encrypt(split.Memo, user.EncryptedDataKey),
+                    });
                 }
             }
 
@@ -333,6 +411,7 @@ public class TransactionsController(
 
         await db.Entry(tx).Reference(t => t.Payee).LoadAsync();
         await db.Entry(tx).Reference(t => t.Category).LoadAsync();
+        await db.Entry(tx).Collection(t => t.Splits).Query().Include(s => s.Category).LoadAsync();
 
         await audit.LogAsync("UPDATE", "Transaction", id, new { accountId = tx.AccountId, date = tx.Date, amount = tx.Amount });
         return Ok(MapTransaction(tx, user.EncryptedDataKey));
@@ -409,4 +488,7 @@ public record TransactionDto(
     decimal           Amount,
     TransactionStatus Status,
     int?              TransferTransactionId,
-    int?              TargetAccountId);
+    int?              TargetAccountId,
+    List<SplitDto>?   Splits = null);
+
+public record SplitDto(int? CategoryId, decimal Amount, string? Memo);

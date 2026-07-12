@@ -48,13 +48,25 @@ public class CategoriesController(
             .Include(c => c.SubCategories)
             .ToListAsync();
 
-        // Last transaction date per category id (including subcategories)
+        // Last transaction date per category id (including subcategories),
+        // combining direct transactions and split lines that reference the category
         var allIds = categories.SelectMany(c => new[] { c.Id }.Concat(c.SubCategories.Select(s => s.Id))).ToList();
-        var lastUsed = await db.Transactions
+
+        var lastUsedDirect = await db.Transactions
             .Where(t => t.Account.UserId == userId && t.CategoryId != null && allIds.Contains(t.CategoryId!.Value))
             .GroupBy(t => t.CategoryId!.Value)
             .Select(g => new { CategoryId = g.Key, LastDate = g.Max(t => t.Date) })
-            .ToDictionaryAsync(x => x.CategoryId, x => x.LastDate);
+            .ToListAsync();
+
+        var lastUsedSplit = await db.TransactionSplits
+            .Where(s => s.Transaction.Account.UserId == userId && s.CategoryId != null && allIds.Contains(s.CategoryId!.Value))
+            .GroupBy(s => s.CategoryId!.Value)
+            .Select(g => new { CategoryId = g.Key, LastDate = g.Max(s => s.Transaction.Date) })
+            .ToListAsync();
+
+        var lastUsed = lastUsedDirect.Concat(lastUsedSplit)
+            .GroupBy(x => x.CategoryId)
+            .ToDictionary(g => g.Key, g => g.Max(x => x.LastDate));
 
         return Ok(categories.Select(c => new
         {
@@ -142,6 +154,15 @@ public class CategoriesController(
 
         var category = await db.Categories.FirstOrDefaultAsync(c => c.Id == id && c.UserId == userId);
         if (category is null) return NotFound();
+
+        if (await db.Categories.AnyAsync(c => c.ParentId == id))
+            return Conflict(new { message = "Cannot delete a category that has subcategories." });
+
+        var inUse = await db.Transactions.AnyAsync(t => t.CategoryId == id)
+            || await db.TransactionSplits.AnyAsync(s => s.CategoryId == id)
+            || await db.ScheduledTransactions.AnyAsync(s => s.CategoryId == id);
+        if (inUse)
+            return Conflict(new { message = "Cannot delete a category that is in use." });
 
         db.Categories.Remove(category);
         await db.SaveChangesAsync();

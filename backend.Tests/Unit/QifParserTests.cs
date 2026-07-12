@@ -37,6 +37,12 @@ public class QifParserTests
     private static string? Get(object row, string prop) =>
         (string?)row.GetType().GetProperty(prop)!.GetValue(row);
 
+    private static List<object>? GetSplits(object row)
+    {
+        var value = row.GetType().GetProperty("Splits")!.GetValue(row);
+        return value is null ? null : ((System.Collections.IEnumerable)value).Cast<object>().ToList();
+    }
+
     [Fact]
     public void SingleAccountSection_ParsesAllFields()
     {
@@ -180,5 +186,56 @@ public class QifParserTests
 
         rows.Should().HaveCount(1);
         Get(rows[0], "Payee").Should().Be("No Trailing Caret");
+    }
+
+    [Fact]
+    public void SplitLines_ParsedAsSplits()
+    {
+        const string qif = """
+            !Type:Bank
+            D6/1/2024
+            T-100.00
+            PBig Store
+            LGroceries
+            SGroceries
+            $-60.00
+            EFood stuff
+            SHousehold:Cleaning
+            $-40.00
+            EHousehold stuff
+            ^
+            """;
+
+        var (rows, _) = ParseQif(qif);
+
+        rows.Should().HaveCount(1);
+        var splits = GetSplits(rows[0]);
+        splits.Should().HaveCount(2);
+
+        Get(splits![0], "Category").Should().Be("Groceries");
+        Get(splits[0], "Amount").Should().Be("-60.00");
+        Get(splits[0], "Memo").Should().Be("Food stuff");
+
+        Get(splits[1], "Category").Should().Be("Household:Cleaning");
+        Get(splits[1], "Amount").Should().Be("-40.00");
+        Get(splits[1], "Memo").Should().Be("Household stuff");
+    }
+
+    [Fact]
+    public void NoSplitLines_SplitsIsNull()
+    {
+        const string qif = """
+            !Type:Bank
+            D6/1/2024
+            T-10.00
+            PPlain Transaction
+            LFood
+            ^
+            """;
+
+        var (rows, _) = ParseQif(qif);
+
+        rows.Should().HaveCount(1);
+        GetSplits(rows[0]).Should().BeNull();
     }
 }

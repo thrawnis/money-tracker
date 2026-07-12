@@ -36,6 +36,17 @@ public class ImportController(
         public string? Memo { get; set; }
         public string? Amount { get; set; }
         public string? Status { get; set; }
+
+        // QIF-only: populated from S/E/$ split lines. Never set for CSV rows
+        // (CsvHelper only maps columns present in the file's header).
+        public List<QifSplit>? Splits { get; set; }
+    }
+
+    private class QifSplit
+    {
+        public string? Category { get; set; }
+        public string? Memo { get; set; }
+        public string? Amount { get; set; }
     }
 
     // ── Template download ──
@@ -238,6 +249,42 @@ public class ImportController(
         var openBatchTransactions = new List<Transaction>();
         var claimedExistingIds = new HashSet<int>();
         var pendingLinks = new List<(Transaction NewTx, Transaction Match)>();
+        var pendingSplits = new List<(Transaction Tx, List<TransactionSplit> Splits)>();
+
+        // Find-or-create a category (and optional subcategory), reusing the same
+        // in-memory list across the whole import so categories created earlier in
+        // this call are visible to later rows.
+        List<Category>? allCategoriesCache = null;
+        async Task<int?> ResolveCategoryIdAsync(string? name, string? sub)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return null;
+            allCategoriesCache ??= await db.Categories.Where(c => c.UserId == userId).ToListAsync();
+
+            var catName = name.Trim();
+            var parent = allCategoriesCache.FirstOrDefault(c => c.ParentId == null &&
+                string.Equals(encryption.Decrypt(c.NameEncrypted, dek), catName, StringComparison.OrdinalIgnoreCase));
+            if (parent is null)
+            {
+                parent = new Category { UserId = userId, NameEncrypted = encryption.Encrypt(catName, dek)! };
+                db.Categories.Add(parent);
+                await db.SaveChangesAsync();
+                allCategoriesCache.Add(parent);
+            }
+
+            if (string.IsNullOrWhiteSpace(sub)) return parent.Id;
+
+            var subName = sub.Trim();
+            var subCat = allCategoriesCache.FirstOrDefault(c => c.ParentId == parent.Id &&
+                string.Equals(encryption.Decrypt(c.NameEncrypted, dek), subName, StringComparison.OrdinalIgnoreCase));
+            if (subCat is null)
+            {
+                subCat = new Category { UserId = userId, ParentId = parent.Id, NameEncrypted = encryption.Encrypt(subName, dek)! };
+                db.Categories.Add(subCat);
+                await db.SaveChangesAsync();
+                allCategoriesCache.Add(subCat);
+            }
+            return subCat.Id;
+        }
 
         await using (var dbTx = await db.Database.BeginTransactionAsync())
         {
@@ -281,40 +328,38 @@ public class ImportController(
                         payeeId = payee.Id;
                     }
 
-                    // Resolve category (and subcategory, if present)
-                    int? categoryId = null;
-                    if (!string.IsNullOrWhiteSpace(row.Category))
+                    // Resolve split categories first (QIF only) — if the split amounts
+                    // don't add up to the transaction total, fall back to a plain
+                    // (non-split) row using the top-level category instead of failing it.
+                    List<TransactionSplit>? splits = null;
+                    if (row.Splits is { Count: > 0 })
                     {
-                        var catName = row.Category.Trim();
-                        var allCategories = await db.Categories.Where(c => c.UserId == userId).ToListAsync();
-
-                        var parent = allCategories.FirstOrDefault(c => c.ParentId == null &&
-                            string.Equals(encryption.Decrypt(c.NameEncrypted, dek), catName, StringComparison.OrdinalIgnoreCase));
-                        if (parent is null)
+                        if (row.Splits.Sum(s => decimal.TryParse(s.Amount, NumberStyles.Any, CultureInfo.InvariantCulture, out var a) ? a : 0) == amount)
                         {
-                            parent = new Category { UserId = userId, NameEncrypted = encryption.Encrypt(catName, dek)! };
-                            db.Categories.Add(parent);
-                            await db.SaveChangesAsync();
-                        }
-
-                        if (!string.IsNullOrWhiteSpace(row.SubCategory))
-                        {
-                            var subName = row.SubCategory.Trim();
-                            var sub = allCategories.FirstOrDefault(c => c.ParentId == parent.Id &&
-                                string.Equals(encryption.Decrypt(c.NameEncrypted, dek), subName, StringComparison.OrdinalIgnoreCase));
-                            if (sub is null)
+                            splits = [];
+                            foreach (var s in row.Splits)
                             {
-                                sub = new Category { UserId = userId, ParentId = parent.Id, NameEncrypted = encryption.Encrypt(subName, dek)! };
-                                db.Categories.Add(sub);
-                                await db.SaveChangesAsync();
+                                var colonIdx = s.Category?.IndexOf(':') ?? -1;
+                                var splitCategoryId = colonIdx >= 0
+                                    ? await ResolveCategoryIdAsync(s.Category![..colonIdx], s.Category[(colonIdx + 1)..])
+                                    : await ResolveCategoryIdAsync(s.Category, null);
+                                decimal.TryParse(s.Amount, NumberStyles.Any, CultureInfo.InvariantCulture, out var splitAmount);
+                                splits.Add(new TransactionSplit
+                                {
+                                    CategoryId    = splitCategoryId,
+                                    Amount        = splitAmount,
+                                    MemoEncrypted = string.IsNullOrWhiteSpace(s.Memo) ? null : encryption.Encrypt(s.Memo.Trim(), dek),
+                                });
                             }
-                            categoryId = sub.Id;
                         }
                         else
                         {
-                            categoryId = parent.Id;
+                            errors.Add($"Split amounts didn't add up to the total for {row.Date} {row.Payee} — imported without splits.");
                         }
                     }
+
+                    // Resolve category (and subcategory, if present) — unused when split
+                    var categoryId = splits is null ? await ResolveCategoryIdAsync(row.Category, row.SubCategory) : null;
 
                     var tx = new Transaction
                     {
@@ -332,9 +377,15 @@ public class ImportController(
                         Status = status,
                     };
 
+                    if (splits is { Count: > 0 })
+                        pendingSplits.Add((tx, splits));
+
                     // Detect a matching transfer leg: same date, opposite-sign amount,
                     // matching memo, in a different account, not already linked.
-                    var match = await FindTransferMatchAsync(userId, dek, rowAccountId, date, amount, row.Memo, openBatchTransactions, claimedExistingIds);
+                    // Split transactions are never transfers (Money never mixes the two).
+                    var match = splits is null
+                        ? await FindTransferMatchAsync(userId, dek, rowAccountId, date, amount, row.Memo, openBatchTransactions, claimedExistingIds)
+                        : null;
                     if (match is not null)
                     {
                         tx.TransferAccountId = match.AccountId;
@@ -359,7 +410,7 @@ public class ImportController(
             }
 
             // First save assigns real IDs to every new row (including both legs of
-            // in-file transfer pairs), then cross-link transfer pairs by ID.
+            // in-file transfer pairs), then cross-link transfer pairs and attach splits by ID.
             await db.SaveChangesAsync();
 
             foreach (var (newTx, match) in pendingLinks)
@@ -368,7 +419,13 @@ public class ImportController(
                 match.TransferTransactionId = newTx.Id;
             }
 
-            if (pendingLinks.Count > 0)
+            foreach (var (tx, txSplits) in pendingSplits)
+            {
+                foreach (var split in txSplits) split.TransactionId = tx.Id;
+                db.TransactionSplits.AddRange(txSplits);
+            }
+
+            if (pendingLinks.Count > 0 || pendingSplits.Count > 0)
                 await db.SaveChangesAsync();
 
             await dbTx.CommitAsync();
@@ -494,10 +551,17 @@ public class ImportController(
         bool skipSection = false;
         string? pendingAccountName = null;
         CsvRow? current = null;
+        QifSplit? pendingSplit = null;
 
         void FlushRecord()
         {
-            if (current is null) return;
+            if (current is null) { pendingSplit = null; return; }
+            if (pendingSplit is not null)
+            {
+                current.Splits ??= [];
+                current.Splits.Add(pendingSplit);
+                pendingSplit = null;
+            }
             if (!string.IsNullOrWhiteSpace(current.Date) || !string.IsNullOrWhiteSpace(current.Amount))
             {
                 current.Account = currentAccountName;
@@ -604,8 +668,27 @@ public class ImportController(
                         }
                     }
                     break;
+                case 'S':
+                    // Start of a new split line: flush the previous one (if any) first.
+                    if (pendingSplit is not null)
+                    {
+                        current.Splits ??= [];
+                        current.Splits.Add(pendingSplit);
+                    }
+                    pendingSplit = new QifSplit { Category = value.StartsWith('[') ? null : value };
+                    break;
+                case 'E':
+                    pendingSplit ??= new QifSplit();
+                    pendingSplit.Memo = value;
+                    break;
+                case '$':
+                    pendingSplit ??= new QifSplit();
+                    pendingSplit.Amount = (value.StartsWith('(') && value.EndsWith(')'))
+                        ? "-" + value[1..^1]
+                        : value;
+                    break;
                 default:
-                    // Loosely ignore unsupported field codes (A address, S/E/$ splits, etc.)
+                    // Loosely ignore unsupported field codes (A address, etc.)
                     break;
             }
         }

@@ -50,12 +50,15 @@ public class TransactionSearchController(
             .Include(t => t.Payee)
             .Include(t => t.Category)
             .Include(t => t.Account)
+            .Include(t => t.Splits)
             .AsQueryable();
 
         if (accountIds is { Length: > 0 })
             query = query.Where(t => accountIds.Contains(t.AccountId));
         if (categoryId.HasValue)
-            query = query.Where(t => t.CategoryId == categoryId.Value || t.Category!.ParentId == categoryId.Value);
+            query = query.Where(t =>
+                t.CategoryId == categoryId.Value || t.Category!.ParentId == categoryId.Value ||
+                t.Splits.Any(s => s.CategoryId == categoryId.Value || s.Category!.ParentId == categoryId.Value));
         if (payeeId.HasValue)
             query = query.Where(t => t.PayeeId == payeeId.Value);
         if (from.HasValue) query = query.Where(t => t.Date >= from.Value);
@@ -94,6 +97,7 @@ public class TransactionSearchController(
                 payee       = t.Payee is null ? null : encryption.Decrypt(t.Payee.NameEncrypted, dek),
                 category    = t.Category is null ? null : encryption.Decrypt(t.Category.NameEncrypted, dek),
                 categoryParentId = t.Category?.ParentId,
+                splitCount  = t.Splits.Count,
                 memo        = encryption.Decrypt(t.MemoEncrypted, dek),
                 amount      = t.Amount,
                 status      = t.Status,

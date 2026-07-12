@@ -12,6 +12,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<Category> Categories => Set<Category>();
     public DbSet<Payee> Payees => Set<Payee>();
     public DbSet<Transaction> Transactions => Set<Transaction>();
+    public DbSet<TransactionSplit> TransactionSplits => Set<TransactionSplit>();
     public DbSet<ScheduledTransaction> ScheduledTransactions => Set<ScheduledTransaction>();
     public DbSet<SavedReport> SavedReports => Set<SavedReport>();
     public DbSet<ExportToken> ExportTokens => Set<ExportToken>();
@@ -53,6 +54,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             e.Property(t => t.Amount).HasPrecision(18, 2);
             e.HasOne(t => t.Payee).WithMany(p => p.Transactions).HasForeignKey(t => t.PayeeId).OnDelete(DeleteBehavior.SetNull);
             e.HasOne(t => t.Category).WithMany(c => c.Transactions).HasForeignKey(t => t.CategoryId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<TransactionSplit>(e =>
+        {
+            e.Property(s => s.Amount).HasPrecision(18, 2);
+            e.HasOne(s => s.Transaction).WithMany(t => t.Splits).HasForeignKey(s => s.TransactionId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(s => s.Category).WithMany().HasForeignKey(s => s.CategoryId).OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<ScheduledTransaction>(e =>
