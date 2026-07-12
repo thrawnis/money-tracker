@@ -81,7 +81,7 @@
 .errorMsg  { color: #c0392b; }
 .loadingMsg { color: #777; }
 
-/* ── Buttons ──────────────────────────────────────────────────────────────── */
+/* ── Buttons ──────────────────────────────────────────────────────────────────────── */
 
 .btnPrimary {
   padding: 6px 16px;
@@ -117,7 +117,7 @@
   border-color: #99b4cc;
 }
 
-/* ── Settings dropdown ────────────────────────────────────────────────────── */
+/* ── Settings dropdown ────────────────────────────────────────────────────────────── */
 
 .settingsDropdown {
   position: relative;
@@ -184,7 +184,7 @@
 .settingsActionDanger { color: #c0392b; }
 .settingsActionDanger:hover { color: #922b21; }
 
-/* ── Filter panel ─────────────────────────────────────────────────────────── */
+/* ── Filter panel ─────────────────────────────────────────────────────────────────── */
 
 .filterPanel {
   background: #fff;
@@ -239,7 +239,7 @@
   margin-top: 10px;
 }
 
-/* ── Scrollable table wrapper ─────────────────────────────────────────────── */
+/* ── Scrollable table wrapper ───────────────────────────────────────────────────────── */
 
 .tableWrapper {
   flex: 1;
@@ -251,7 +251,7 @@
   background: #fff;
 }
 
-/* ── Table ────────────────────────────────────────────────────────────────── */
+/* ── Table ───────────────────────────────────────────────────────────────────────────── */
 
 .table {
   width: 100%;
@@ -283,6 +283,12 @@
   transition: background 0.12s;
 }
 .txRow:hover { background: #f2f7fd; }
+
+.txRowHighlight { animation: txHighlightFlash 2.5s ease-out; }
+@keyframes txHighlightFlash {
+  0%   { background: #ffe9a8; }
+  100% { background: transparent; }
+}
 
 .right { text-align: right; font-variant-numeric: tabular-nums; }
 
@@ -318,7 +324,7 @@
 
 .actions { white-space: nowrap; text-align: right; }
 
-/* ── Actions ⋯ dropdown ───────────────────────────────────────────────────── */
+/* ── Actions ⋯ dropdown ────────────────────────────────────────────────────────────── */
 
 .actionsMenu {
   position: relative;
@@ -351,7 +357,7 @@
   overflow: hidden;
 }
 
-.dropdownEdit, .dropdownDelete {
+.dropdownEdit, .dropdownDelete, .dropdownGoto {
   display: block;
   width: 100%;
   padding: 7px 14px;
@@ -367,8 +373,23 @@
 .dropdownEdit:hover  { background: #edf4fb; }
 .dropdownDelete { color: #c0392b; }
 .dropdownDelete:hover { background: #fdf0ef; }
+.dropdownGoto { color: #1a5c99; }
+.dropdownGoto:hover { background: #edf4fb; }
 
-/* ── Today divider ────────────────────────────────────────────────────────── */
+/* ── Right-click context menu ───────────────────────────────────────────────────── */
+
+.contextMenu {
+  position: fixed;
+  background: #fff;
+  border: 1.5px solid #c5d4e0;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+  z-index: 200;
+  min-width: 160px;
+  overflow: hidden;
+}
+
+/* ── Today divider ────────────────────────────────────────────────────────────────────── */
 
 .todayRow td { padding: 0; border-bottom: none; }
 
@@ -390,7 +411,7 @@
   text-transform: uppercase;
 }
 
-/* ── Future rows ──────────────────────────────────────────────────────────── */
+/* ── Future rows ──────────────────────────────────────────────────────────────── */
 
 .futureTxRow td {
   opacity: 0.5;
@@ -399,7 +420,7 @@
 }
 .futureTxRow:hover td { opacity: 0.75; background: #f0faf2; }
 
-/* ── Misc ─────────────────────────────────────────────────────────────────── */
+/* ── Misc ───────────────────────────────────────────────────────────────────────────── */
 
 .emptyMsg {
   text-align: center;
