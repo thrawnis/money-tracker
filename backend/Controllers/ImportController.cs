@@ -23,7 +23,7 @@ public class ImportController(
 {
     private string? GetUserId() => User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-    // ── CSV row DTO ───────────────────────────────────────────────────────────
+    // ── CSV row DTO ─────────────────────────────────────────────────────────────────────────────
 
     private class CsvRow
     {
@@ -38,7 +38,7 @@ public class ImportController(
         public string? Status { get; set; }
     }
 
-    // ── Template download ─────────────────────────────────────────────────────
+    // ── Template download ─────────────────────────────────────────────────────────────────────
 
     [HttpGet("template/{format}")]
     public IActionResult GetTemplate(string format)
@@ -54,7 +54,7 @@ public class ImportController(
         return File(csvBytes, "text/csv", "template.csv");
     }
 
-    // ── Preview ───────────────────────────────────────────────────────────────
+    // ── Preview ─────────────────────────────────────────────────────────────────────────────
 
     [HttpPost("preview")]
     public async Task<IActionResult> Preview(IFormFile file)
@@ -64,7 +64,7 @@ public class ImportController(
 
         var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
         if (ext is ".qif" or ".ofx" or ".qfx")
-            return Ok(new { total = 0, duplicates = Array.Empty<object>(), newTransactions = 0, error = "QIF/OFX import coming soon" });
+            return Ok(new { total = 0, duplicates = Array.Empty<object>(), newTransactions = 0, transferMatches = 0, error = "QIF/OFX import coming soon" });
 
         if (ext is not ".csv" and not ".xlsx")
             return BadRequest(new { message = "Unsupported file format." });
@@ -89,6 +89,8 @@ public class ImportController(
 
         var duplicates = new List<object>();
         var newCount = 0;
+        var transferMatchCount = 0;
+        var claimedTransferIds = new HashSet<int>();
 
         foreach (var row in rows)
         {
@@ -124,6 +126,16 @@ public class ImportController(
             else
             {
                 newCount++;
+
+                // Best-effort preview of transfer auto-linking: only checks against
+                // already-committed transactions in the user's other accounts (a full
+                // simulation of intra-file matches happens at actual import time).
+                var match = await FindTransferMatchAsync(userId, dek, accountId, date, amount, row.Memo, [], claimedTransferIds);
+                if (match is not null)
+                {
+                    claimedTransferIds.Add(match.Id);
+                    transferMatchCount++;
+                }
             }
         }
 
@@ -132,10 +144,11 @@ public class ImportController(
             total = rows.Count,
             duplicates,
             newTransactions = newCount,
+            transferMatches = transferMatchCount,
         });
     }
 
-    // ── Import ────────────────────────────────────────────────────────────────
+    // ── Import ─────────────────────────────────────────────────────────────────────────────
 
     [HttpPost]
     public async Task<IActionResult> Import(
@@ -193,75 +206,155 @@ public class ImportController(
         var imported = 0;
         var errors = new List<string>();
 
-        foreach (var row in rows)
+        // Newly-created rows from this same import call that haven't been claimed as
+        // a transfer match yet — lets both legs of a transfer land together when a
+        // single file contains multiple accounts (via the CSV "Account" column).
+        var openBatchTransactions = new List<Transaction>();
+        var claimedExistingIds = new HashSet<int>();
+        var pendingLinks = new List<(Transaction NewTx, Transaction Match)>();
+
+        await using (var dbTx = await db.Database.BeginTransactionAsync())
         {
-            try
+            foreach (var row in rows)
             {
-                if (!TryParseRow(row, userAccounts, out var date, out var amount, out var accountId, out var status))
+                try
                 {
-                    errors.Add($"Could not parse row: {row.Date} {row.Payee} {row.Amount}");
-                    continue;
-                }
-
-                // Check for duplicate
-                var existing = await db.Transactions
-                    .Where(t => t.AccountId == accountId && t.Date == date && t.Amount == amount)
-                    .FirstOrDefaultAsync();
-
-                if (existing is not null && !includedIds.Contains(existing.Id))
-                    continue; // skip duplicate not selected for inclusion
-
-                // Resolve payee
-                int? payeeId = null;
-                if (!string.IsNullOrWhiteSpace(row.Payee))
-                {
-                    var payeeName = row.Payee.Trim();
-                    var allPayees = await db.Payees.Where(p => p.UserId == userId).ToListAsync();
-                    var payee = allPayees.FirstOrDefault(p =>
-                        string.Equals(encryption.Decrypt(p.NameEncrypted, dek), payeeName, StringComparison.OrdinalIgnoreCase));
-
-                    if (payee is null)
+                    if (!TryParseRow(row, userAccounts, out var date, out var amount, out var accountId, out var status))
                     {
-                        payee = new Payee
-                        {
-                            UserId = userId,
-                            NameEncrypted = encryption.Encrypt(payeeName, dek),
-                        };
-                        db.Payees.Add(payee);
-                        await db.SaveChangesAsync();
+                        errors.Add($"Could not parse row: {row.Date} {row.Payee} {row.Amount}");
+                        continue;
                     }
-                    payeeId = payee.Id;
+
+                    // Check for duplicate
+                    var existing = await db.Transactions
+                        .Where(t => t.AccountId == accountId && t.Date == date && t.Amount == amount)
+                        .FirstOrDefaultAsync();
+
+                    if (existing is not null && !includedIds.Contains(existing.Id))
+                        continue; // skip duplicate not selected for inclusion
+
+                    // Resolve payee
+                    int? payeeId = null;
+                    if (!string.IsNullOrWhiteSpace(row.Payee))
+                    {
+                        var payeeName = row.Payee.Trim();
+                        var allPayees = await db.Payees.Where(p => p.UserId == userId).ToListAsync();
+                        var payee = allPayees.FirstOrDefault(p =>
+                            string.Equals(encryption.Decrypt(p.NameEncrypted, dek), payeeName, StringComparison.OrdinalIgnoreCase));
+
+                        if (payee is null)
+                        {
+                            payee = new Payee
+                            {
+                                UserId = userId,
+                                NameEncrypted = encryption.Encrypt(payeeName, dek),
+                            };
+                            db.Payees.Add(payee);
+                            await db.SaveChangesAsync();
+                        }
+                        payeeId = payee.Id;
+                    }
+
+                    var tx = new Transaction
+                    {
+                        AccountId = accountId,
+                        Date = date,
+                        Amount = amount,
+                        PayeeId = payeeId,
+                        CheckNumberEncrypted = string.IsNullOrWhiteSpace(row.CheckNumber)
+                            ? null
+                            : encryption.Encrypt(row.CheckNumber.Trim(), dek),
+                        MemoEncrypted = string.IsNullOrWhiteSpace(row.Memo)
+                            ? null
+                            : encryption.Encrypt(row.Memo.Trim(), dek),
+                        Status = status,
+                    };
+
+                    // Detect a matching transfer leg: same date, opposite-sign amount,
+                    // matching memo, in a different account, not already linked.
+                    var match = await FindTransferMatchAsync(userId, dek, accountId, date, amount, row.Memo, openBatchTransactions, claimedExistingIds);
+                    if (match is not null)
+                    {
+                        tx.TransferAccountId = match.AccountId;
+                        match.TransferAccountId = accountId;
+                        pendingLinks.Add((tx, match));
+
+                        if (match.Id != 0) claimedExistingIds.Add(match.Id);
+                        else openBatchTransactions.Remove(match);
+                    }
+                    else
+                    {
+                        openBatchTransactions.Add(tx);
+                    }
+
+                    db.Transactions.Add(tx);
+                    imported++;
                 }
-
-                var tx = new Transaction
+                catch (Exception ex)
                 {
-                    AccountId = accountId,
-                    Date = date,
-                    Amount = amount,
-                    PayeeId = payeeId,
-                    CheckNumberEncrypted = string.IsNullOrWhiteSpace(row.CheckNumber)
-                        ? null
-                        : encryption.Encrypt(row.CheckNumber.Trim(), dek),
-                    MemoEncrypted = string.IsNullOrWhiteSpace(row.Memo)
-                        ? null
-                        : encryption.Encrypt(row.Memo.Trim(), dek),
-                    Status = status,
-                };
+                    errors.Add($"Error on row {row.Date} {row.Payee}: {ex.Message}");
+                }
+            }
 
-                db.Transactions.Add(tx);
-                imported++;
-            }
-            catch (Exception ex)
+            // First save assigns real IDs to every new row (including both legs of
+            // in-file transfer pairs), then cross-link transfer pairs by ID.
+            await db.SaveChangesAsync();
+
+            foreach (var (newTx, match) in pendingLinks)
             {
-                errors.Add($"Error on row {row.Date} {row.Payee}: {ex.Message}");
+                newTx.TransferTransactionId = match.Id;
+                match.TransferTransactionId = newTx.Id;
             }
+
+            if (pendingLinks.Count > 0)
+                await db.SaveChangesAsync();
+
+            await dbTx.CommitAsync();
         }
 
-        await db.SaveChangesAsync();
-        return Ok(new { imported, errors = errors.Count > 0 ? errors : null });
+        return Ok(new { imported, transfersLinked = pendingLinks.Count, errors = errors.Count > 0 ? errors : null });
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
+    // ── Helpers ─────────────────────────────────────────────────────────────────────────────
+
+    private static string? NormalizeMemo(string? memo) =>
+        string.IsNullOrWhiteSpace(memo) ? null : memo.Trim();
+
+    // Looks for exactly one unlinked transaction — in a different account belonging
+    // to the same user — with the same date, the opposite-sign amount, and a matching
+    // memo. Checks both already-committed transactions (from prior imports/entries)
+    // and rows created earlier in this same import call (for multi-account files).
+    // Returns null if there is no match or more than one candidate (ambiguous).
+    private async Task<Transaction?> FindTransferMatchAsync(
+        string userId,
+        string dek,
+        int excludeAccountId,
+        DateOnly date,
+        decimal amount,
+        string? memo,
+        List<Transaction> openBatchTransactions,
+        HashSet<int> claimedExistingIds)
+    {
+        var normMemo = NormalizeMemo(memo);
+        var targetAmount = -amount;
+
+        var dbCandidates = await db.Transactions
+            .Where(t => t.Account.UserId == userId
+                     && t.AccountId != excludeAccountId
+                     && t.TransferTransactionId == null
+                     && t.Date == date
+                     && t.Amount == targetAmount)
+            .ToListAsync();
+
+        var candidates = dbCandidates
+            .Where(t => !claimedExistingIds.Contains(t.Id))
+            .Concat(openBatchTransactions.Where(t =>
+                t.AccountId != excludeAccountId && t.Date == date && t.Amount == targetAmount))
+            .Where(t => NormalizeMemo(encryption.Decrypt(t.MemoEncrypted, dek)) == normMemo)
+            .ToList();
+
+        return candidates.Count == 1 ? candidates[0] : null;
+    }
 
     private static List<CsvRow> ParseCsv(IFormFile file)
     {
