@@ -392,7 +392,7 @@ function ImportTab() {
         <input
           id="importFileInput"
           type="file"
-          accept=".qif,.ofx,.qfx,.csv,.xlsx"
+          accept=".qif,.ofx,.qfx,.csv,.xlsx,.json"
           style={{ display: 'none' }}
           onChange={handleFileChange}
         />
@@ -405,7 +405,7 @@ function ImportTab() {
           <div className={styles.dropPrompt}>
             <div className={styles.dropIcon}>+</div>
             <div>Drag &amp; drop a file here, or click to browse</div>
-            <div className={styles.hint}>Supported: QIF, OFX, QFX, CSV, XLSX</div>
+            <div className={styles.hint}>Supported: QIF, OFX, QFX, CSV, XLSX, JSON (this app's own export format)</div>
           </div>
         )}
       </div>

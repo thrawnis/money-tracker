@@ -144,11 +144,20 @@ public class ExportController(
                 id          = t.Id,
                 date        = t.Date,
                 payee       = t.Payee is null ? null : encryption.Decrypt(t.Payee.NameEncrypted, dek),
-                category    = t.Category is null ? null : encryption.Decrypt(t.Category.NameEncrypted, dek),
+                category    = t.Category is null || t.Category.ParentId is not null ? null : encryption.Decrypt(t.Category.NameEncrypted, dek),
+                subCategory = t.Category?.ParentId is null ? null : encryption.Decrypt(t.Category.NameEncrypted, dek),
                 memo        = encryption.Decrypt(t.MemoEncrypted, dek),
                 amount      = t.Amount,
                 status      = t.Status.ToString(),
                 checkNumber = encryption.Decrypt(t.CheckNumberEncrypted, dek),
+                isTransfer  = t.TransferTransactionId != null,
+                splits      = t.Splits.Count == 0 ? null : t.Splits.Select(s => new
+                {
+                    category    = s.Category is null || s.Category.ParentId is not null ? null : encryption.Decrypt(s.Category.NameEncrypted, dek),
+                    subCategory = s.Category?.ParentId is null ? null : encryption.Decrypt(s.Category.NameEncrypted, dek),
+                    memo        = encryption.Decrypt(s.MemoEncrypted, dek),
+                    amount      = s.Amount,
+                }),
             }),
         });
 
@@ -204,6 +213,7 @@ public class ExportController(
                 .Where(t => t.AccountId == account.Id)
                 .Include(t => t.Payee)
                 .Include(t => t.Category)
+                .Include(t => t.Splits).ThenInclude(s => s.Category)
                 .OrderByDescending(t => t.Date)
                 .ToListAsync();
 

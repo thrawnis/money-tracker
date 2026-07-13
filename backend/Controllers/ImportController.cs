@@ -77,7 +77,7 @@ public class ImportController(
         if (ext is ".ofx" or ".qfx")
             return Ok(new { total = 0, duplicates = Array.Empty<object>(), newTransactions = 0, transferMatches = 0, error = "OFX import coming soon" });
 
-        if (ext is not ".csv" and not ".xlsx" and not ".qif")
+        if (ext is not ".csv" and not ".xlsx" and not ".qif" and not ".json")
             return BadRequest(new { message = "Unsupported file format." });
 
         var user = await userManager.FindByIdAsync(userId);
@@ -102,6 +102,13 @@ public class ImportController(
                     return BadRequest(new { message = "No transactions found in QIF file." });
                 if (!accountId.HasValue && rows.All(r => string.IsNullOrWhiteSpace(r.Account)))
                     return BadRequest(new { message = "This QIF file doesn't specify an account. Please select an account to import into." });
+            }
+            else if (ext == ".json")
+            {
+                rows = ParseJson(file);
+                parseWarnings = [];
+                if (rows.Count == 0)
+                    return BadRequest(new { message = "No transactions found in JSON file." });
             }
             else
             {
@@ -191,7 +198,7 @@ public class ImportController(
         if (ext is ".ofx" or ".qfx")
             return Ok(new { imported = 0, errors = new[] { "OFX import coming soon" } });
 
-        if (ext is not ".csv" and not ".xlsx" and not ".qif")
+        if (ext is not ".csv" and not ".xlsx" and not ".qif" and not ".json")
             return BadRequest(new { message = "Unsupported file format." });
 
         var user = await userManager.FindByIdAsync(userId);
@@ -228,6 +235,13 @@ public class ImportController(
                     return BadRequest(new { message = "No transactions found in QIF file." });
                 if (!accountId.HasValue && rows.All(r => string.IsNullOrWhiteSpace(r.Account)))
                     return BadRequest(new { message = "This QIF file doesn't specify an account. Please select an account to import into." });
+            }
+            else if (ext == ".json")
+            {
+                rows = ParseJson(file);
+                parseWarnings = [];
+                if (rows.Count == 0)
+                    return BadRequest(new { message = "No transactions found in JSON file." });
             }
             else
             {
@@ -526,6 +540,83 @@ public class ImportController(
 
         return true;
     }
+
+    // ── JSON ──
+    //
+    // Accepts this app's own JSON export shape: an array of
+    // { account: { name }, transactions: [...] } groups (see
+    // ExportController.DownloadJson). This is a plaintext format — the
+    // caller decrypted every field to produce it — so importing it goes
+    // through the exact same encrypt-on-write path as CSV/QIF: nothing
+    // plaintext ever reaches the database or disk. Each account's name is
+    // embedded per group, so (like multi-account QIF) no accountId fallback
+    // is needed.
+
+    private static List<CsvRow> ParseJson(IFormFile file)
+    {
+        using var stream = file.OpenReadStream();
+        using var doc = JsonDocument.Parse(stream);
+
+        if (doc.RootElement.ValueKind != JsonValueKind.Array)
+            throw new InvalidOperationException("Expected a JSON array of account/transaction groups.");
+
+        var rows = new List<CsvRow>();
+
+        foreach (var group in doc.RootElement.EnumerateArray())
+        {
+            if (!group.TryGetProperty("account", out var accountEl)) continue;
+            var accountName = JsonString(accountEl, "name");
+
+            if (!group.TryGetProperty("transactions", out var txsEl) || txsEl.ValueKind != JsonValueKind.Array)
+                continue;
+
+            foreach (var txEl in txsEl.EnumerateArray())
+            {
+                var row = new CsvRow
+                {
+                    Account     = accountName,
+                    Date        = JsonString(txEl, "date"),
+                    Amount      = JsonNumberAsString(txEl, "amount"),
+                    Payee       = JsonString(txEl, "payee"),
+                    Category    = JsonString(txEl, "category"),
+                    SubCategory = JsonString(txEl, "subCategory"),
+                    Memo        = JsonString(txEl, "memo"),
+                    CheckNumber = JsonString(txEl, "checkNumber"),
+                    Status      = JsonString(txEl, "status"),
+                };
+
+                if (txEl.TryGetProperty("splits", out var splitsEl) && splitsEl.ValueKind == JsonValueKind.Array && splitsEl.GetArrayLength() > 0)
+                {
+                    row.Splits = [];
+                    foreach (var splitEl in splitsEl.EnumerateArray())
+                    {
+                        var cat = JsonString(splitEl, "category");
+                        var subCat = JsonString(splitEl, "subCategory");
+                        row.Splits.Add(new QifSplit
+                        {
+                            Category = subCat is not null ? $"{cat}:{subCat}" : cat,
+                            Memo     = JsonString(splitEl, "memo"),
+                            Amount   = JsonNumberAsString(splitEl, "amount"),
+                        });
+                    }
+                }
+
+                rows.Add(row);
+            }
+        }
+
+        return rows;
+    }
+
+    private static string? JsonString(JsonElement el, string prop) =>
+        el.ValueKind == JsonValueKind.Object && el.TryGetProperty(prop, out var p) && p.ValueKind == JsonValueKind.String
+            ? p.GetString()
+            : null;
+
+    private static string? JsonNumberAsString(JsonElement el, string prop) =>
+        el.ValueKind == JsonValueKind.Object && el.TryGetProperty(prop, out var p) && p.ValueKind == JsonValueKind.Number
+            ? p.GetDecimal().ToString(CultureInfo.InvariantCulture)
+            : null;
 
     // ── QIF (loose) ──
     //

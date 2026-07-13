@@ -49,9 +49,10 @@ Update this file whenever requirements change or new features are defined.
 - Create, edit, delete on the account register page
 - **Split transactions**: a transaction can be divided across multiple categories, each with its own amount and memo (encrypted), summing exactly to the transaction total. One payee and one total amount per transaction — only the category breakdown is split. Not supported on transfer legs. The register, All Transactions, search, and the transaction detail panel show "Split (N)" in place of a single category name; the edit form shows the full per-split breakdown. QIF import parses S/E/$ split lines into real splits (falls back to a plain transaction with a warning if the split amounts don't add up to the total)
 - All unsaved form changes must prompt before navigating away
-- Bulk CSV and loose-QIF import with preview and duplicate detection (per account); OFX/QFX not yet implemented
+- Bulk CSV, loose-QIF, and JSON import with preview and duplicate detection (per account); OFX/QFX not yet implemented
 - QIF import is tolerant: unrecognized field codes and malformed lines are skipped rather than failing the file; supports both a single !Type section (no embedded account — the user selects a destination account) and multi-account exports using !Account blocks; !Type:Invst sections are skipped with a warning (no security/quantity data model)
-- CSV/QIF import auto-detects transfers: an imported row is linked to an existing unlinked transaction in another of the user's accounts when date, opposite-sign amount, and memo all match (ambiguous multi-candidate matches are left unlinked); also matches transfer pairs within a single multi-account import file
+- JSON import accepts this app's own JSON export format (array of account/transaction groups, including splits and subcategories) and re-imports it through the same pipeline as CSV/QIF — every field is re-encrypted on write, exactly like every other import path; the plaintext JSON is never itself persisted to disk or the database
+- CSV/QIF/JSON import auto-detects transfers: an imported row is linked to an existing unlinked transaction in another of the user's accounts when date, opposite-sign amount, and memo all match (ambiguous multi-candidate matches are left unlinked); also matches transfer pairs within a single multi-account import file
 - Right-click a transaction for a context menu; transfer transactions get a "Go to Other Account" option that jumps to and highlights the matching leg
 - Transaction search across accounts with: date range, account, category, payee, regex memo/check# pattern
 - Clicking a transaction in the All Transactions list opens a slide-in detail panel (view, edit, or delete in place) instead of navigating away; the panel's "Open in Register" action still jumps to and highlights it in the account register
@@ -109,7 +110,7 @@ Update this file whenever requirements change or new features are defined.
 
 - **Password**: change password with current-password confirmation
 - **Export**: download all user data in QIF, OFX, CSV, XLSX, or JSON format; requires re-authentication
-- **Import**: CSV or loose-QIF upload with transaction preview and duplicate detection (per account); OFX/QFX not yet implemented
+- **Import**: CSV, loose-QIF, or JSON (this app's own export format) upload with transaction preview and duplicate detection (per account); OFX/QFX not yet implemented
 - **Accounts & Institutions**: manage account details and institution list
 - **Audit Log**: users see their own activity; admins see all users
 - **Demo Reset** (demo mode only): wipes and re-seeds the demo user's data
@@ -119,6 +120,7 @@ Update this file whenever requirements change or new features are defined.
 ## Data Integrity & Security
 
 - All sensitive text fields encrypted at rest with AES-256-GCM per-user DEK
+- Decrypted (plaintext) data is never persisted server-side, in the database or as a file — the only plaintext export path is the on-demand, re-authenticated Export download (streamed directly to the browser, never written to disk); all imports (CSV/QIF/JSON) and account backups encrypt/keep-encrypted every sensitive field before it touches the database or disk
 - Every API endpoint enforces per-user data isolation; no cross-user data leakage — including FK references (payee/category/account IDs in requests are verified against the caller)
 - Transfers created and deleted as an atomic pair (wrapped in DB transactions)
 - Unique-name enforcement for accounts, payees, categories, institutions (case-insensitive)
