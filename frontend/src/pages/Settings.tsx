@@ -492,7 +492,8 @@ function BackupsTab() {
     <div className={styles.tabSection}>
       <p className={styles.hint}>
         A full backup (account details, transactions, and splits) is automatically saved on the server before an
-        account is deleted. Up to 5 backups are kept; the oldest is removed once a new one is created.
+        account is deleted. Up to 3 backups are kept per account; the oldest is removed once a new one is created
+        for that account.
       </p>
 
       {loading && <p className={styles.hint}>Loading…</p>}

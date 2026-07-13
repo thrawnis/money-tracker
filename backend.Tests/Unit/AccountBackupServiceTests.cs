@@ -23,10 +23,10 @@ public class AccountBackupServiceTests : IDisposable
         if (Directory.Exists(_tempRoot)) Directory.Delete(_tempRoot, recursive: true);
     }
 
-    private AccountBackupService MakeService(int? maxPerUser = null)
+    private AccountBackupService MakeService(int? maxPerAccount = null)
     {
         var settings = new Dictionary<string, string?> { ["Backups:AccountBackupPath"] = "backups" };
-        if (maxPerUser.HasValue) settings["Backups:MaxAccountBackupsPerUser"] = maxPerUser.Value.ToString();
+        if (maxPerAccount.HasValue) settings["Backups:MaxAccountBackupsPerAccount"] = maxPerAccount.Value.ToString();
         var config = new ConfigurationBuilder().AddInMemoryCollection(settings).Build();
 
         var env = new Mock<IWebHostEnvironment>();
@@ -46,16 +46,18 @@ public class AccountBackupServiceTests : IDisposable
         CreatedAt = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc),
     };
 
+    private string AccountDirPath(int accountId, string userId = "user-1") =>
+        Path.Combine(_tempRoot, "backups", userId, accountId.ToString());
+
     [Fact]
-    public async Task CreateBackup_WritesFileWithinUserDirectory()
+    public async Task CreateBackup_WritesFileUnderUserAndAccountDirectory()
     {
         var svc = MakeService();
         var account = MakeAccount();
 
         var fileName = await svc.CreateBackupAsync(account, [], note: null);
 
-        var expectedPath = Path.Combine(_tempRoot, "backups", "user-1", fileName);
-        File.Exists(expectedPath).Should().BeTrue();
+        File.Exists(Path.Combine(AccountDirPath(account.Id), fileName)).Should().BeTrue();
     }
 
     [Fact]
@@ -65,7 +67,7 @@ public class AccountBackupServiceTests : IDisposable
         var account = MakeAccount(name: "My Savings");
 
         var fileName = await svc.CreateBackupAsync(account, [], note: null);
-        var json = await File.ReadAllTextAsync(Path.Combine(_tempRoot, "backups", "user-1", fileName));
+        var json = await File.ReadAllTextAsync(Path.Combine(AccountDirPath(account.Id), fileName));
 
         json.Should().Contain("My Savings");
         json.Should().Contain("Automatic backup");
@@ -78,15 +80,15 @@ public class AccountBackupServiceTests : IDisposable
         var account = MakeAccount();
 
         var fileName = await svc.CreateBackupAsync(account, [], note: "Closing this account for good.");
-        var json = await File.ReadAllTextAsync(Path.Combine(_tempRoot, "backups", "user-1", fileName));
+        var json = await File.ReadAllTextAsync(Path.Combine(AccountDirPath(account.Id), fileName));
 
         json.Should().Contain("Closing this account for good.");
     }
 
     [Fact]
-    public async Task CreateBackup_PrunesOldestBeyondMax()
+    public async Task CreateBackup_PrunesOldestBeyondMax_PerAccount()
     {
-        var svc = MakeService(maxPerUser: 3);
+        var svc = MakeService(maxPerAccount: 3);
         var account = MakeAccount();
 
         for (int i = 0; i < 5; i++)
@@ -95,8 +97,27 @@ public class AccountBackupServiceTests : IDisposable
             await Task.Delay(1100); // filenames are second-resolution timestamps — ensure distinct ordering
         }
 
-        var files = Directory.GetFiles(Path.Combine(_tempRoot, "backups", "user-1"));
-        files.Should().HaveCount(3);
+        Directory.GetFiles(AccountDirPath(account.Id)).Should().HaveCount(3);
+    }
+
+    [Fact]
+    public async Task CreateBackup_DifferentAccounts_PrunedIndependently()
+    {
+        var svc = MakeService(maxPerAccount: 2);
+        var accountA = MakeAccount(id: 1, name: "Checking");
+        var accountB = MakeAccount(id: 2, name: "Savings");
+
+        // 3 backups for A, 1 for B — A should prune down to 2, B stays at 1
+        await svc.CreateBackupAsync(accountA, [], note: "a1");
+        await Task.Delay(1100);
+        await svc.CreateBackupAsync(accountA, [], note: "a2");
+        await Task.Delay(1100);
+        await svc.CreateBackupAsync(accountB, [], note: "b1");
+        await Task.Delay(1100);
+        await svc.CreateBackupAsync(accountA, [], note: "a3");
+
+        Directory.GetFiles(AccountDirPath(accountA.Id)).Should().HaveCount(2);
+        Directory.GetFiles(AccountDirPath(accountB.Id)).Should().HaveCount(1);
     }
 
     [Fact]
@@ -111,6 +132,16 @@ public class AccountBackupServiceTests : IDisposable
         list.Should().ContainSingle();
         list[0].AccountName.Should().Be("Checking");
         list[0].Note.Should().Be("first");
+    }
+
+    [Fact]
+    public async Task ListBackups_AcrossMultipleAccounts_ReturnsAll()
+    {
+        var svc = MakeService();
+        await svc.CreateBackupAsync(MakeAccount(id: 1, name: "Checking"), [], note: null);
+        await svc.CreateBackupAsync(MakeAccount(id: 2, name: "Savings"), [], note: null);
+
+        svc.ListBackups("user-1").Should().HaveCount(2);
     }
 
     [Fact]

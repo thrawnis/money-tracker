@@ -36,7 +36,7 @@ Update this file whenever requirements change or new features are defined.
 - Each account has: name, type, opening balance, institution (optional), account number (encrypted, optional), notes (encrypted, optional)
 - Accounts can be marked active or inactive (via the edit form's toggle) without deleting them; inactive accounts are hidden from new-entry dropdowns but stay visible/collapsible in the Accounts list
 - Deleting an account is permanent: the account, all its transactions (and splits), and its scheduled transactions are removed. Any transfer whose other leg lived in the deleted account is unlinked (kept as a plain transaction) rather than left pointing at a deleted row
-- Before an account is deleted, a full JSON backup (account details + every transaction + splits, with sensitive fields still encrypted exactly as stored — never written to disk as plaintext) is saved server-side, timestamped, with an optional user-supplied note (auto-generated if omitted). Up to 5 backups are kept per user; the oldest is pruned when a new one is created. Backups are listable/downloadable from Settings → Account Backups
+- Before an account is deleted, a full JSON backup (account details + every transaction + splits, with sensitive fields still encrypted exactly as stored — never written to disk as plaintext) is saved server-side, timestamped, with an optional user-supplied note (auto-generated if omitted). Up to 3 backups are kept per account; the oldest is pruned when a new one is created for that same account (each account has its own independent history). Backups are listable/downloadable from Settings → Account Backups
 - Accounts page (`/accounts`) lists all accounts grouped by type (active) with balance and last transaction date; inactive accounts are collapsible at the bottom
 - Account register (`/accounts/:id`) shows all transactions for the account
 - Account name in the register header is a dropdown to navigate between accounts (active first, then inactive)
@@ -125,7 +125,7 @@ Update this file whenever requirements change or new features are defined.
 - Running balances are computed server-side over the full account history in date order, independent of pagination, filters, or sort
 - Account balances exclude future-dated transactions ("as of today") consistently across Dashboard, Accounts page, and register
 - Nightly `pg_dump` backups via the `db-backup` compose service (default 14-day retention, `./data/backups`)
-- Per-account backups (see Accounts) via `./data/account-backups`, one subfolder per user, max 5 per user, sensitive fields kept encrypted in the backup file
+- Per-account backups (see Accounts) via `./data/account-backups/{userId}/{accountId}/`, max 3 per account, sensitive fields kept encrypted in the backup file
 
 ---
 

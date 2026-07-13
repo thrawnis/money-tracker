@@ -25,7 +25,7 @@ public record AccountBackupSummary(string FileName, int AccountId, string Accoun
 
 public class AccountBackupService(IConfiguration config, IWebHostEnvironment env) : IAccountBackupService
 {
-    private const int DefaultMaxBackupsPerUser = 5;
+    private const int DefaultMaxBackupsPerAccount = 3;
 
     private string RootDir()
     {
@@ -40,7 +40,16 @@ public class AccountBackupService(IConfiguration config, IWebHostEnvironment env
         return dir;
     }
 
-    private int MaxBackupsPerUser => config.GetValue<int?>("Backups:MaxAccountBackupsPerUser") ?? DefaultMaxBackupsPerUser;
+    // Backups live in a subfolder per account (data/account-backups/{userId}/{accountId}/)
+    // so the retention cap applies per account rather than across the whole user.
+    private string AccountDir(string userId, int accountId)
+    {
+        var dir = Path.Combine(UserDir(userId), accountId.ToString());
+        Directory.CreateDirectory(dir);
+        return dir;
+    }
+
+    private int MaxBackupsPerAccount => config.GetValue<int?>("Backups:MaxAccountBackupsPerAccount") ?? DefaultMaxBackupsPerAccount;
 
     public async Task<string> CreateBackupAsync(Account account, List<Transaction> transactions, string? note)
     {
@@ -81,24 +90,24 @@ public class AccountBackupService(IConfiguration config, IWebHostEnvironment env
         );
 
         var fileName = $"{now:yyyyMMdd_HHmmss}_{account.Id}_{SanitizeSegment(account.Name)}.json";
-        var path = Path.Combine(UserDir(account.UserId), fileName);
+        var path = Path.Combine(AccountDir(account.UserId, account.Id), fileName);
 
         var json = JsonSerializer.Serialize(backup, new JsonSerializerOptions { WriteIndented = true });
         await File.WriteAllTextAsync(path, json);
 
-        PruneOldBackups(account.UserId);
+        PruneOldBackups(account.UserId, account.Id);
 
         return fileName;
     }
 
-    private void PruneOldBackups(string userId)
+    private void PruneOldBackups(string userId, int accountId)
     {
-        var dir = UserDir(userId);
+        var dir = AccountDir(userId, accountId);
         var files = new DirectoryInfo(dir).GetFiles("*.json")
             .OrderByDescending(f => f.Name) // filenames are timestamp-prefixed — lexicographic == chronological
             .ToList();
 
-        foreach (var stale in files.Skip(MaxBackupsPerUser))
+        foreach (var stale in files.Skip(MaxBackupsPerAccount))
         {
             try { stale.Delete(); } catch { /* best-effort prune */ }
         }
@@ -106,39 +115,45 @@ public class AccountBackupService(IConfiguration config, IWebHostEnvironment env
 
     public List<AccountBackupSummary> ListBackups(string userId)
     {
-        var dir = UserDir(userId);
+        var userDir = UserDir(userId);
         var summaries = new List<AccountBackupSummary>();
 
-        foreach (var file in new DirectoryInfo(dir).GetFiles("*.json").OrderByDescending(f => f.Name))
+        foreach (var accountDir in new DirectoryInfo(userDir).GetDirectories())
         {
-            try
+            foreach (var file in accountDir.GetFiles("*.json").OrderByDescending(f => f.Name))
             {
-                var json = File.ReadAllText(file.FullName);
-                var dto = JsonSerializer.Deserialize<AccountBackupDto>(json);
-                if (dto is null) continue;
-                summaries.Add(new AccountBackupSummary(file.Name, dto.OriginalAccountId, dto.Name, dto.BackedUpAt, dto.Note, file.Length));
+                try
+                {
+                    var json = File.ReadAllText(file.FullName);
+                    var dto = JsonSerializer.Deserialize<AccountBackupDto>(json);
+                    if (dto is null) continue;
+                    summaries.Add(new AccountBackupSummary(file.Name, dto.OriginalAccountId, dto.Name, dto.BackedUpAt, dto.Note, file.Length));
+                }
+                catch { /* skip unreadable/corrupt files */ }
             }
-            catch { /* skip unreadable/corrupt files */ }
         }
 
-        return summaries;
+        return summaries.OrderByDescending(s => s.BackedUpAt).ToList();
     }
 
     public byte[]? ReadBackup(string userId, string fileName)
     {
         // fileName comes from the client — reject anything that isn't a bare
-        // file name (no path separators/traversal), then confirm it resolves
-        // inside this user's own backup directory.
+        // file name (no path separators/traversal), then search only inside
+        // this user's own backup directory tree.
         if (fileName.Contains('/') || fileName.Contains('\\') || fileName.Contains(".."))
             return null;
 
-        var dir = UserDir(userId);
-        var path = Path.GetFullPath(Path.Combine(dir, fileName));
-        if (!path.StartsWith(Path.GetFullPath(dir) + Path.DirectorySeparatorChar, StringComparison.Ordinal))
-            return null;
-        if (!File.Exists(path)) return null;
+        var userDir = Path.GetFullPath(UserDir(userId));
+        foreach (var accountDir in new DirectoryInfo(userDir).GetDirectories())
+        {
+            var path = Path.GetFullPath(Path.Combine(accountDir.FullName, fileName));
+            if (!path.StartsWith(userDir + Path.DirectorySeparatorChar, StringComparison.Ordinal))
+                continue;
+            if (File.Exists(path)) return File.ReadAllBytes(path);
+        }
 
-        return File.ReadAllBytes(path);
+        return null;
     }
 
     private static string SanitizeSegment(string s)
