@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { usePageTitle } from '../hooks/usePageTitle';
-import { getAccount, getAccounts, deleteAccount } from '../api/accounts';
+import { getAccount, getAccounts } from '../api/accounts';
+import { useDeleteAccountFlow } from '../hooks/useDeleteAccountFlow';
 import { getTransactions, createTransaction, updateTransaction, deleteTransaction, createTransfer } from '../api/transactions';
 import { getUpcoming } from '../api/scheduledTransactions';
 import { getCategories } from '../api/categories';
@@ -45,6 +46,8 @@ export default function AccountRegister() {
   const [allAccounts, setAllAccounts] = useState<Account[]>([]);
   const [institutions, setInstitutions] = useState<Institution[]>([]);
   const [showEditModal, setShowEditModal] = useState(false);
+  const { requestDelete, deleting: deletingAccount, error: deleteAccountError, modal: deleteAccountModal } =
+    useDeleteAccountFlow(() => navigate('/accounts'));
   usePageTitle('Account Register');
   const [categories, setCategories] = useState<Category[]>([]);
   const [error, setError] = useState('');
@@ -573,20 +576,10 @@ export default function AccountRegister() {
                 </button>
                 <button
                   className={`${styles.settingsAction} ${styles.settingsActionDanger}`}
-                  onClick={async () => {
-                    setSettingsOpen(false);
-                    if (!account) return;
-                    if (!confirm(`Delete "${account.name}"? This permanently deletes the account and all its transactions. This cannot be undone. A backup is saved on the server first.`)) return;
-                    const note = prompt('Optional note for the backup (why you\'re deleting this account):') ?? undefined;
-                    try {
-                      await deleteAccount(account.id, note || undefined);
-                      navigate('/accounts');
-                    } catch {
-                      alert('Failed to delete account.');
-                    }
-                  }}
+                  onClick={() => { setSettingsOpen(false); if (account) requestDelete(account); }}
+                  disabled={deletingAccount}
                 >
-                  Delete Account…
+                  {deletingAccount ? 'Deleting…' : 'Delete Account…'}
                 </button>
               </div>
             )}
@@ -853,6 +846,9 @@ export default function AccountRegister() {
           onClose={() => setShowEditModal(false)}
         />
       )}
+
+      {deleteAccountError && <div className={styles.errorMsg}>{deleteAccountError}</div>}
+      {deleteAccountModal}
     </div>
   );
 }

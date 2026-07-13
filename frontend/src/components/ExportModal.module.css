@@ -16,6 +16,12 @@
   max-width: 95vw;
 }
 
+.modalWide {
+  width: 480px;
+  max-height: 85vh;
+  overflow-y: auto;
+}
+
 .modalHeader {
   display: flex;
   align-items: center;
@@ -124,27 +130,67 @@
 .btnPrimary:hover { background: #004488; }
 .btnPrimary:disabled { background: #999; cursor: not-allowed; }
 
-.formatBtns {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
+.formatList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
   margin-bottom: 12px;
 }
 
-.formatBtn {
-  padding: 12px 8px;
-  background: #e8f0f8;
-  color: #003366;
-  border: 2px solid #b0c4d8;
-  border-radius: 4px;
-  font-size: 14px;
-  font-weight: 700;
-  cursor: pointer;
-  text-align: center;
+.formatCard {
+  border: 1.5px solid #c5d4e0;
+  border-radius: 6px;
+  padding: 10px 12px;
+  background: #f8fafc;
 }
 
-.formatBtn:hover {
+.formatCardHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.formatCardLabel {
+  font-size: 14px;
+  font-weight: 700;
+  color: #003366;
+}
+
+.formatCardBadge {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: #fff;
+  background: #1a7a40;
+  border-radius: 3px;
+  padding: 2px 6px;
+}
+
+.formatCardDesc {
+  margin: 0 0 6px;
+  font-size: 12px;
+  color: #556;
+  font-style: italic;
+}
+
+.formatCardProCon {
+  margin: 0 0 3px;
+  font-size: 11.5px;
+  color: #334;
+  line-height: 1.4;
+}
+
+.formatCardBtn {
+  margin-top: 8px;
+  padding: 6px 14px;
   background: #003366;
   color: #fff;
-  border-color: #003366;
+  border: none;
+  border-radius: 3px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
 }
+.formatCardBtn:hover { background: #004488; }

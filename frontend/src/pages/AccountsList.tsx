@@ -78,6 +78,7 @@ export default function AccountsList() {
             <tr>
               <th className={styles.thName}>Account</th>
               <th className={styles.thInst}>Institution</th>
+              <th className={styles.thDate}>First Transaction</th>
               <th className={styles.thDate}>Last Transaction</th>
               <th className={styles.thCount}># Transactions</th>
               <th className={styles.thBal}>Balance</th>
@@ -88,7 +89,7 @@ export default function AccountsList() {
               <Fragment key={type}>
                 {showTypeHeaders && (
                   <tr>
-                    <td colSpan={5} className={styles.groupHeaderCell}>{label}</td>
+                    <td colSpan={6} className={styles.groupHeaderCell}>{label}</td>
                   </tr>
                 )}
                 {items.map(acc => (
@@ -114,6 +115,7 @@ export default function AccountsList() {
                 <tr>
                   <th className={styles.thName}>Account</th>
                   <th className={styles.thInst}>Institution</th>
+                  <th className={styles.thDate}>First Transaction</th>
                   <th className={styles.thDate}>Last Transaction</th>
                   <th className={styles.thCount}># Transactions</th>
                   <th className={styles.thBal}>Balance</th>
@@ -140,6 +142,11 @@ function AccountRow({ acc, onClick, inactive = false }: { acc: Account; onClick:
     >
       <td className={styles.tdName}>{acc.name}</td>
       <td className={styles.tdInst}>{acc.institution?.name ?? <span className={styles.none}>—</span>}</td>
+      <td className={styles.tdDate}>
+        {acc.firstTransactionDate
+          ? formatDate(acc.firstTransactionDate)
+          : <span className={styles.none}>—</span>}
+      </td>
       <td className={styles.tdDate}>
         {acc.lastTransactionDate
           ? formatDate(acc.lastTransactionDate)

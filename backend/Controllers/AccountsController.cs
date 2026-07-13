@@ -66,6 +66,12 @@ public class AccountsController(
             .Select(g => new { AccountId = g.Key, Last = g.Max(t => t.Date) })
             .ToDictionaryAsync(x => x.AccountId, x => x.Last);
 
+        var firstTxDates = await db.Transactions
+            .Where(t => accountIds.Contains(t.AccountId))
+            .GroupBy(t => t.AccountId)
+            .Select(g => new { AccountId = g.Key, First = g.Min(t => t.Date) })
+            .ToDictionaryAsync(x => x.AccountId, x => x.First);
+
         var txCounts = await db.Transactions
             .Where(t => accountIds.Contains(t.AccountId))
             .GroupBy(t => t.AccountId)
@@ -84,6 +90,7 @@ public class AccountsController(
                 openingBalance = a.OpeningBalance,
                 currentBalance,
                 lastTransactionDate = lastTxDates.TryGetValue(a.Id, out var d) ? d : (DateOnly?)null,
+                firstTransactionDate = firstTxDates.TryGetValue(a.Id, out var fd) ? fd : (DateOnly?)null,
                 transactionCount = txCounts.TryGetValue(a.Id, out var c) ? c : 0,
                 institutionId = a.InstitutionId,
                 institution   = a.Institution is null ? null : new { a.Institution.Id, a.Institution.Name },
@@ -183,15 +190,26 @@ public class AccountsController(
     }
 
     [HttpDelete("{id}")]
-    public async Task<IActionResult> Delete(int id, [FromQuery] string? note)
+    public async Task<IActionResult> Delete(int id, [FromQuery] string exportToken, [FromQuery] string? note)
     {
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
+
+        // Deleting an account is destructive and permanent — require the same
+        // re-authenticated, single-use token as Export/backup download
+        // (POST /api/export/confirm-identity) before proceeding.
+        var stored = await db.ExportTokens
+            .FirstOrDefaultAsync(t => t.Token == exportToken && t.UserId == userId
+                                   && !t.IsUsed && t.ExpiresAt > DateTime.UtcNow);
+        if (stored is null) return Unauthorized(new { message = "Identity verification required or expired." });
 
         var account = await db.Accounts
             .Include(a => a.Institution)
             .FirstOrDefaultAsync(a => a.Id == id && a.UserId == userId);
         if (account is null) return NotFound();
+
+        stored.IsUsed = true;
+        await db.SaveChangesAsync();
 
         var transactions = await db.Transactions
             .Where(t => t.AccountId == id)

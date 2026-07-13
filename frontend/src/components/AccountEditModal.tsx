@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
-import { updateAccount, deleteAccount } from '../api/accounts';
+import { updateAccount } from '../api/accounts';
 import { createInstitution } from '../api/institutions';
+import { useDeleteAccountFlow } from '../hooks/useDeleteAccountFlow';
 import type { Account, AccountType, Institution } from '../types';
 import styles from './AccountEditModal.module.css';
 
@@ -27,8 +28,9 @@ export default function AccountEditModal({ account, institutions: initialInstitu
   const [addingInstitution, setAddingInstitution] = useState(false);
   const [newInstitutionName, setNewInstitutionName] = useState('');
   const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState('');
+
+  const { requestDelete, deleting, error: deleteError, modal: deleteModal } = useDeleteAccountFlow(onDeleted);
 
   const handleSave = async (e: FormEvent) => {
     e.preventDefault();
@@ -46,19 +48,6 @@ export default function AccountEditModal({ account, institutions: initialInstitu
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
       setError(msg ?? 'Failed to save account.');
       setSaving(false);
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!confirm(`Delete "${account.name}"? This permanently deletes the account and all its transactions. This cannot be undone. A backup is saved on the server first.`)) return;
-    const note = prompt('Optional note for the backup (why you\'re deleting this account):') ?? undefined;
-    setDeleting(true); setError('');
-    try {
-      await deleteAccount(account.id, note || undefined);
-      onDeleted();
-    } catch {
-      setError('Failed to delete account.');
-      setDeleting(false);
     }
   };
 
@@ -133,18 +122,19 @@ export default function AccountEditModal({ account, institutions: initialInstitu
               Active
             </label>
           </div>
-          {error && <div className={styles.error}>{error}</div>}
+          {(error || deleteError) && <div className={styles.error}>{error || deleteError}</div>}
           <div className={styles.actions}>
             <button type="submit" className={styles.btnPrimary} disabled={saving || deleting}>
               {saving ? 'Saving…' : 'Save'}
             </button>
             <button type="button" className={styles.btnSecondary} onClick={onClose} disabled={saving || deleting}>Cancel</button>
-            <button type="button" className={styles.btnDanger} onClick={handleDelete} disabled={saving || deleting}>
+            <button type="button" className={styles.btnDanger} onClick={() => requestDelete(account)} disabled={saving || deleting}>
               {deleting ? 'Deleting…' : 'Delete Account'}
             </button>
           </div>
         </form>
       </div>
+      {deleteModal}
     </div>
   );
 }

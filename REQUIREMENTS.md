@@ -35,9 +35,9 @@ Update this file whenever requirements change or new features are defined.
 - Account types: Checking, Savings, Credit Card, Cash, Loan, Investment, Other
 - Each account has: name, type, opening balance, institution (optional), account number (encrypted, optional), notes (encrypted, optional)
 - Accounts can be marked active or inactive (via the edit form's toggle) without deleting them; inactive accounts are hidden from new-entry dropdowns but stay visible/collapsible in the Accounts list
-- Deleting an account is permanent: the account, all its transactions (and splits), and its scheduled transactions are removed. Any transfer whose other leg lived in the deleted account is unlinked (kept as a plain transaction) rather than left pointing at a deleted row
-- Before an account is deleted, a full JSON backup (account details + every transaction + splits, with sensitive fields still encrypted exactly as stored — never written to disk as plaintext) is saved server-side, timestamped, with an optional user-supplied note (auto-generated if omitted). Up to 3 backups are kept per account; the oldest is pruned when a new one is created for that same account (each account has its own independent history). Backups are listable from Settings → Account Backups; downloading one — even though it's still ciphertext — requires the same password/TOTP re-authentication as Export (same short-lived, single-use token)
-- Accounts page (`/accounts`) lists all accounts grouped by type (active) with balance and last transaction date; inactive accounts are collapsible at the bottom
+- Deleting an account is permanent: the account, all its transactions (and splits), and its scheduled transactions are removed. Any transfer whose other leg lived in the deleted account is unlinked (kept as a plain transaction) rather than left pointing at a deleted row. Deletion requires password/TOTP re-authentication (same short-lived, single-use token as Export) in addition to a destructive-action confirmation and an optional backup note
+- Before an account is deleted, a full JSON backup (account details + every transaction + splits, with sensitive fields still encrypted exactly as stored — never written to disk as plaintext) is saved server-side, timestamped, with an optional user-supplied note (auto-generated if omitted). Up to 3 backups are kept per account; the oldest is pruned when a new one is created for that same account (each account has its own independent history). Backups are listable from Settings → Account Backups; downloading one — even though it's still ciphertext — requires the same password/TOTP re-authentication as Export
+- Accounts page (`/accounts`) lists all accounts grouped by type (active) with balance, first/last transaction date, and transaction count; inactive accounts are collapsible at the bottom
 - Account register (`/accounts/:id`) shows all transactions for the account
 - Account name in the register header is a dropdown to navigate between accounts (active first, then inactive)
 
@@ -109,7 +109,7 @@ Update this file whenever requirements change or new features are defined.
 ## Settings
 
 - **Password**: change password with current-password confirmation
-- **Export**: download all user data in QIF, OFX, CSV, XLSX, or JSON format; requires re-authentication
+- **Export**: download all user data in QIF, OFX, CSV, XLSX, or JSON format; requires re-authentication. The format picker shows a brief description with pros/cons for each format; JSON is listed first and marked "Preferred for backup / restore" since it's the only format that round-trips losslessly through this app's own JSON importer
 - **Import**: CSV, loose-QIF, or JSON (this app's own export format) upload with transaction preview and duplicate detection (per account); OFX/QFX not yet implemented
 - **Accounts & Institutions**: manage account details and institution list
 - **Audit Log**: users see their own activity; admins see all users
