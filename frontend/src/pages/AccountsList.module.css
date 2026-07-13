@@ -80,9 +80,9 @@
 }
 
 .thBal   { text-align: right; }
-.thDate  { white-space: nowrap; }
+.thDate  { text-align: center; white-space: nowrap; }
 .thInst  { white-space: nowrap; }
-.thCount { text-align: right; white-space: nowrap; }
+.thCount { text-align: center; white-space: nowrap; }
 
 .row {
   cursor: pointer;
@@ -119,10 +119,11 @@
   color: #667;
   font-size: 12px;
   white-space: nowrap;
+  text-align: center;
 }
 
 .tdCount {
-  text-align: right;
+  text-align: center;
   color: #667;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
