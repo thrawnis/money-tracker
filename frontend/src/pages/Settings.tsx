@@ -10,6 +10,7 @@ import { getAccounts } from '../api/accounts';
 import { listAccountBackups, downloadAccountBackup, type AccountBackupSummary } from '../api/accountBackups';
 import type { Account } from '../types';
 import ExportModal from '../components/ExportModal';
+import ReauthModal from '../components/ReauthModal';
 import styles from './Settings.module.css';
 
 type Tab = 'password' | 'export' | 'import' | 'backups' | 'audit';
@@ -463,6 +464,7 @@ function BackupsTab() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [downloadingFile, setDownloadingFile] = useState<string | null>(null);
+  const [reauthFile, setReauthFile] = useState<string | null>(null);
 
   useEffect(() => {
     listAccountBackups()
@@ -471,10 +473,11 @@ function BackupsTab() {
       .finally(() => setLoading(false));
   }, []);
 
-  const handleDownload = async (fileName: string) => {
+  const handleVerified = async (fileName: string, exportToken: string) => {
+    setReauthFile(null);
     setDownloadingFile(fileName);
     try {
-      const blob = await downloadAccountBackup(fileName);
+      const blob = await downloadAccountBackup(fileName, exportToken);
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -482,7 +485,7 @@ function BackupsTab() {
       a.click();
       URL.revokeObjectURL(url);
     } catch {
-      alert('Failed to download backup.');
+      alert('Failed to download backup. Your identity check may have expired — try again.');
     } finally {
       setDownloadingFile(null);
     }
@@ -524,7 +527,7 @@ function BackupsTab() {
                 <td>
                   <button
                     className={styles.btnSecondary}
-                    onClick={() => handleDownload(b.fileName)}
+                    onClick={() => setReauthFile(b.fileName)}
                     disabled={downloadingFile === b.fileName}
                   >
                     {downloadingFile === b.fileName ? 'Downloading…' : 'Download'}
@@ -534,6 +537,15 @@ function BackupsTab() {
             ))}
           </tbody>
         </table>
+      )}
+
+      {reauthFile && (
+        <ReauthModal
+          title="Confirm Identity"
+          hint="Confirm your identity to download this backup."
+          onVerified={token => handleVerified(reauthFile, token)}
+          onClose={() => setReauthFile(null)}
+        />
       )}
     </div>
   );
