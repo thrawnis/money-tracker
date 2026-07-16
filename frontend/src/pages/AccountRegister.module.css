@@ -293,6 +293,11 @@
   100% { background: transparent; }
 }
 
+.txRowSelected, .txRowSelected:hover {
+  background: #dce9f9;
+  box-shadow: inset 3px 0 0 #336699;
+}
+
 .right { text-align: right; font-variant-numeric: tabular-nums; }
 
 .debit  { color: #c0392b; font-weight: 600; }

@@ -513,7 +513,7 @@ export default function AccountRegister() {
     <tr
       key={tx.id}
       ref={el => { if (el) rowRefs.current.set(tx.id, el); else rowRefs.current.delete(tx.id); }}
-      className={`${styles.txRow} ${styles.txRowClickable} ${highlightTxId === tx.id ? styles.txRowHighlight : ''}`}
+      className={`${styles.txRow} ${styles.txRowClickable} ${highlightTxId === tx.id ? styles.txRowHighlight : ''} ${editingTx?.id === tx.id ? styles.txRowSelected : ''}`}
       onClick={() => handleEdit(tx)}
       onContextMenu={e => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, tx }); }}
     >
@@ -853,6 +853,7 @@ export default function AccountRegister() {
       {showForm && (
         <div ref={formRef}>
         <TransactionForm
+          key={editingTx?.id ?? 'new'}
           accountId={accountId}
           accounts={allAccounts}
           initial={editingTx ?? receiptPrefill ?? { date: lastUsedDate.current }}
