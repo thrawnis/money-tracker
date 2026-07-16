@@ -284,6 +284,8 @@
 }
 .txRow:hover { background: #f2f7fd; }
 
+.txRowClickable { cursor: pointer; }
+
 .txRowHighlight { animation: txHighlightFlash 2.5s ease-out; }
 @keyframes txHighlightFlash {
   0%   { background: #ffe9a8; }

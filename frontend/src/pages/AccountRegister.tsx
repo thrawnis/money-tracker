@@ -115,6 +115,7 @@ export default function AccountRegister() {
   // Infinite scroll sentinels
   const topSentinelRef = useRef<HTMLDivElement>(null);
   const bottomSentinelRef = useRef<HTMLDivElement>(null);
+  const formRef = useRef<HTMLDivElement>(null);
 
   // Keyboard shortcut: N = new transaction
   useEffect(() => {
@@ -442,6 +443,10 @@ export default function AccountRegister() {
     setShowForm(true);
   };
 
+  useEffect(() => {
+    if (showForm) formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [showForm]);
+
   const handleToggleStatus = async (tx: Transaction) => {
     const next: Transaction['status'] =
       tx.status === 'Uncleared' ? 'Cleared' :
@@ -694,19 +699,6 @@ export default function AccountRegister() {
         </div>
       )}
 
-      {/* ── Transaction entry form ── */}
-      {showForm && (
-        <TransactionForm
-          accountId={accountId}
-          accounts={allAccounts}
-          initial={editingTx ?? receiptPrefill ?? { date: lastUsedDate.current }}
-          initialPayeeName={editingTx ? undefined : receiptPayeeName}
-          initialCategoryLabel={editingTx ? undefined : receiptCategoryLabel}
-          onSave={handleSaveTx}
-          onCancel={() => { setShowForm(false); setEditingTx(null); setReceiptPrefill(null); setReceiptPayeeName(undefined); setReceiptCategoryLabel(undefined); }}
-        />
-      )}
-
       {showScanner && (
         <ReceiptScanner
           onConfirm={handleReceiptConfirm}
@@ -757,7 +749,8 @@ export default function AccountRegister() {
                 <tr
                   key={tx.id}
                   ref={el => { if (el) rowRefs.current.set(tx.id, el); else rowRefs.current.delete(tx.id); }}
-                  className={`${styles.txRow} ${highlightTxId === tx.id ? styles.txRowHighlight : ''}`}
+                  className={`${styles.txRow} ${styles.txRowClickable} ${highlightTxId === tx.id ? styles.txRowHighlight : ''}`}
+                  onClick={() => handleEdit(tx)}
                   onContextMenu={e => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, tx }); }}
                 >
                   <td>
@@ -789,7 +782,7 @@ export default function AccountRegister() {
                   <td className={styles.statusCell}>
                     <button
                       className={styles[`status${tx.status}`]}
-                      onClick={() => handleToggleStatus(tx)}
+                      onClick={e => { e.stopPropagation(); handleToggleStatus(tx); }}
                       title={tx.status === 'Uncleared' ? 'Mark Cleared' : tx.status === 'Cleared' ? 'Mark Reconciled' : 'Mark Uncleared'}
                     >
                       {tx.status === 'Uncleared' ? '○' : tx.status === 'Cleared' ? '✓' : '✓✓'}
@@ -804,8 +797,8 @@ export default function AccountRegister() {
                       >⋯</button>
                       {openMenuId === tx.id && (
                         <div className={styles.actionsDropdown}>
-                          <button className={styles.dropdownEdit} onClick={() => { setOpenMenuId(null); handleEdit(tx); }}>Edit</button>
-                          <button className={styles.dropdownDelete} onClick={() => { setOpenMenuId(null); handleDelete(tx.id); }}>Delete</button>
+                          <button className={styles.dropdownEdit} onClick={e => { e.stopPropagation(); setOpenMenuId(null); handleEdit(tx); }}>Edit</button>
+                          <button className={styles.dropdownDelete} onClick={e => { e.stopPropagation(); setOpenMenuId(null); handleDelete(tx.id); }}>Delete</button>
                         </div>
                       )}
                     </div>
@@ -828,6 +821,21 @@ export default function AccountRegister() {
           </tbody>
         </table>
       </div>
+
+      {/* ── Transaction entry/edit form (below the register) ── */}
+      {showForm && (
+        <div ref={formRef}>
+        <TransactionForm
+          accountId={accountId}
+          accounts={allAccounts}
+          initial={editingTx ?? receiptPrefill ?? { date: lastUsedDate.current }}
+          initialPayeeName={editingTx ? undefined : receiptPayeeName}
+          initialCategoryLabel={editingTx ? undefined : receiptCategoryLabel}
+          onSave={handleSaveTx}
+          onCancel={() => { setShowForm(false); setEditingTx(null); setReceiptPrefill(null); setReceiptPayeeName(undefined); setReceiptCategoryLabel(undefined); }}
+        />
+        </div>
+      )}
 
       {contextMenu && (
         <div
