@@ -84,6 +84,16 @@
 .thInst  { white-space: nowrap; }
 .thCount { text-align: center; white-space: nowrap; }
 
+.infoIcon {
+  display: inline-block;
+  margin-left: 4px;
+  color: #7a95ad;
+  font-weight: 400;
+  font-size: 12px;
+  cursor: help;
+}
+.infoIcon:hover { color: #336699; }
+
 .row {
   cursor: pointer;
   transition: background 0.1s;

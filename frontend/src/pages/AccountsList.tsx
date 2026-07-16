@@ -29,6 +29,35 @@ const TYPE_LABELS: Record<AccountType, string> = {
   Other:      'Other',
 };
 
+function InfoIcon({ text }: { text: string }) {
+  return <span className={styles.infoIcon} title={text}>ⓘ</span>;
+}
+
+function ColumnHeaders() {
+  return (
+    <tr>
+      <th className={styles.thName}>Account</th>
+      <th className={styles.thInst}>Institution</th>
+      <th className={styles.thDate}>
+        First Transaction
+        <InfoIcon text="Date of the earliest transaction ever entered in this account, including future-dated transactions." />
+      </th>
+      <th className={styles.thDate}>
+        Last Transaction
+        <InfoIcon text="Date of the latest transaction ever entered in this account, including future-dated transactions." />
+      </th>
+      <th className={styles.thCount}>
+        # Transactions
+        <InfoIcon text="Total number of transactions in this account, including future-dated transactions." />
+      </th>
+      <th className={styles.thBal}>
+        Balance
+        <InfoIcon text="Running balance as of today — opening balance plus all transactions dated today or earlier. Future-dated transactions are not included." />
+      </th>
+    </tr>
+  );
+}
+
 export default function AccountsList() {
   usePageTitle('Accounts');
   const navigate = useNavigate();
@@ -75,14 +104,7 @@ export default function AccountsList() {
       ) : (
         <table className={styles.table}>
           <thead>
-            <tr>
-              <th className={styles.thName}>Account</th>
-              <th className={styles.thInst}>Institution</th>
-              <th className={styles.thDate}>First Transaction</th>
-              <th className={styles.thDate}>Last Transaction</th>
-              <th className={styles.thCount}># Transactions</th>
-              <th className={styles.thBal}>Balance</th>
-            </tr>
+            <ColumnHeaders />
           </thead>
           <tbody>
             {groups.map(({ type, label, items }) => (
@@ -112,14 +134,7 @@ export default function AccountsList() {
           {showInactive && (
             <table className={styles.table}>
               <thead>
-                <tr>
-                  <th className={styles.thName}>Account</th>
-                  <th className={styles.thInst}>Institution</th>
-                  <th className={styles.thDate}>First Transaction</th>
-                  <th className={styles.thDate}>Last Transaction</th>
-                  <th className={styles.thCount}># Transactions</th>
-                  <th className={styles.thBal}>Balance</th>
-                </tr>
+                <ColumnHeaders />
               </thead>
               <tbody>
                 {inactive.map(acc => (
