@@ -47,6 +47,12 @@ export default function TransactionDetailPanel({ accountId, transactionId, accou
   }, [onClose]);
 
   const handleSave = async (data: Omit<Transaction, 'id' | 'accountId' | 'createdAt' | 'updatedAt' | 'splits'> & { targetAccountId?: number; transferDestAccountId?: number; splits?: SplitInput[] }) => {
+    if (tx && (tx.status === 'Cleared' || tx.status === 'Reconciled')) {
+      const proceed = confirm(
+        `This transaction is marked ${tx.status}. Editing it may affect your reconciled balance. Save changes anyway?`
+      );
+      if (!proceed) return;
+    }
     await updateTransaction(accountId, transactionId, data);
     const updated = await getTransaction(data.targetAccountId ?? accountId, transactionId);
     setTx(updated);

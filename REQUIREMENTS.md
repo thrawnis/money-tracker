@@ -46,7 +46,7 @@ Update this file whenever requirements change or new features are defined.
 ## Transactions
 
 - Fields: date, post date (optional), amount, payee (optional), category (optional), memo (encrypted, optional), check number (encrypted, optional), status (Uncleared / Cleared / Reconciled)
-- Create, edit, delete on the account register page
+- Create, edit, delete on the account register page. Editing a transaction marked Cleared or Reconciled prompts a confirmation first, warning that the change may affect the reconciled balance
 - **Split transactions**: a transaction can be divided across multiple categories, each with its own amount and memo (encrypted), summing exactly to the transaction total. One payee and one total amount per transaction — only the category breakdown is split. Not supported on transfer legs. The register, All Transactions, search, and the transaction detail panel show "Split (N)" in place of a single category name; the edit form shows the full per-split breakdown. QIF import parses S/E/$ split lines into real splits (falls back to a plain transaction with a warning if the split amounts don't add up to the total)
 - All unsaved form changes must prompt before navigating away
 - Bulk CSV, loose-QIF, and JSON import with preview and duplicate detection (per account); OFX/QFX not yet implemented

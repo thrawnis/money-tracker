@@ -403,6 +403,12 @@ export default function AccountRegister() {
   // stale balances on every other row.
 
   const handleSaveTx = async (data: Omit<Transaction, 'id' | 'accountId' | 'createdAt' | 'updatedAt' | 'splits'> & { targetAccountId?: number; transferDestAccountId?: number; splits?: SplitInput[] }) => {
+    if (editingTx && (editingTx.status === 'Cleared' || editingTx.status === 'Reconciled')) {
+      const proceed = confirm(
+        `This transaction is marked ${editingTx.status}. Editing it may affect your reconciled balance. Save changes anyway?`
+      );
+      if (!proceed) return;
+    }
     if (data.transferDestAccountId) {
       await createTransfer({
         sourceAccountId:      accountId,
