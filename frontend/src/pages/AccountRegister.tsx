@@ -94,10 +94,17 @@ export default function AccountRegister() {
   // Form
   const [showForm, setShowForm] = useState(false);
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
+  const [formDirty, setFormDirty] = useState(false);
   const [receiptPrefill, setReceiptPrefill] = useState<Partial<Transaction> | null>(null);
   const [receiptPayeeName, setReceiptPayeeName] = useState<string | undefined>(undefined);
   const [receiptCategoryLabel, setReceiptCategoryLabel] = useState<string | undefined>(undefined);
   const [showScanner, setShowScanner] = useState(false);
+
+  // Switching the form's target transaction (a different row, "+ New
+  // Transaction", the N shortcut, a receipt scan) while there are unsaved
+  // edits in the open form would otherwise silently discard them.
+  const confirmDiscardIfDirty = () =>
+    !formDirty || confirm('You have unsaved changes to this transaction. Discard them?');
   const lastUsedDate = useRef<string>(new Date().toISOString().slice(0, 10));
 
   // Actions menu
@@ -124,13 +131,15 @@ export default function AccountRegister() {
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
       if (e.key === 'n' || e.key === 'N') {
         e.preventDefault();
+        if (!confirmDiscardIfDirty()) return;
         setEditingTx(null);
         setShowForm(true);
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formDirty]);
 
   // Close dropdown menus on outside click
   useEffect(() => {
@@ -445,6 +454,8 @@ export default function AccountRegister() {
   };
 
   const handleEdit = (tx: Transaction) => {
+    if (editingTx?.id === tx.id && showForm) return; // already editing this one
+    if (!confirmDiscardIfDirty()) return;
     setEditingTx(tx);
     setShowForm(true);
   };
@@ -468,6 +479,7 @@ export default function AccountRegister() {
   };
 
   const handleReceiptConfirm = (data: ExtractedReceipt) => {
+    if (!confirmDiscardIfDirty()) return;
     setShowScanner(false);
     setEditingTx(null);
     setReceiptPrefill({
@@ -662,7 +674,18 @@ export default function AccountRegister() {
           )}
         </div>
         <div className={styles.headerActions}>
-          <button className={styles.btnPrimary} onClick={() => { setEditingTx(null); setReceiptPrefill(null); setReceiptPayeeName(undefined); setReceiptCategoryLabel(undefined); setShowForm(s => !s); }}>
+          <button
+            className={styles.btnPrimary}
+            onClick={() => {
+              const closingNewForm = showForm && !editingTx;
+              if (!closingNewForm && !confirmDiscardIfDirty()) return;
+              setEditingTx(null);
+              setReceiptPrefill(null);
+              setReceiptPayeeName(undefined);
+              setReceiptCategoryLabel(undefined);
+              setShowForm(s => !s);
+            }}
+          >
             {showForm && !editingTx ? 'Cancel' : '+ New Transaction'}
           </button>
           <button className={styles.btnSecondary} onClick={() => setShowScanner(true)}>
@@ -861,6 +884,7 @@ export default function AccountRegister() {
           initialCategoryLabel={editingTx ? undefined : receiptCategoryLabel}
           onSave={handleSaveTx}
           onCancel={() => { setShowForm(false); setEditingTx(null); setReceiptPrefill(null); setReceiptPayeeName(undefined); setReceiptCategoryLabel(undefined); }}
+          onDirtyChange={setFormDirty}
         />
         </div>
       )}

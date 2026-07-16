@@ -19,6 +19,7 @@ interface Props {
   initialCategoryLabel?: string;
   onSave: (data: Omit<Transaction, 'id' | 'accountId' | 'createdAt' | 'updatedAt' | 'splits'> & { targetAccountId?: number; transferDestAccountId?: number; splits?: SplitInput[] }) => Promise<void>;
   onCancel: () => void;
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 // Flatten category tree into searchable entries
@@ -88,7 +89,7 @@ interface SplitRow {
   memo: string;
 }
 
-export default function TransactionForm({ accountId: _accountId, accounts, initial, initialPayeeName, initialCategoryLabel, onSave, onCancel }: Props) {
+export default function TransactionForm({ accountId: _accountId, accounts, initial, initialPayeeName, initialCategoryLabel, onSave, onCancel, onDirtyChange }: Props) {
   const today = new Date().toISOString().slice(0, 10);
   const [date, setDate] = useState(initial?.date ?? today);
   const [payeeInput, setPayeeInput] = useState(initialPayeeName ?? initial?.payee?.name ?? '');
@@ -140,6 +141,12 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
     isSplit, splits: splitSnapshot(),
   }) !== formBaseline;
   useUnsavedChanges(isDirty);
+
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+    return () => onDirtyChange?.(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDirty]);
 
   useEffect(() => {
     Promise.all([getCategories(), getPayees()]).then(([cats, pays]) => {
