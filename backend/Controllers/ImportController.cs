@@ -125,12 +125,24 @@ public class ImportController(
         var newCount = 0;
         var transferMatchCount = 0;
         var claimedTransferIds = new HashSet<int>();
+        var batchKeys = new HashSet<(int AccountId, DateOnly Date, decimal Amount)>();
+        var duplicatesWithinFile = 0;
 
         foreach (var row in rows)
         {
             if (!TryParseRow(row, userAccounts, out var date, out var amount, out var rowAccountId, out _, accountId))
             {
                 newCount++;
+                continue;
+            }
+
+            // Two identical rows within the same file: the DB-backed check below
+            // can't see the first one yet (nothing's been imported), so flag it
+            // here too — matches the safeguard applied at actual import time.
+            // These are always skipped (no "include" option, unlike DB duplicates).
+            if (!batchKeys.Add((rowAccountId, date, amount)))
+            {
+                duplicatesWithinFile++;
                 continue;
             }
 
@@ -173,13 +185,17 @@ public class ImportController(
             }
         }
 
+        var warnings = new List<string>(parseWarnings);
+        if (duplicatesWithinFile > 0)
+            warnings.Add($"{duplicatesWithinFile} row{(duplicatesWithinFile == 1 ? "" : "s")} in this file exactly repeat an earlier row (same account, date, and amount) and will be skipped automatically.");
+
         return Ok(new
         {
             total = rows.Count,
             duplicates,
             newTransactions = newCount,
             transferMatches = transferMatchCount,
-            warnings = parseWarnings.Count > 0 ? parseWarnings : null,
+            warnings = warnings.Count > 0 ? warnings : null,
         });
     }
 
@@ -300,6 +316,12 @@ public class ImportController(
             return subCat.Id;
         }
 
+        // Rows already added earlier in this same file (account/date/amount) — the
+        // DB-backed duplicate check below only sees committed rows, so without this
+        // two identical rows in one file (a common symptom of a bad export) would
+        // both be inserted as "new" since neither exists in the DB yet when checked.
+        var batchKeys = new HashSet<(int AccountId, DateOnly Date, decimal Amount)>();
+
         await using (var dbTx = await db.Database.BeginTransactionAsync())
         {
             foreach (var row in rows)
@@ -309,6 +331,13 @@ public class ImportController(
                     if (!TryParseRow(row, userAccounts, out var date, out var amount, out var rowAccountId, out var status, accountId))
                     {
                         errors.Add($"Could not parse row: {row.Date} {row.Payee} {row.Amount}");
+                        continue;
+                    }
+
+                    var batchKey = (rowAccountId, date, amount);
+                    if (!batchKeys.Add(batchKey))
+                    {
+                        errors.Add($"Skipped duplicate row within this file: {row.Date} {row.Payee} {row.Amount}");
                         continue;
                     }
 
