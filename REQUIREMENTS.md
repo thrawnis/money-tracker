@@ -75,6 +75,7 @@ Update this file whenever requirements change or new features are defined.
 - Names are case-insensitively unique per user (enforced in memory after decryption)
 - Category name is encrypted (AES-256-GCM)
 - Create, edit, delete on Categories page; deletions blocked if the category has subcategories, or is referenced by a transaction, a transaction split, or a scheduled transaction
+- Each category/subcategory shows its First Transaction, Last Transaction, and transaction count (same "includes future-dated transactions" semantics as the Accounts page, explained via the same info-icon popover, shown once as a legend at the top of the page rather than repeated per row)
 
 ---
 
@@ -115,6 +116,7 @@ Update this file whenever requirements change or new features are defined.
 - **Import**: CSV, loose-QIF, or JSON (this app's own export format) upload with transaction preview and duplicate detection (per account); OFX/QFX not yet implemented
 - **Find Duplicates**: groups transactions by account/date/amount across all accounts (or one, via `?accountId=`) and shows only groups with more than one match, so likely duplicates (e.g. left over from a bad or repeated import) can be reviewed and deleted directly from the list; transfer legs are excluded since linked legs naturally share date/amount. Two optional toggles narrow the match to also require the same memo and/or the same category, for cases where two genuinely different transactions happen to share a date and amount
 - **Accounts & Institutions**: manage account details and institution list
+- **Institutions**: rename or delete a bank/institution (institutions are otherwise only created inline from the account form); deletion is blocked while the institution is still assigned to any account
 - **Audit Log**: users see their own activity; admins see all users
 - **Demo Reset** (demo mode only): wipes and re-seeds the demo user's data
 

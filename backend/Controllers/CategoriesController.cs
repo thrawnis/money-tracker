@@ -48,37 +48,47 @@ public class CategoriesController(
             .Include(c => c.SubCategories)
             .ToListAsync();
 
-        // Last transaction date per category id (including subcategories),
-        // combining direct transactions and split lines that reference the category
+        // First/last transaction date and transaction count per category id (including
+        // subcategories), combining direct transactions and split lines that reference
+        // the category. Dates cover the full history (including future-dated rows),
+        // matching how First/Last Transaction work on the Accounts page.
         var allIds = categories.SelectMany(c => new[] { c.Id }.Concat(c.SubCategories.Select(s => s.Id))).ToList();
 
-        var lastUsedDirect = await db.Transactions
+        var directStats = await db.Transactions
             .Where(t => t.Account.UserId == userId && t.CategoryId != null && allIds.Contains(t.CategoryId!.Value))
             .GroupBy(t => t.CategoryId!.Value)
-            .Select(g => new { CategoryId = g.Key, LastDate = g.Max(t => t.Date) })
+            .Select(g => new { CategoryId = g.Key, First = g.Min(t => t.Date), Last = g.Max(t => t.Date), Count = g.Count() })
             .ToListAsync();
 
-        var lastUsedSplit = await db.TransactionSplits
+        var splitStats = await db.TransactionSplits
             .Where(s => s.Transaction.Account.UserId == userId && s.CategoryId != null && allIds.Contains(s.CategoryId!.Value))
             .GroupBy(s => s.CategoryId!.Value)
-            .Select(g => new { CategoryId = g.Key, LastDate = g.Max(s => s.Transaction.Date) })
+            .Select(g => new { CategoryId = g.Key, First = g.Min(s => s.Transaction.Date), Last = g.Max(s => s.Transaction.Date), Count = g.Count() })
             .ToListAsync();
 
-        var lastUsed = lastUsedDirect.Concat(lastUsedSplit)
-            .GroupBy(x => x.CategoryId)
-            .ToDictionary(g => g.Key, g => g.Max(x => x.LastDate));
+        var combined = directStats.Concat(splitStats).GroupBy(x => x.CategoryId).ToDictionary(
+            g => g.Key,
+            g => new { First = g.Min(x => x.First), Last = g.Max(x => x.Last), Count = g.Sum(x => x.Count) });
+
+        DateOnly? FirstOf(int id) => combined.TryGetValue(id, out var s) ? s.First : null;
+        DateOnly? LastOf(int id)  => combined.TryGetValue(id, out var s) ? s.Last : null;
+        int CountOf(int id)       => combined.TryGetValue(id, out var s) ? s.Count : 0;
 
         return Ok(categories.Select(c => new
         {
-            id   = c.Id,
-            name = encryption.Decrypt(c.NameEncrypted, user.EncryptedDataKey),
-            lastUsed = lastUsed.TryGetValue(c.Id, out var d) ? d : (DateOnly?)null,
+            id               = c.Id,
+            name             = encryption.Decrypt(c.NameEncrypted, user.EncryptedDataKey),
+            firstUsed        = FirstOf(c.Id),
+            lastUsed         = LastOf(c.Id),
+            transactionCount = CountOf(c.Id),
             subCategories = c.SubCategories.Select(s => new
             {
-                id       = s.Id,
-                name     = encryption.Decrypt(s.NameEncrypted, user.EncryptedDataKey),
-                parentId = s.ParentId,
-                lastUsed = lastUsed.TryGetValue(s.Id, out var sd) ? sd : (DateOnly?)null,
+                id               = s.Id,
+                name             = encryption.Decrypt(s.NameEncrypted, user.EncryptedDataKey),
+                parentId         = s.ParentId,
+                firstUsed        = FirstOf(s.Id),
+                lastUsed         = LastOf(s.Id),
+                transactionCount = CountOf(s.Id),
             }),
         }));
     }

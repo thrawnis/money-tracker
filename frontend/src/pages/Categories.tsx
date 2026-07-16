@@ -2,8 +2,13 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getCategories, createCategory, updateCategory, deleteCategory } from '../api/categories';
 import { usePageTitle } from '../hooks/usePageTitle';
+import InfoIcon from '../components/InfoIcon';
 import type { Category } from '../types';
 import styles from './Categories.module.css';
+
+const FIRST_TX_INFO = 'Date of the earliest transaction ever assigned to this category, including future-dated transactions.';
+const LAST_TX_INFO = 'Date of the latest transaction ever assigned to this category, including future-dated transactions.';
+const COUNT_INFO = 'Total number of transactions assigned to this category, including future-dated transactions.';
 
 type ApiError = { response?: { data?: { message?: string } } };
 const apiMsg = (err: unknown, fallback: string) =>
@@ -12,6 +17,17 @@ const apiMsg = (err: unknown, fallback: string) =>
 function fmt(d?: string) {
   if (!d) return null;
   return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
+}
+
+function Stats({ item }: { item: Category }) {
+  if (!item.transactionCount) return null;
+  return (
+    <span className={styles.stats}>
+      <span>First: {fmt(item.firstUsed)}</span>
+      <span>Last: {fmt(item.lastUsed)}</span>
+      <span>{item.transactionCount} tx</span>
+    </span>
+  );
 }
 
 export default function Categories() {
@@ -145,6 +161,12 @@ export default function Categories() {
 
       {error && <div className={styles.errorMsg}>{error}</div>}
 
+      <div className={styles.statsLegend}>
+        <span>First Transaction<InfoIcon text={FIRST_TX_INFO} /></span>
+        <span>Last Transaction<InfoIcon text={LAST_TX_INFO} /></span>
+        <span># Transactions<InfoIcon text={COUNT_INFO} /></span>
+      </div>
+
       {addingCat && (
         <div className={styles.addRow}>
           <input
@@ -187,7 +209,7 @@ export default function Categories() {
                     onDoubleClick={() => navigate(`/transactions?categoryId=${cat.id}&label=${encodeURIComponent(cat.name)}`)}
                     title="Double-click to view transactions"
                   >{cat.name}</span>
-                  {cat.lastUsed && <span className={styles.lastUsed}>Last: {fmt(cat.lastUsed)}</span>}
+                  <Stats item={cat} />
                   <div className={styles.rowActions}>
                     <button className={styles.btnSm} onClick={() => { setRenamingId(cat.id); setRenameValue(cat.name); }}>Rename</button>
                     <button className={styles.btnSmAdd} onClick={() => { setAddingSubFor(cat.id); setNewSubName(''); }}>+ Sub</button>
@@ -235,7 +257,7 @@ export default function Categories() {
                       onDoubleClick={() => navigate(`/transactions?categoryId=${sub.id}&label=${encodeURIComponent(`${cat.name}: ${sub.name}`)}`)}
                       title="Double-click to view transactions"
                     >{cat.name}: {sub.name}</span>
-                    {sub.lastUsed && <span className={styles.lastUsed}>Last: {fmt(sub.lastUsed)}</span>}
+                    <Stats item={sub} />
                     <div className={styles.rowActions}>
                       <button className={styles.btnSm} onClick={() => { setRenamingId(sub.id); setRenameValue(sub.name); }}>Rename</button>
                       <button className={styles.btnSm} onClick={() => { setMovingId(sub.id); setMoveTarget(''); }}>Move</button>

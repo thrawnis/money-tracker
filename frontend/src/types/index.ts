@@ -75,7 +75,9 @@ export interface Category {
   name: string;
   parentId?: number;
   subCategories?: Category[];
+  firstUsed?: string;
   lastUsed?: string;
+  transactionCount?: number;
 }
 
 export interface Payee {

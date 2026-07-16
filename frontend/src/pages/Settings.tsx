@@ -10,12 +10,13 @@ import { getAccounts } from '../api/accounts';
 import { listAccountBackups, downloadAccountBackup, type AccountBackupSummary } from '../api/accountBackups';
 import { getDuplicates, type DuplicateGroup } from '../api/duplicates';
 import { deleteTransaction } from '../api/transactions';
-import type { Account } from '../types';
+import { getInstitutions, updateInstitution, deleteInstitution } from '../api/institutions';
+import type { Account, Institution } from '../types';
 import ExportModal from '../components/ExportModal';
 import ReauthModal from '../components/ReauthModal';
 import styles from './Settings.module.css';
 
-type Tab = 'password' | 'export' | 'import' | 'backups' | 'duplicates' | 'audit';
+type Tab = 'password' | 'export' | 'import' | 'backups' | 'duplicates' | 'institutions' | 'audit';
 
 // ── Change Password ──
 
@@ -666,6 +667,114 @@ function DuplicatesTab() {
   );
 }
 
+// ── Institutions ──
+
+function InstitutionsTab() {
+  const [institutions, setInstitutions] = useState<Institution[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [renamingId, setRenamingId] = useState<number | null>(null);
+  const [renameValue, setRenameValue] = useState('');
+
+  const load = () => {
+    setLoading(true);
+    setError('');
+    getInstitutions()
+      .then(list => setInstitutions([...list].sort((a, b) => a.name.localeCompare(b.name))))
+      .catch(() => setError('Failed to load institutions.'))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(load, []);
+
+  const handleRename = async (id: number) => {
+    if (!renameValue.trim()) return;
+    const inst = institutions.find(i => i.id === id);
+    if (!confirm(`Rename "${inst?.name}" to "${renameValue.trim()}"?`)) return;
+    try {
+      await updateInstitution(id, renameValue.trim());
+      setRenamingId(null);
+      load();
+    } catch (err) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setError(msg ?? 'Failed to rename institution.');
+    }
+  };
+
+  const handleDelete = async (id: number, name: string) => {
+    if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
+    try {
+      await deleteInstitution(id);
+      setInstitutions(prev => prev.filter(i => i.id !== id));
+    } catch (err) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setError(msg ?? 'Failed to delete institution. It may still be assigned to an account.');
+    }
+  };
+
+  return (
+    <div className={styles.tabSection}>
+      <p className={styles.hint}>
+        Banks and institutions available when creating or editing an account. Rename or delete one here; deleting
+        is blocked while it's still assigned to any account.
+      </p>
+
+      {loading && <p className={styles.hint}>Loading…</p>}
+      {error && <div className={styles.error}>{error}</div>}
+
+      {!loading && !error && institutions.length === 0 && (
+        <p className={styles.hint}>No institutions yet — add one from the account creation form.</p>
+      )}
+
+      {institutions.length > 0 && (
+        <table className={styles.dupTable}>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {institutions.map(inst => (
+              <tr key={inst.id}>
+                <td>
+                  {renamingId === inst.id ? (
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <input
+                        value={renameValue}
+                        onChange={e => setRenameValue(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') handleRename(inst.id); if (e.key === 'Escape') setRenamingId(null); }}
+                        autoFocus
+                      />
+                      <button className={styles.btnSecondary} onClick={() => handleRename(inst.id)}>Save</button>
+                      <button className={styles.btnSecondary} onClick={() => setRenamingId(null)}>Cancel</button>
+                    </div>
+                  ) : (
+                    inst.name
+                  )}
+                </td>
+                <td>
+                  {renamingId !== inst.id && (
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button
+                        className={styles.btnSecondary}
+                        onClick={() => { setRenamingId(inst.id); setRenameValue(inst.name); }}
+                      >
+                        Rename
+                      </button>
+                      <button className={styles.btnDanger} onClick={() => handleDelete(inst.id, inst.name)}>Delete</button>
+                    </div>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
 // ── Audit Log ──
 
 const ENTITY_TYPES = ['All', 'Transaction', 'Account', 'Category', 'Payee', 'User'];
@@ -898,6 +1007,12 @@ export default function Settings() {
           Find Duplicates
         </button>
         <button
+          className={`${styles.tab} ${tab === 'institutions' ? styles.tabActive : ''}`}
+          onClick={() => setTab('institutions')}
+        >
+          Institutions
+        </button>
+        <button
           className={`${styles.tab} ${tab === 'audit' ? styles.tabActive : ''}`}
           onClick={() => setTab('audit')}
         >
@@ -910,6 +1025,7 @@ export default function Settings() {
         {tab === 'import' && <ImportTab />}
         {tab === 'backups' && <BackupsTab />}
         {tab === 'duplicates' && <DuplicatesTab />}
+        {tab === 'institutions' && <InstitutionsTab />}
         {tab === 'audit' && <AuditLogTab />}
       </div>
     </div>

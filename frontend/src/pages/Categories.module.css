@@ -123,11 +123,22 @@
   flex-wrap: wrap;
 }
 
-.lastUsed {
+.stats {
+  display: flex;
+  gap: 10px;
   font-size: 10.5px;
   color: #99a;
   white-space: nowrap;
   margin-right: 4px;
+}
+
+.statsLegend {
+  display: flex;
+  gap: 20px;
+  font-size: 11px;
+  color: #667;
+  margin-bottom: 10px;
+  flex-shrink: 0;
 }
 
 .categoryName, .subName { cursor: default; }

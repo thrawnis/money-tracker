@@ -1,9 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using MoneyTracker.Auth.Services;
 using MoneyTracker.Data;
 using MoneyTracker.Models;
 
@@ -12,10 +10,7 @@ namespace MoneyTracker.Controllers;
 [ApiController]
 [Authorize]
 [Route("api/[controller]")]
-public class InstitutionsController(
-    AppDbContext db,
-    IEncryptionService encryption,
-    UserManager<ApplicationUser> userManager) : ControllerBase
+public class InstitutionsController(AppDbContext db) : ControllerBase
 {
     private string? GetUserId() => User.FindFirstValue(ClaimTypes.NameIdentifier);
 
