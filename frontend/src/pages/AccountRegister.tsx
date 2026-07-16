@@ -494,6 +494,75 @@ export default function AccountRegister() {
   // register reads chronologically top-to-bottom (sorted oldest-first by
   // date); see isChronologicalAsc usage below for where it's placed instead.
   const isChronologicalAsc = sortBy === 'date' && sortDir === 'asc';
+  const isDateSort = sortBy === 'date';
+
+  // pastTxs can itself contain real, manually-dated future transactions
+  // (e.g. post-dated checks) — split those out so they render on the
+  // correct side of the Today divider/scheduled-bills section instead of
+  // always being lumped in with the true past/today transactions.
+  const futureRealTxs = isDateSort ? pastTxs.filter(tx => tx.date > today) : [];
+  const restTxs = isDateSort ? pastTxs.filter(tx => tx.date <= today) : pastTxs;
+
+  const renderTxRow = (tx: Transaction) => (
+    <tr
+      key={tx.id}
+      ref={el => { if (el) rowRefs.current.set(tx.id, el); else rowRefs.current.delete(tx.id); }}
+      className={`${styles.txRow} ${styles.txRowClickable} ${highlightTxId === tx.id ? styles.txRowHighlight : ''}`}
+      onClick={() => handleEdit(tx)}
+      onContextMenu={e => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, tx }); }}
+    >
+      <td>
+        {/* Transfer source side: always show transaction date (post date belongs to destination) */}
+        {tx.transferTransactionId && tx.amount < 0 ? formatDate(tx.date) :
+          tx.postDate ? (
+            <span title={`Post date. Transaction date: ${formatDate(tx.date)}`}>
+              {formatDate(tx.postDate)}<span className={styles.postDateMark}>*</span>
+            </span>
+          ) : formatDate(tx.date)}
+      </td>
+      <td>
+        {tx.transferTransactionId
+          ? <span className={styles.transferLabel}>
+              {tx.amount < 0
+                ? `Transfer → ${allAccounts.find(a => a.id === tx.transferAccountId)?.name ?? 'account'}`
+                : `Transfer ← ${allAccounts.find(a => a.id === tx.transferAccountId)?.name ?? 'account'}`}
+            </span>
+          : (tx.payee?.name ?? '—')}
+      </td>
+      <td>{getCategoryLabel(tx, categories)}</td>
+      <td className={styles.colMemo}>{tx.memo ?? ''}</td>
+      <td className={`${styles.right} ${tx.amount < 0 ? styles.debit : styles.credit}`}>
+        {formatCurrency(tx.amount)}
+      </td>
+      <td className={`${styles.right} ${(tx.runningBalance ?? 0) < 0 ? styles.debit : ''}`}>
+        {tx.runningBalance != null ? formatCurrency(tx.runningBalance) : '—'}
+      </td>
+      <td className={styles.statusCell}>
+        <button
+          className={styles[`status${tx.status}`]}
+          onClick={e => { e.stopPropagation(); handleToggleStatus(tx); }}
+          title={tx.status === 'Uncleared' ? 'Mark Cleared' : tx.status === 'Cleared' ? 'Mark Reconciled' : 'Mark Uncleared'}
+        >
+          {tx.status === 'Uncleared' ? '○' : tx.status === 'Cleared' ? '✓' : '✓✓'}
+        </button>
+      </td>
+      <td className={styles.actions}>
+        <div className={styles.actionsMenu} ref={openMenuId === tx.id ? menuRef : undefined}>
+          <button
+            className={styles.btnActionsToggle}
+            onClick={e => { e.stopPropagation(); setOpenMenuId(id => id === tx.id ? null : tx.id); }}
+            title="Actions"
+          >⋯</button>
+          {openMenuId === tx.id && (
+            <div className={styles.actionsDropdown}>
+              <button className={styles.dropdownEdit} onClick={e => { e.stopPropagation(); setOpenMenuId(null); handleEdit(tx); }}>Edit</button>
+              <button className={styles.dropdownDelete} onClick={e => { e.stopPropagation(); setOpenMenuId(null); handleDelete(tx.id); }}>Delete</button>
+            </div>
+          )}
+        </div>
+      </td>
+    </tr>
+  );
 
   const todayAndFutureBlock = (
     <>
@@ -738,77 +807,23 @@ export default function AccountRegister() {
             </tr>
           </thead>
           <tbody>
-            {/* Today/Future only reads correctly between past-oldest and future when sorted
-                oldest-first by date; otherwise (e.g. default newest-first) show them above
-                the past transactions instead of after them. */}
+            {/* Today/scheduled-bills block sits between real future-dated transactions
+                and real past/today transactions, on whichever side reads correctly for
+                the current sort: above past transactions when newest-first (desc, the
+                default), below them when oldest-first (asc). Real transactions dated
+                after today are rendered on the future side of the divider either way. */}
+            {!isChronologicalAsc && futureRealTxs.map(renderTxRow)}
             {!isChronologicalAsc && todayAndFutureBlock}
 
-            {/* ── Past / current transactions (newest first) ── */}
-            {pastTxs.length === 0 && !initialLoading ? (
-              <tr>
-                <td colSpan={8} className={styles.emptyMsg}>No transactions found.</td>
-              </tr>
-            ) : (
-              pastTxs.map(tx => (
-                <tr
-                  key={tx.id}
-                  ref={el => { if (el) rowRefs.current.set(tx.id, el); else rowRefs.current.delete(tx.id); }}
-                  className={`${styles.txRow} ${styles.txRowClickable} ${highlightTxId === tx.id ? styles.txRowHighlight : ''}`}
-                  onClick={() => handleEdit(tx)}
-                  onContextMenu={e => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, tx }); }}
-                >
-                  <td>
-                    {/* Transfer source side: always show transaction date (post date belongs to destination) */}
-                    {tx.transferTransactionId && tx.amount < 0 ? formatDate(tx.date) :
-                      tx.postDate ? (
-                        <span title={`Post date. Transaction date: ${formatDate(tx.date)}`}>
-                          {formatDate(tx.postDate)}<span className={styles.postDateMark}>*</span>
-                        </span>
-                      ) : formatDate(tx.date)}
-                  </td>
-                  <td>
-                    {tx.transferTransactionId
-                      ? <span className={styles.transferLabel}>
-                          {tx.amount < 0
-                            ? `Transfer → ${allAccounts.find(a => a.id === tx.transferAccountId)?.name ?? 'account'}`
-                            : `Transfer ← ${allAccounts.find(a => a.id === tx.transferAccountId)?.name ?? 'account'}`}
-                        </span>
-                      : (tx.payee?.name ?? '—')}
-                  </td>
-                  <td>{getCategoryLabel(tx, categories)}</td>
-                  <td className={styles.colMemo}>{tx.memo ?? ''}</td>
-                  <td className={`${styles.right} ${tx.amount < 0 ? styles.debit : styles.credit}`}>
-                    {formatCurrency(tx.amount)}
-                  </td>
-                  <td className={`${styles.right} ${(tx.runningBalance ?? 0) < 0 ? styles.debit : ''}`}>
-                    {tx.runningBalance != null ? formatCurrency(tx.runningBalance) : '—'}
-                  </td>
-                  <td className={styles.statusCell}>
-                    <button
-                      className={styles[`status${tx.status}`]}
-                      onClick={e => { e.stopPropagation(); handleToggleStatus(tx); }}
-                      title={tx.status === 'Uncleared' ? 'Mark Cleared' : tx.status === 'Cleared' ? 'Mark Reconciled' : 'Mark Uncleared'}
-                    >
-                      {tx.status === 'Uncleared' ? '○' : tx.status === 'Cleared' ? '✓' : '✓✓'}
-                    </button>
-                  </td>
-                  <td className={styles.actions}>
-                    <div className={styles.actionsMenu} ref={openMenuId === tx.id ? menuRef : undefined}>
-                      <button
-                        className={styles.btnActionsToggle}
-                        onClick={e => { e.stopPropagation(); setOpenMenuId(id => id === tx.id ? null : tx.id); }}
-                        title="Actions"
-                      >⋯</button>
-                      {openMenuId === tx.id && (
-                        <div className={styles.actionsDropdown}>
-                          <button className={styles.dropdownEdit} onClick={e => { e.stopPropagation(); setOpenMenuId(null); handleEdit(tx); }}>Edit</button>
-                          <button className={styles.dropdownDelete} onClick={e => { e.stopPropagation(); setOpenMenuId(null); handleDelete(tx.id); }}>Delete</button>
-                        </div>
-                      )}
-                    </div>
-                  </td>
+            {/* ── Past / current transactions ── */}
+            {restTxs.length === 0 && !initialLoading ? (
+              futureRealTxs.length === 0 && (
+                <tr>
+                  <td colSpan={8} className={styles.emptyMsg}>No transactions found.</td>
                 </tr>
-              ))
+              )
+            ) : (
+              restTxs.map(renderTxRow)
             )}
 
             {/* ── Load-more-past sentinel (bottom of loaded past transactions) ── */}
@@ -822,6 +837,7 @@ export default function AccountRegister() {
             )}
 
             {isChronologicalAsc && todayAndFutureBlock}
+            {isChronologicalAsc && futureRealTxs.map(renderTxRow)}
           </tbody>
         </table>
       </div>
