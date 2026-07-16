@@ -5,6 +5,7 @@ import { getAccount, getAccounts } from '../api/accounts';
 import { useDeleteAccountFlow } from '../hooks/useDeleteAccountFlow';
 import { getTransactions, createTransaction, updateTransaction, deleteTransaction, createTransfer } from '../api/transactions';
 import { getUpcoming } from '../api/scheduledTransactions';
+import { getPreferences } from '../api/preferences';
 import { getCategories } from '../api/categories';
 import { getInstitutions } from '../api/institutions';
 import type { Account, Transaction, Category, ScheduledTransaction, Institution } from '../types';
@@ -87,9 +88,24 @@ export default function AccountRegister() {
   const [filterUncategorized, setFilterUncategorized] = useState(false);
   const [appliedFilters, setAppliedFilters] = useState<TxFilters>({});
 
-  // Sort
+  // Sort — seeded from the user's saved preference (Settings → Preferences),
+  // falling back to date/desc until that loads or if none was ever set.
   const [sortBy, setSortBy] = useState('date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const defaultSort = useRef({ sortBy: 'date', sortDir: 'desc' as 'asc' | 'desc' });
+  const [defaultSortReady, setDefaultSortReady] = useState(false);
+
+  useEffect(() => {
+    getPreferences()
+      .then(p => {
+        defaultSort.current = {
+          sortBy: p.defaultRegisterSortBy ?? 'date',
+          sortDir: p.defaultRegisterSortDir ?? 'desc',
+        };
+      })
+      .catch(() => { /* fall back to date/desc */ })
+      .finally(() => setDefaultSortReady(true));
+  }, []);
 
   // Form
   const [showForm, setShowForm] = useState(false);
@@ -279,22 +295,26 @@ export default function AccountRegister() {
     }
   }, [accountId]);
 
-  // Full load on mount and whenever the account changes; filters reset per account
+  // Full load on mount and whenever the account changes; filters reset per account.
+  // Waits for the default-sort preference to load first so the initial fetch
+  // uses it directly instead of loading with date/desc and re-fetching.
   useEffect(() => {
+    if (!defaultSortReady) return;
     setFilterFrom(''); setFilterTo(''); setFilterMinAmount(''); setFilterMaxAmount('');
     setFilterPayee(''); setFilterCategoryId(''); setFilterMemo(''); setFilterUncategorized(false);
     setAppliedFilters({});
-    setSortBy('date');
-    setSortDir('desc');
+    const { sortBy: defBy, sortDir: defDir } = defaultSort.current;
+    setSortBy(defBy);
+    setSortDir(defDir);
 
     const targetTx = searchParams.get('tx');
     if (targetTx) {
       setSearchParams(prev => { const p = new URLSearchParams(prev); p.delete('tx'); return p; }, { replace: true });
-      loadPage1({}, 'date', 'desc', true).then(() => jumpToTransaction(Number(targetTx)));
+      loadPage1({}, defBy, defDir, true).then(() => jumpToTransaction(Number(targetTx)));
     } else {
-      loadPage1({}, 'date', 'desc', true);
+      loadPage1({}, defBy, defDir, true);
     }
-  }, [accountId, loadPage1]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [accountId, loadPage1, defaultSortReady]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Scroll the highlighted row into view once it's rendered; clear after a moment
   useEffect(() => {

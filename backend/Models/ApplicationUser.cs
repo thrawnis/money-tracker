@@ -11,6 +11,11 @@ public class ApplicationUser : IdentityUser
     // AES-256-GCM encrypted DEK, encrypted with the application master key
     public string EncryptedDataKey { get; set; } = string.Empty;
 
+    // Default sort applied to the account register on load; null means the
+    // built-in default (date, newest first). Not sensitive — stored plaintext.
+    public string? DefaultRegisterSortBy { get; set; }
+    public string? DefaultRegisterSortDir { get; set; }
+
     public ICollection<RefreshToken> RefreshTokens { get; set; } = [];
     public ICollection<UserPasskeyCredential> PasskeyCredentials { get; set; } = [];
 }

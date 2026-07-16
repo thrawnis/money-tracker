@@ -11,12 +11,13 @@ import { listAccountBackups, downloadAccountBackup, type AccountBackupSummary } 
 import { getDuplicates, type DuplicateGroup } from '../api/duplicates';
 import { deleteTransaction } from '../api/transactions';
 import { getInstitutions, updateInstitution, deleteInstitution } from '../api/institutions';
+import { getPreferences, updatePreferences } from '../api/preferences';
 import type { Account, Institution } from '../types';
 import ExportModal from '../components/ExportModal';
 import ReauthModal from '../components/ReauthModal';
 import styles from './Settings.module.css';
 
-type Tab = 'password' | 'export' | 'import' | 'backups' | 'duplicates' | 'institutions' | 'audit';
+type Tab = 'password' | 'preferences' | 'export' | 'import' | 'backups' | 'duplicates' | 'institutions' | 'audit';
 
 // ── Change Password ──
 
@@ -167,6 +168,105 @@ function ChangePasswordTab() {
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+// ── Preferences ──
+
+const SORT_FIELD_OPTIONS: { value: string; label: string }[] = [
+  { value: 'date',     label: 'Date' },
+  { value: 'payee',    label: 'Payee' },
+  { value: 'category', label: 'Category' },
+  { value: 'memo',     label: 'Memo' },
+  { value: 'amount',   label: 'Amount' },
+  { value: 'status',   label: 'Status' },
+];
+
+function PreferencesTab() {
+  const [sortBy, setSortBy] = useState('date');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    getPreferences()
+      .then(p => {
+        setSortBy(p.defaultRegisterSortBy ?? 'date');
+        setSortDir(p.defaultRegisterSortDir ?? 'desc');
+      })
+      .catch(() => setError('Failed to load preferences.'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError('');
+    setSaved(false);
+    try {
+      await updatePreferences({ defaultRegisterSortBy: sortBy, defaultRegisterSortDir: sortDir });
+      setSaved(true);
+    } catch {
+      setError('Failed to save preferences.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleReset = async () => {
+    setSaving(true);
+    setError('');
+    setSaved(false);
+    try {
+      await updatePreferences({ defaultRegisterSortBy: null, defaultRegisterSortDir: null });
+      setSortBy('date');
+      setSortDir('desc');
+      setSaved(true);
+    } catch {
+      setError('Failed to reset preferences.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) return <div className={styles.tabSection}><p className={styles.hint}>Loading…</p></div>;
+
+  return (
+    <div className={styles.tabSection}>
+      <p className={styles.hint}>
+        Choose the sort field and direction the account register uses when you first open it. Manually changing
+        the sort while viewing a register only applies for that visit — it doesn't change this default.
+      </p>
+
+      {error && <div className={styles.error}>{error}</div>}
+
+      <div style={{ display: 'flex', gap: 20, alignItems: 'flex-end', marginBottom: 16 }}>
+        <div>
+          <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 4 }}>Sort field</label>
+          <select value={sortBy} onChange={e => { setSortBy(e.target.value); setSaved(false); }}>
+            {SORT_FIELD_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        </div>
+        <div>
+          <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 4 }}>Sort direction</label>
+          <select value={sortDir} onChange={e => { setSortDir(e.target.value as 'asc' | 'desc'); setSaved(false); }}>
+            <option value="desc">Descending (newest / highest first)</option>
+            <option value="asc">Ascending (oldest / lowest first)</option>
+          </select>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+        <button className={styles.btnPrimary} onClick={handleSave} disabled={saving}>
+          {saving ? 'Saving…' : 'Save'}
+        </button>
+        <button className={styles.btnSecondary} onClick={handleReset} disabled={saving}>
+          Reset to Default
+        </button>
+        {saved && <span style={{ color: '#1a7a40', fontSize: 12 }}>Saved.</span>}
+      </div>
     </div>
   );
 }
@@ -983,6 +1083,12 @@ export default function Settings() {
           Change Password
         </button>
         <button
+          className={`${styles.tab} ${tab === 'preferences' ? styles.tabActive : ''}`}
+          onClick={() => setTab('preferences')}
+        >
+          Preferences
+        </button>
+        <button
           className={`${styles.tab} ${tab === 'export' ? styles.tabActive : ''}`}
           onClick={() => setTab('export')}
         >
@@ -1021,6 +1127,7 @@ export default function Settings() {
       </div>
       <div className={styles.tabContent}>
         {tab === 'password' && <ChangePasswordTab />}
+        {tab === 'preferences' && <PreferencesTab />}
         {tab === 'export' && <ExportTab />}
         {tab === 'import' && <ImportTab />}
         {tab === 'backups' && <BackupsTab />}
