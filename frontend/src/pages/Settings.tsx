@@ -568,17 +568,19 @@ function DuplicatesTab() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [includeMemo, setIncludeMemo] = useState(false);
+  const [includeCategory, setIncludeCategory] = useState(false);
 
   const load = () => {
     setLoading(true);
     setError('');
-    getDuplicates()
+    getDuplicates({ includeMemo, includeCategory })
       .then(setGroups)
       .catch(() => setError('Failed to load duplicate transactions.'))
       .finally(() => setLoading(false));
   };
 
-  useEffect(load, []);
+  useEffect(load, [includeMemo, includeCategory]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleDelete = async (accountId: number, id: number) => {
     if (!confirm('Delete this transaction? This cannot be undone.')) return;
@@ -604,6 +606,17 @@ function DuplicatesTab() {
         delete anything that shouldn't be there; transfers are excluded since linked transfer legs naturally
         share a date and amount.
       </p>
+
+      <div style={{ display: 'flex', gap: 20, marginBottom: 14 }}>
+        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <input type="checkbox" checked={includeMemo} onChange={e => setIncludeMemo(e.target.checked)} />
+          Also match memo
+        </label>
+        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <input type="checkbox" checked={includeCategory} onChange={e => setIncludeCategory(e.target.checked)} />
+          Also match category
+        </label>
+      </div>
 
       {loading && <p className={styles.hint}>Loading…</p>}
       {error && <div className={styles.error}>{error}</div>}

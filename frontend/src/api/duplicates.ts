@@ -19,5 +19,17 @@ export interface DuplicateGroup {
   transactions: DuplicateTransaction[];
 }
 
-export const getDuplicates = (accountId?: number): Promise<DuplicateGroup[]> =>
-  api.get('/duplicates', { params: accountId ? { accountId } : undefined }).then(r => r.data);
+export interface GetDuplicatesOptions {
+  accountId?: number;
+  includeMemo?: boolean;
+  includeCategory?: boolean;
+}
+
+export const getDuplicates = (opts: GetDuplicatesOptions = {}): Promise<DuplicateGroup[]> =>
+  api.get('/duplicates', {
+    params: {
+      accountId: opts.accountId,
+      includeMemo: opts.includeMemo || undefined,
+      includeCategory: opts.includeCategory || undefined,
+    },
+  }).then(r => r.data);

@@ -24,13 +24,16 @@ public class DuplicatesController(
     private string? GetUserId() => User.FindFirstValue(ClaimTypes.NameIdentifier);
 
     /// <summary>
-    /// Groups the user's transactions by (account, date, amount) and returns only
-    /// the groups with more than one transaction. Transfer legs are excluded: two
-    /// linked transfer legs naturally share date/amount across different accounts
-    /// and aren't duplicates.
+    /// Groups the user's transactions by (account, date, amount) — and optionally
+    /// also memo and/or category — and returns only the groups with more than one
+    /// transaction. Transfer legs are excluded: two linked transfer legs naturally
+    /// share date/amount across different accounts and aren't duplicates.
     /// </summary>
     [HttpGet]
-    public async Task<IActionResult> GetAll([FromQuery] int? accountId)
+    public async Task<IActionResult> GetAll(
+        [FromQuery] int? accountId,
+        [FromQuery] bool includeMemo = false,
+        [FromQuery] bool includeCategory = false)
     {
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
@@ -52,8 +55,22 @@ public class DuplicatesController(
             .Include(t => t.Category)
             .ToListAsync();
 
-        var groups = candidates
-            .GroupBy(t => (t.AccountId, t.Date, t.Amount))
+        // Memo/category are encrypted, so matching on them has to happen in memory
+        // after decryption — group key includes them only when the caller opts in.
+        var decorated = candidates.Select(t => new
+        {
+            Tx       = t,
+            Memo     = encryption.Decrypt(t.MemoEncrypted, dek),
+            Category = t.Category is null ? null : encryption.Decrypt(t.Category.NameEncrypted, dek),
+        });
+
+        var groups = decorated
+            .GroupBy(x => (
+                x.Tx.AccountId,
+                x.Tx.Date,
+                x.Tx.Amount,
+                Memo:     includeMemo ? x.Memo ?? "" : "",
+                Category: includeCategory ? x.Category ?? "" : ""))
             .Where(g => g.Count() > 1)
             .OrderByDescending(g => g.Key.Date)
             .Select(g => new
@@ -63,16 +80,16 @@ public class DuplicatesController(
                 date        = g.Key.Date,
                 amount      = g.Key.Amount,
                 transactions = g
-                    .OrderBy(t => t.Id)
-                    .Select(t => new
+                    .OrderBy(x => x.Tx.Id)
+                    .Select(x => new
                     {
-                        id          = t.Id,
-                        payee       = t.Payee is null ? null : encryption.Decrypt(t.Payee.NameEncrypted, dek),
-                        category    = t.Category is null ? null : encryption.Decrypt(t.Category.NameEncrypted, dek),
-                        memo        = encryption.Decrypt(t.MemoEncrypted, dek),
-                        checkNumber = encryption.Decrypt(t.CheckNumberEncrypted, dek),
-                        status      = t.Status,
-                        createdAt   = t.CreatedAt,
+                        id          = x.Tx.Id,
+                        payee       = x.Tx.Payee is null ? null : encryption.Decrypt(x.Tx.Payee.NameEncrypted, dek),
+                        category    = x.Category,
+                        memo        = x.Memo,
+                        checkNumber = encryption.Decrypt(x.Tx.CheckNumberEncrypted, dek),
+                        status      = x.Tx.Status,
+                        createdAt   = x.Tx.CreatedAt,
                     }),
             });
 
