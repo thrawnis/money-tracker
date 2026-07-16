@@ -485,6 +485,64 @@ export default function AccountRegister() {
 
   const today = new Date().toISOString().slice(0, 10);
 
+  // Today/Future block only sits between past-oldest and future when the
+  // register reads chronologically top-to-bottom (sorted oldest-first by
+  // date); see isChronologicalAsc usage below for where it's placed instead.
+  const isChronologicalAsc = sortBy === 'date' && sortDir === 'asc';
+
+  const todayAndFutureBlock = (
+    <>
+      {/* ── Today divider ── */}
+      <tr className={styles.todayRow}>
+        <td colSpan={8}>
+          <div className={styles.todayDivider}>
+            <span className={styles.todayLabel}>Today — {formatDate(today)}</span>
+          </div>
+        </td>
+      </tr>
+
+      {/* ── Future scheduled transactions ── */}
+      {showFuture && (
+        <>
+          {loadingFuture && futureBills.length === 0 ? (
+            <tr>
+              <td colSpan={8} className={styles.loadingMore}>Loading upcoming…</td>
+            </tr>
+          ) : futureBills.length === 0 ? (
+            <tr>
+              <td colSpan={8} className={styles.noUpcoming}>No upcoming scheduled transactions.</td>
+            </tr>
+          ) : (
+            futureBills.map(bill => (
+              <tr key={`sched-${bill.id}`} className={styles.futureTxRow}>
+                <td>{formatDate(bill.nextDueDate)}</td>
+                <td>{bill.payee?.name ?? bill.name}</td>
+                <td>{bill.category?.name ?? ''}</td>
+                <td>{bill.memo ?? ''}</td>
+                <td className={`${styles.right} ${bill.amount < 0 ? styles.debit : styles.credit}`}>
+                  {formatCurrency(bill.amount)}
+                </td>
+                <td className={styles.right}>—</td>
+                <td><span className={styles.statusScheduled}>Scheduled</span></td>
+                <td />
+              </tr>
+            ))
+          )}
+
+          {/* Load-more-future sentinel (bottom) */}
+          {hasMoreFuture && (
+            <tr>
+              <td colSpan={8} className={styles.sentinelCell}>
+                <div ref={bottomSentinelRef} className={styles.sentinel} />
+                {loadingFuture && <span className={styles.loadingMore}>Loading more upcoming…</span>}
+              </td>
+            </tr>
+          )}
+        </>
+      )}
+    </>
+  );
+
   if (initialLoading && pastTxs.length === 0) return (
     <div className={styles.page}><p className={styles.loadingMsg}>Loading…</p></div>
   );
@@ -684,6 +742,11 @@ export default function AccountRegister() {
             </tr>
           </thead>
           <tbody>
+            {/* Today/Future only reads correctly between past-oldest and future when sorted
+                oldest-first by date; otherwise (e.g. default newest-first) show them above
+                the past transactions instead of after them. */}
+            {!isChronologicalAsc && todayAndFutureBlock}
+
             {/* ── Past / current transactions (newest first) ── */}
             {pastTxs.length === 0 && !initialLoading ? (
               <tr>
@@ -761,54 +824,7 @@ export default function AccountRegister() {
               </tr>
             )}
 
-            {/* ── Today divider ── */}
-            <tr className={styles.todayRow}>
-              <td colSpan={8}>
-                <div className={styles.todayDivider}>
-                  <span className={styles.todayLabel}>Today — {formatDate(today)}</span>
-                </div>
-              </td>
-            </tr>
-
-            {/* ── Future scheduled transactions ── */}
-            {showFuture && (
-              <>
-                {loadingFuture && futureBills.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className={styles.loadingMore}>Loading upcoming…</td>
-                  </tr>
-                ) : futureBills.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className={styles.noUpcoming}>No upcoming scheduled transactions.</td>
-                  </tr>
-                ) : (
-                  futureBills.map(bill => (
-                    <tr key={`sched-${bill.id}`} className={styles.futureTxRow}>
-                      <td>{formatDate(bill.nextDueDate)}</td>
-                      <td>{bill.payee?.name ?? bill.name}</td>
-                      <td>{bill.category?.name ?? ''}</td>
-                      <td>{bill.memo ?? ''}</td>
-                      <td className={`${styles.right} ${bill.amount < 0 ? styles.debit : styles.credit}`}>
-                        {formatCurrency(bill.amount)}
-                      </td>
-                      <td className={styles.right}>—</td>
-                      <td><span className={styles.statusScheduled}>Scheduled</span></td>
-                      <td />
-                    </tr>
-                  ))
-                )}
-
-                {/* Load-more-future sentinel (bottom) */}
-                {hasMoreFuture && (
-                  <tr>
-                    <td colSpan={8} className={styles.sentinelCell}>
-                      <div ref={bottomSentinelRef} className={styles.sentinel} />
-                      {loadingFuture && <span className={styles.loadingMore}>Loading more upcoming…</span>}
-                    </td>
-                  </tr>
-                )}
-              </>
-            )}
+            {isChronologicalAsc && todayAndFutureBlock}
           </tbody>
         </table>
       </div>
