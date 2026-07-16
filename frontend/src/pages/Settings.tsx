@@ -1,7 +1,9 @@
 import { useState, useEffect, type FormEvent } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../api/client';
+import { resetTotpSetup, resetTotpEnroll } from '../api/auth';
 import { getDemoInfo, resetDemo } from '../api/demo';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import { getTemplate, previewImport, importWithDuplicates, type PreviewResult } from '../api/import';
@@ -17,7 +19,7 @@ import ExportModal from '../components/ExportModal';
 import ReauthModal from '../components/ReauthModal';
 import styles from './Settings.module.css';
 
-type Tab = 'password' | 'preferences' | 'export' | 'import' | 'backups' | 'duplicates' | 'institutions' | 'audit';
+type Tab = 'preferences' | 'security' | 'export' | 'import' | 'backups' | 'duplicates' | 'institutions' | 'audit' | 'password';
 
 // ── Change Password ──
 
@@ -267,6 +269,124 @@ function PreferencesTab() {
         </button>
         {saved && <span style={{ color: '#1a7a40', fontSize: 12 }}>Saved.</span>}
       </div>
+    </div>
+  );
+}
+
+// ── Security ──
+
+function SecurityTab() {
+  const { user } = useAuth();
+  const [mfaEnrolled, setMfaEnrolled] = useState(!!user?.mfaEnrolled);
+  const [showReauth, setShowReauth] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [sharedKey, setSharedKey] = useState('');
+  const [authenticatorUri, setAuthenticatorUri] = useState('');
+  const [code, setCode] = useState('');
+  const [confirming, setConfirming] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
+
+  const inProgress = !!authenticatorUri;
+
+  const handleVerified = async (exportToken: string) => {
+    setShowReauth(false);
+    setResetting(true);
+    setError('');
+    try {
+      const res = await resetTotpSetup(exportToken);
+      setSharedKey(res.sharedKey);
+      setAuthenticatorUri(res.authenticatorUri);
+      // The backend has already invalidated the old code and disabled MFA
+      // until the new one is confirmed below.
+      setMfaEnrolled(false);
+    } catch {
+      setError('Failed to start authenticator reset. Your identity check may have expired — try again.');
+    } finally {
+      setResetting(false);
+    }
+  };
+
+  const handleConfirm = async () => {
+    if (!code || code.length !== 6) {
+      setError('Please enter a 6-digit code.');
+      return;
+    }
+    setConfirming(true);
+    setError('');
+    try {
+      await resetTotpEnroll(code);
+      setMfaEnrolled(true);
+      setAuthenticatorUri('');
+      setSharedKey('');
+      setCode('');
+      setSuccess(true);
+    } catch (err) {
+      const msg = (err as { response?: { data?: string } })?.response?.data;
+      setError(typeof msg === 'string' ? msg : 'Invalid code. Please try again.');
+    } finally {
+      setConfirming(false);
+    }
+  };
+
+  return (
+    <div className={styles.tabSection}>
+      <p className={styles.hint}>
+        Two-factor authentication (TOTP) status: <strong>{mfaEnrolled ? 'Enabled' : 'Not enabled'}</strong>
+      </p>
+
+      {error && <div className={styles.error}>{error}</div>}
+      {success && <p style={{ color: '#1a7a40', fontSize: 12 }}>Authenticator reset. Your new code is now active.</p>}
+
+      {!inProgress && (
+        <>
+          <p className={styles.hint}>
+            Lost your device, or want to move to a new one? Resetting invalidates your current authenticator
+            code immediately and generates a new one — you'll need to confirm a code from the new one before
+            it takes effect. Requires confirming your password or current authenticator code first.
+          </p>
+          <button className={styles.btnSecondary} onClick={() => setShowReauth(true)} disabled={resetting}>
+            {resetting ? 'Starting…' : mfaEnrolled ? 'Reset Authenticator App' : 'Set Up Authenticator App'}
+          </button>
+        </>
+      )}
+
+      {inProgress && (
+        <div>
+          <p className={styles.hint}>
+            Your previous code no longer works. Scan this into your authenticator app and enter a fresh code to
+            finish.
+          </p>
+          <div style={{ margin: '12px 0' }}>
+            <QRCodeSVG value={authenticatorUri} size={160} />
+          </div>
+          <p className={styles.hint}>Or enter this key manually: <code>{sharedKey}</code></p>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 10 }}>
+            <input
+              type="text"
+              inputMode="numeric"
+              pattern="[0-9]{6}"
+              maxLength={6}
+              placeholder="000000"
+              value={code}
+              onChange={e => setCode(e.target.value.replace(/\D/g, ''))}
+              autoFocus
+            />
+            <button className={styles.btnPrimary} onClick={handleConfirm} disabled={confirming}>
+              {confirming ? 'Confirming…' : 'Confirm'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showReauth && (
+        <ReauthModal
+          title="Confirm Identity"
+          hint="Confirm your identity to reset your authenticator app."
+          onVerified={handleVerified}
+          onClose={() => setShowReauth(false)}
+        />
+      )}
     </div>
   );
 }
@@ -1068,7 +1188,7 @@ function AuditLogTab() {
 
 export default function Settings() {
   usePageTitle('Settings');
-  const [tab, setTab] = useState<Tab>('password');
+  const [tab, setTab] = useState<Tab>('preferences');
 
   return (
     <div className={styles.page}>
@@ -1077,16 +1197,16 @@ export default function Settings() {
       </div>
       <div className={styles.tabs}>
         <button
-          className={`${styles.tab} ${tab === 'password' ? styles.tabActive : ''}`}
-          onClick={() => setTab('password')}
-        >
-          Change Password
-        </button>
-        <button
           className={`${styles.tab} ${tab === 'preferences' ? styles.tabActive : ''}`}
           onClick={() => setTab('preferences')}
         >
           Preferences
+        </button>
+        <button
+          className={`${styles.tab} ${tab === 'security' ? styles.tabActive : ''}`}
+          onClick={() => setTab('security')}
+        >
+          Security
         </button>
         <button
           className={`${styles.tab} ${tab === 'export' ? styles.tabActive : ''}`}
@@ -1124,16 +1244,23 @@ export default function Settings() {
         >
           Audit Log
         </button>
+        <button
+          className={`${styles.tab} ${tab === 'password' ? styles.tabActive : ''}`}
+          onClick={() => setTab('password')}
+        >
+          Change Password
+        </button>
       </div>
       <div className={styles.tabContent}>
-        {tab === 'password' && <ChangePasswordTab />}
         {tab === 'preferences' && <PreferencesTab />}
+        {tab === 'security' && <SecurityTab />}
         {tab === 'export' && <ExportTab />}
         {tab === 'import' && <ImportTab />}
         {tab === 'backups' && <BackupsTab />}
         {tab === 'duplicates' && <DuplicatesTab />}
         {tab === 'institutions' && <InstitutionsTab />}
         {tab === 'audit' && <AuditLogTab />}
+        {tab === 'password' && <ChangePasswordTab />}
       </div>
     </div>
   );

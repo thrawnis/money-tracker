@@ -115,6 +115,80 @@ public class AuthController(
         return Ok(new TotpSetupResponse(key, uri));
     }
 
+    // ── TOTP reset (already-logged-in user invalidating/recreating their
+    // authenticator) — re-authenticates via the same short-lived, single-use
+    // token as Export/account-deletion instead of the pre-login session flag,
+    // since there's no login flow in progress here. ──────────────────────────
+
+    [HttpPost("mfa/totp/reset-setup")]
+    [Authorize]
+    public async Task<IActionResult> TotpResetSetup([FromBody] TotpResetSetupRequest request)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId is null) return Unauthorized();
+
+        var stored = await db.ExportTokens
+            .FirstOrDefaultAsync(t => t.Token == request.ExportToken && t.UserId == userId
+                                   && !t.IsUsed && t.ExpiresAt > DateTime.UtcNow);
+        if (stored is null) return Unauthorized(new { message = "Identity verification required or expired." });
+
+        var user = await userManager.FindByIdAsync(userId);
+        if (user is null) return Unauthorized();
+
+        stored.IsUsed = true;
+
+        // The old code stops working the instant the key is reset. MfaEnrolled
+        // drops to false until the new code is verified below, so an abandoned
+        // reset degrades to "no MFA" rather than locking the user out of login
+        // entirely with a code they have no way to produce.
+        await userManager.ResetAuthenticatorKeyAsync(user);
+        user.MfaEnrolled = false;
+        await userManager.UpdateAsync(user);
+        await db.SaveChangesAsync();
+
+        var key = await userManager.GetAuthenticatorKeyAsync(user);
+        if (key is null) return StatusCode(500, "Failed to generate authenticator key.");
+
+        await audit.LogAsync("MFA_RESET_STARTED", details: new { type = "TOTP" });
+
+        var uri = GenerateTotpUri(user.Email!, key);
+        return Ok(new TotpSetupResponse(key, uri));
+    }
+
+    [HttpPost("mfa/totp/reset-enroll")]
+    [Authorize]
+    public async Task<IActionResult> TotpResetEnroll([FromBody] TotpResetEnrollRequest request)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId is null) return Unauthorized();
+
+        var user = await userManager.FindByIdAsync(userId);
+        if (user is null) return Unauthorized();
+
+        if (await userManager.IsLockedOutAsync(user))
+            return StatusCode(429, "Account locked due to too many failed attempts. Try again later.");
+
+        var valid = await userManager.VerifyTwoFactorTokenAsync(
+            user,
+            userManager.Options.Tokens.AuthenticatorTokenProvider,
+            request.Code);
+
+        if (!valid)
+        {
+            await userManager.AccessFailedAsync(user);
+            return BadRequest("Invalid code.");
+        }
+
+        await userManager.ResetAccessFailedCountAsync(user);
+
+        user.MfaEnrolled = true;
+        await userManager.UpdateAsync(user);
+
+        await audit.LogAsync("MFA_RESET_COMPLETED", details: new { type = "TOTP" });
+
+        return Ok(new { mfaEnrolled = true });
+    }
+
     [HttpPost("mfa/totp/enroll")]
     public async Task<IActionResult> TotpEnroll([FromBody] TotpEnrollRequest request)
     {
@@ -431,6 +505,8 @@ public class AuthController(
 
 public record TotpEnrollRequest(string UserId, string Code);
 public record TotpLoginRequest(string UserId, string Code);
+public record TotpResetSetupRequest(string ExportToken);
+public record TotpResetEnrollRequest(string Code);
 public record PasskeyRegisterCompleteRequest(
     string UserId,
     string AttestationResponseJson,

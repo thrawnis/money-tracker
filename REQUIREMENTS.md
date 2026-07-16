@@ -15,6 +15,7 @@ Update this file whenever requirements change or new features are defined.
 - "Sign out all sessions" invalidates all refresh tokens for the user
 - Account lockout after repeated failed login attempts — applies to passwords, TOTP codes, and export re-authentication
 - MFA step-2 endpoints (TOTP setup/enroll/verify, passkeys) require a session that has completed password verification — a userId alone is never sufficient
+- Settings → Security lets an already-logged-in user reset (or first set up) their authenticator app: re-authenticates via the same password/TOTP re-auth token used by Export, then immediately invalidates the current TOTP secret and generates a new one. MFA is left disabled until a code from the new secret is confirmed, so an abandoned reset degrades to "no MFA" rather than locking the user out of login with a code they have no way to produce
 - Auth and demo endpoints are rate-limited per IP (30 requests/minute)
 - Expired access tokens are silently refreshed and the request retried (axios interceptor); a failed refresh redirects to login
 
@@ -111,8 +112,10 @@ Update this file whenever requirements change or new features are defined.
 
 ## Settings
 
-- **Password**: change password with current-password confirmation
+- Settings tab order: Preferences, Security, Export Data, Import Data, Account Backups, Find Duplicates, Institutions, Audit Log, Change Password (Change Password is always last)
 - **Preferences**: default sort field and direction the account register uses when first opened (falls back to Date / newest-first if never set); manually changing the sort while viewing a register is a one-visit override and doesn't change the saved default
+- **Security**: view MFA enrollment status; reset or set up the authenticator app (see Authentication & Security)
+- **Password**: change password with current-password confirmation
 - **Export**: download all user data in QIF, OFX, CSV, XLSX, or JSON format; requires re-authentication. The format picker shows a brief description with pros/cons for each format; JSON is listed first and marked "Preferred for backup / restore" since it's the only format that round-trips losslessly through this app's own JSON importer
 - **Import**: CSV, loose-QIF, or JSON (this app's own export format) upload with transaction preview and duplicate detection (per account); OFX/QFX not yet implemented
 - **Find Duplicates**: groups transactions by account/date/amount across all accounts (or one, via `?accountId=`) and shows only groups with more than one match, so likely duplicates (e.g. left over from a bad or repeated import) can be reviewed and deleted directly from the list; transfer legs are excluded since linked legs naturally share date/amount. Two optional toggles narrow the match to also require the same memo and/or the same category, for cases where two genuinely different transactions happen to share a date and amount

@@ -18,6 +18,16 @@ export const setupTotp = (userId: string) =>
 export const enrollTotp = (userId: string, code: string) =>
   api.post<TokenResponse>('/auth/mfa/totp/enroll', { userId, code }).then(r => r.data);
 
+// Already-logged-in reset flow (Settings → Security): invalidates the current
+// authenticator immediately and issues a fresh key, re-authenticated via the
+// same exportToken used for Export/account-deletion rather than the pre-login
+// session flag setupTotp/enrollTotp rely on.
+export const resetTotpSetup = (exportToken: string) =>
+  api.post<{ sharedKey: string; authenticatorUri: string }>('/auth/mfa/totp/reset-setup', { exportToken }).then(r => r.data);
+
+export const resetTotpEnroll = (code: string) =>
+  api.post<{ mfaEnrolled: boolean }>('/auth/mfa/totp/reset-enroll', { code }).then(r => r.data);
+
 // withCredentials is set globally on the client (required for the refresh
 // cookie and the MFA-step session cookie on all auth calls)
 export const refreshTokens = () =>
