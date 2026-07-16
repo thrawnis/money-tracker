@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.Security.Claims;
 using System.Text.Json;
@@ -21,6 +22,14 @@ public class ImportController(
     IEncryptionService encryption,
     UserManager<ApplicationUser> userManager) : ControllerBase
 {
+    // A slow import (many DB round-trips per row) can outlast a client-side or
+    // proxy timeout — the browser reports failure while the request keeps running
+    // server-side. If the user retries, a second concurrent import for the same
+    // user wouldn't see the first one's not-yet-committed rows and would insert
+    // everything a second time. This per-user guard rejects that overlap outright
+    // instead of relying on request duration to stay under any particular timeout.
+    private static readonly ConcurrentDictionary<string, byte> ImportsInProgress = new();
+
     private string? GetUserId() => User.FindFirstValue(ClaimTypes.NameIdentifier);
 
     // ── CSV row DTO ──
@@ -210,6 +219,20 @@ public class ImportController(
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
 
+        if (!ImportsInProgress.TryAdd(userId, 0))
+            return Conflict(new { message = "An import is already in progress for your account. Please wait for it to finish before starting another." });
+        try
+        {
+            return await RunImportAsync(file, includeDuplicateIds, accountId, userId);
+        }
+        finally
+        {
+            ImportsInProgress.TryRemove(userId, out _);
+        }
+    }
+
+    private async Task<IActionResult> RunImportAsync(IFormFile file, string? includeDuplicateIds, int? accountId, string userId)
+    {
         var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
         if (ext is ".ofx" or ".qfx")
             return Ok(new { imported = 0, errors = new[] { "OFX import coming soon" } });
