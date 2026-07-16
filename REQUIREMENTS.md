@@ -15,6 +15,9 @@ Update this file whenever requirements change or new features are defined.
 - "Sign out all sessions" invalidates all refresh tokens for the user
 - Account lockout after repeated failed login attempts — applies to passwords, TOTP codes, and export re-authentication
 - MFA step-2 endpoints (TOTP setup/enroll/verify, passkeys) require a session that has completed password verification — a userId alone is never sufficient
+- TOTP setup/enroll and passkey registration are additionally rejected for already-enrolled users — a password alone must never be able to re-key or replace the second factor (enrolled users go through verify at login, or the re-authenticated Settings → Security reset)
+- Re-auth (`confirm-identity`) is rate-limited like login, and the single-use export token travels in an `X-Export-Token` request header (never in the URL, so it can't leak into access logs or browser history)
+- The API refuses to boot with placeholder (`CHANGE_ME…`) or under-32-byte JWT keys, and with a placeholder encryption key (short-but-real encryption keys still warn loudly rather than fail, since existing DEKs are bound to them)
 - Settings → Security lets an already-logged-in user reset (or first set up) their authenticator app: re-authenticates via the same password/TOTP re-auth token used by Export, then immediately invalidates the current TOTP secret and generates a new one. MFA is left disabled until a code from the new secret is confirmed, so an abandoned reset degrades to "no MFA" rather than locking the user out of login with a code they have no way to produce
 - Auth and demo endpoints are rate-limited per IP (30 requests/minute)
 - Expired access tokens are silently refreshed and the request retried (axios interceptor); a failed refresh redirects to login
@@ -67,6 +70,9 @@ Update this file whenever requirements change or new features are defined.
 - Transfer moves money between two of the user's accounts
 - Creates a matching transaction on each side; both are deleted together
 - Transfers show the destination/source account name in the transaction list
+- Editing a transfer leg updates the pair in place (never creates a new pair); amount/date/memo mirror to the linked leg, but cleared/reconciled status does NOT mirror — each account reconciles independently against its own statement
+- Transfer legs can never be split, and both legs can never end up in the same account
+- Account balances everywhere (Dashboard, Accounts list, register header) are "as of today" by effective date (post date when set, otherwise transaction date), so all three always agree
 
 ---
 
@@ -87,6 +93,7 @@ Update this file whenever requirements change or new features are defined.
 - Payees page: list, create, edit, delete
 - Each payee shows First Transaction, Last Transaction, and transaction count (same "includes future-dated transactions" semantics as Accounts/Categories, explained via the same info-icon popover on each column header)
 - Deletions blocked if payee is referenced by a transaction
+- Automatic payee cleanup (when its last transaction is edited away or deleted) counts scheduled transactions as "in use" — a payee referenced only by a scheduled bill is never auto-deleted
 
 ---
 

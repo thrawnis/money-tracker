@@ -52,12 +52,15 @@ export default function Payees() {
 
   useEffect(() => { load(); }, []);
 
+  // The backend Update is a full PUT (name + defaultCategoryId together) —
+  // always send both, or the omitted field gets overwritten with null.
   const handleRename = async (id: number) => {
     if (!renameValue.trim()) return;
     const payee = payees.find(p => p.id === id);
-    if (!confirm(`Rename "${payee?.name}" to "${renameValue.trim()}"?`)) return;
+    if (!payee) return;
+    if (!confirm(`Rename "${payee.name}" to "${renameValue.trim()}"?`)) return;
     try {
-      await updatePayee(id, { name: renameValue.trim() });
+      await updatePayee(id, { name: renameValue.trim(), defaultCategoryId: payee.defaultCategoryId ?? null });
       setPayees(prev => prev.map(p => p.id === id ? { ...p, name: renameValue.trim() } : p));
       setRenamingId(null);
     } catch (err) { setError(apiMsg(err, 'Failed to rename payee.')); }
@@ -65,15 +68,16 @@ export default function Payees() {
 
   const handleSetCategory = async (id: number) => {
     const payee = payees.find(p => p.id === id);
+    if (!payee) return;
     const targetId = catValue ? Number(catValue) : null;
     const flat = flatCats(categories);
     const catName = targetId ? flat.find(c => c.id === targetId)?.label : 'none';
-    if (!confirm(`Set default category for "${payee?.name}" to ${catName ? `"${catName}"` : 'none'}?`)) return;
+    if (!confirm(`Set default category for "${payee.name}" to ${catName ? `"${catName}"` : 'none'}?`)) return;
     try {
-      await updatePayee(id, { defaultCategoryId: targetId });
+      await updatePayee(id, { name: payee.name, defaultCategoryId: targetId });
       setPayees(prev => prev.map(p => p.id === id ? { ...p, defaultCategoryId: targetId ?? undefined } : p));
       setEditingCatFor(null);
-    } catch { setError('Failed to update default category.'); }
+    } catch (err) { setError(apiMsg(err, 'Failed to update default category.')); }
   };
 
   const handleDelete = async (id: number, name: string) => {

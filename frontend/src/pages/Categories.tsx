@@ -86,14 +86,17 @@ export default function Categories() {
     } catch (err) { setError(apiMsg(err, 'Failed to create subcategory.')); }
   };
 
+  // The backend Update is a full PUT (name + parentId together) — always send
+  // both, or renaming a subcategory would silently promote it to top-level.
   const handleRename = async (id: number, isSubcat: boolean) => {
     if (!renameValue.trim()) return;
     const cat = isSubcat
       ? categories.flatMap(c => c.subCategories ?? []).find(s => s.id === id)
       : categories.find(c => c.id === id);
-    if (!confirm(`Rename "${cat?.name}" to "${renameValue.trim()}"?`)) return;
+    if (!cat) return;
+    if (!confirm(`Rename "${cat.name}" to "${renameValue.trim()}"?`)) return;
     try {
-      await updateCategory(id, { name: renameValue.trim() });
+      await updateCategory(id, { name: renameValue.trim(), parentId: cat.parentId ?? null });
       setCategories(prev => prev.map(c => {
         if (!isSubcat && c.id === id) return { ...c, name: renameValue.trim() };
         return { ...c, subCategories: c.subCategories?.map(s => s.id === id ? { ...s, name: renameValue.trim() } : s) };
@@ -116,13 +119,15 @@ export default function Categories() {
   };
 
   const handleMove = async (subId: number, subName: string) => {
+    const sub = categories.flatMap(c => c.subCategories ?? []).find(s => s.id === subId);
+    if (!sub) return;
     const targetParentId = moveTarget === '' ? null : Number(moveTarget);
     const targetName = targetParentId === null
       ? 'a top-level category'
       : `"${categories.find(c => c.id === targetParentId)?.name}"`;
     if (!confirm(`Move "${subName}" to ${targetName}?`)) return;
     try {
-      await updateCategory(subId, { parentId: targetParentId ?? undefined });
+      await updateCategory(subId, { name: sub.name, parentId: targetParentId });
       // Remove sub from its current parent
       let moved: Category | undefined;
       const updated = categories.map(c => {

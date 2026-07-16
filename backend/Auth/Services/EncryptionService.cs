@@ -24,6 +24,13 @@ public class EncryptionService : IEncryptionService
         var raw = config["EncryptionKey"]
             ?? throw new InvalidOperationException("EncryptionKey must be set in configuration.");
 
+        // The shipped placeholder must never protect real data. (Short real keys
+        // below only warn, not throw: existing DEKs are encrypted under them, and
+        // there is no key-rotation path — refusing to boot would strand that data.)
+        if (raw.Contains("CHANGE_ME", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException(
+                "EncryptionKey is still the placeholder value. Generate a real key (e.g. `openssl rand -base64 32`) before starting.");
+
         // Accept either a raw string (padded/truncated to 32 bytes) or base64.
         // NOTE: derivation must stay stable — changing it would make existing
         // DEKs undecryptable. Short keys are accepted for compatibility but

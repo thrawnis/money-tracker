@@ -28,8 +28,14 @@ export const getTransaction = (accountId: number, id: number) =>
 export const createTransaction = (accountId: number, data: Omit<Transaction, 'id' | 'accountId' | 'createdAt' | 'updatedAt' | 'splits'> & { splits?: SplitInput[] }) =>
   api.post<Transaction>(`/accounts/${accountId}/transactions`, data).then(r => r.data);
 
-export const updateTransaction = (accountId: number, id: number, data: Omit<Partial<Transaction>, 'splits'> & { targetAccountId?: number; splits?: SplitInput[] }) =>
+// Full PUT — the backend overwrites every field from the body, so partial
+// objects would null out whatever they omit. Status-only changes go through
+// updateTransactionStatus instead.
+export const updateTransaction = (accountId: number, id: number, data: Omit<Transaction, 'id' | 'accountId' | 'createdAt' | 'updatedAt' | 'splits'> & { targetAccountId?: number; transferDestAccountId?: number; splits?: SplitInput[] }) =>
   api.put<Transaction>(`/accounts/${accountId}/transactions/${id}`, data).then(r => r.data);
+
+export const updateTransactionStatus = (accountId: number, id: number, status: Transaction['status']) =>
+  api.patch(`/accounts/${accountId}/transactions/${id}/status`, { status });
 
 export const deleteTransaction = (accountId: number, id: number) =>
   api.delete(`/accounts/${accountId}/transactions/${id}`);

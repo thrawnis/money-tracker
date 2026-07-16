@@ -26,7 +26,10 @@ public class ExportController(
 
     // ── Step 1: re-authenticate to receive a single-use export token ──────────
 
+    // Same per-IP throttle as login: this endpoint verifies passwords/TOTP codes,
+    // so without it TOTP guessing here would be bounded only by account lockout.
     [HttpPost("confirm-identity")]
+    [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("auth")]
     public async Task<IActionResult> ConfirmIdentity(ConfirmIdentityRequest request)
     {
         var userId = GetUserId();
@@ -82,17 +85,17 @@ public class ExportController(
     // ── Step 2: download in the chosen format ─────────────────────────────────
 
     [HttpGet("qif")]
-    public Task<IActionResult> DownloadQif([FromQuery] string exportToken) =>
+    public Task<IActionResult> DownloadQif([FromHeader(Name = "X-Export-Token")] string exportToken) =>
         ExportAs(exportToken, "application/qif", "export.qif",
             (data, dek) => exportService.ToQif(data, dek));
 
     [HttpGet("ofx")]
-    public Task<IActionResult> DownloadOfx([FromQuery] string exportToken) =>
+    public Task<IActionResult> DownloadOfx([FromHeader(Name = "X-Export-Token")] string exportToken) =>
         ExportAs(exportToken, "application/x-ofx", "export.ofx",
             (data, dek) => exportService.ToOfx(data, dek));
 
     [HttpGet("csv")]
-    public async Task<IActionResult> DownloadCsv([FromQuery] string exportToken)
+    public async Task<IActionResult> DownloadCsv([FromHeader(Name = "X-Export-Token")] string exportToken)
     {
         var (userId, user, data) = await ValidateAndLoad(exportToken);
         if (userId is null || user is null || data is null) return Unauthorized();
@@ -106,7 +109,7 @@ public class ExportController(
     }
 
     [HttpGet("xlsx")]
-    public async Task<IActionResult> DownloadXlsx([FromQuery] string exportToken)
+    public async Task<IActionResult> DownloadXlsx([FromHeader(Name = "X-Export-Token")] string exportToken)
     {
         var (userId, user, data) = await ValidateAndLoad(exportToken);
         if (userId is null || user is null || data is null) return Unauthorized();
@@ -122,7 +125,7 @@ public class ExportController(
     }
 
     [HttpGet("json")]
-    public async Task<IActionResult> DownloadJson([FromQuery] string exportToken)
+    public async Task<IActionResult> DownloadJson([FromHeader(Name = "X-Export-Token")] string exportToken)
     {
         var (userId, user, data) = await ValidateAndLoad(exportToken);
         if (userId is null || user is null || data is null) return Unauthorized();

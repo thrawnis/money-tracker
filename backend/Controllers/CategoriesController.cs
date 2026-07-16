@@ -21,6 +21,20 @@ public class CategoriesController(
 {
     private string? GetUserId() => User.FindFirstValue(ClaimTypes.NameIdentifier);
 
+    /// <summary>
+    /// ParentId, when set, must be the caller's own top-level category —
+    /// cross-user parents are an IDOR, and parenting under a subcategory
+    /// would create a third hierarchy level the app doesn't support.
+    /// </summary>
+    private async Task<string?> ValidateParent(int? parentId, string userId)
+    {
+        if (!parentId.HasValue) return null;
+        var parent = await db.Categories.FirstOrDefaultAsync(c => c.Id == parentId.Value && c.UserId == userId);
+        if (parent is null) return "Parent category not found.";
+        if (parent.ParentId is not null) return "Subcategories cannot have their own subcategories.";
+        return null;
+    }
+
     private object MapCategory(Category c, string dek) => new
     {
         id         = c.Id,
@@ -102,6 +116,9 @@ public class CategoriesController(
         var user = await userManager.FindByIdAsync(userId);
         if (user is null) return Unauthorized();
 
+        if (await ValidateParent(dto.ParentId, userId) is string parentError)
+            return BadRequest(new { message = parentError });
+
         var siblings = await db.Categories
             .Where(c => c.UserId == userId && c.ParentId == dto.ParentId)
             .ToListAsync();
@@ -137,6 +154,13 @@ public class CategoriesController(
 
         var user = await userManager.FindByIdAsync(userId);
         if (user is null) return Unauthorized();
+
+        if (dto.ParentId == id)
+            return BadRequest(new { message = "A category cannot be its own parent." });
+        if (dto.ParentId.HasValue && await db.Categories.AnyAsync(c => c.ParentId == id))
+            return BadRequest(new { message = "A category with subcategories cannot become a subcategory itself." });
+        if (await ValidateParent(dto.ParentId, userId) is string parentError)
+            return BadRequest(new { message = parentError });
 
         var siblings = await db.Categories
             .Where(c => c.UserId == userId && c.ParentId == dto.ParentId && c.Id != id)

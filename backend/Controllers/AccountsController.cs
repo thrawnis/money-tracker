@@ -54,8 +54,10 @@ public class AccountsController(
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var accountIds = accounts.Select(a => a.Id).ToList();
 
+        // Effective date (PostDate ?? Date) <= today — same as-of-today rule the
+        // register header uses, so the two balances always agree.
         var txSums = await db.Transactions
-            .Where(t => accountIds.Contains(t.AccountId) && t.Date <= today)
+            .Where(t => accountIds.Contains(t.AccountId) && (t.PostDate ?? t.Date) <= today)
             .GroupBy(t => t.AccountId)
             .Select(g => new { AccountId = g.Key, Sum = g.Sum(t => t.Amount) })
             .ToDictionaryAsync(x => x.AccountId, x => x.Sum);
@@ -190,7 +192,7 @@ public class AccountsController(
     }
 
     [HttpDelete("{id}")]
-    public async Task<IActionResult> Delete(int id, [FromQuery] string exportToken, [FromQuery] string? note)
+    public async Task<IActionResult> Delete(int id, [FromHeader(Name = "X-Export-Token")] string exportToken, [FromQuery] string? note)
     {
         var userId = GetUserId();
         if (userId is null) return Unauthorized();

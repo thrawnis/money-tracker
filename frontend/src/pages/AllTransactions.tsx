@@ -70,6 +70,15 @@ export default function AllTransactions() {
 
   const loadPage = useCallback(async (pg: number, replace: boolean) => {
     const seq = ++loadSeq.current;
+    // "Select none" means an empty result by definition — don't send the backend
+    // an empty accountIds array and depend on how it happens to interpret it.
+    if (effectiveIds.length === 0 && accounts.length > 0) {
+      setItems([]);
+      setTotal(0);
+      setPage(1);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const result = await searchTransactions({

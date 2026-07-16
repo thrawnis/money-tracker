@@ -13,5 +13,10 @@ export const createAccount = (data: Omit<Account, 'id' | 'createdAt'>) =>
 export const updateAccount = (id: number, data: Partial<Account>) =>
   api.put<Account>(`/accounts/${id}`, data).then(r => r.data);
 
+// exportToken travels in a header, not the query string, so it never lands in
+// server access logs or browser history.
 export const deleteAccount = (id: number, exportToken: string, note?: string) =>
-  api.delete(`/accounts/${id}`, { params: note ? { exportToken, note } : { exportToken } });
+  api.delete(`/accounts/${id}`, {
+    headers: { 'X-Export-Token': exportToken },
+    params: note ? { note } : undefined,
+  });

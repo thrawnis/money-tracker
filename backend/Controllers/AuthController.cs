@@ -107,12 +107,33 @@ public class AuthController(
         var user = await userManager.FindByIdAsync(userId);
         if (user is null) return NotFound();
 
+        // An already-enrolled user must pass the TOTP challenge (or the
+        // authenticated Settings → Security reset flow) — otherwise a password
+        // alone could re-key the authenticator and bypass the second factor.
+        if (user.MfaEnrolled)
+            return Unauthorized(new { message = "Two-factor authentication is already enrolled. Use the authenticator reset in Settings instead." });
+
         await userManager.ResetAuthenticatorKeyAsync(user);
         var key = await userManager.GetAuthenticatorKeyAsync(user);
         if (key is null) return StatusCode(500, "Failed to generate authenticator key.");
 
         var uri = GenerateTotpUri(user.Email!, key);
         return Ok(new TotpSetupResponse(key, uri));
+    }
+
+    // Live enrollment state for Settings → Security. The JWT/auth context only
+    // knows the state as of login — stale the moment a reset disables MFA.
+    [HttpGet("mfa/status")]
+    [Authorize]
+    public async Task<IActionResult> MfaStatus()
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId is null) return Unauthorized();
+
+        var user = await userManager.FindByIdAsync(userId);
+        if (user is null) return Unauthorized();
+
+        return Ok(new { mfaEnrolled = user.MfaEnrolled });
     }
 
     // ── TOTP reset (already-logged-in user invalidating/recreating their
@@ -197,6 +218,11 @@ public class AuthController(
         var user = await userManager.FindByIdAsync(request.UserId);
         if (user is null) return NotFound();
 
+        // Enrolled users authenticate via mfa/totp/verify — enroll is only for
+        // first-time setup (see TotpSetup for the bypass this closes).
+        if (user.MfaEnrolled)
+            return Unauthorized(new { message = "Two-factor authentication is already enrolled." });
+
         if (await userManager.IsLockedOutAsync(user))
             return StatusCode(429, "Account locked due to too many failed attempts. Try again later.");
 
@@ -260,6 +286,11 @@ public class AuthController(
         var user = await userManager.FindByIdAsync(userId);
         if (user is null) return NotFound();
 
+        // Same rule as TOTP setup: once enrolled, a password alone must never be
+        // enough to register a fresh second factor (that would bypass the old one).
+        if (user.MfaEnrolled)
+            return Unauthorized(new { message = "Two-factor authentication is already enrolled." });
+
         var optionsJson = await passkeyService.BeginRegistrationAsync(user);
         HttpContext.Session.SetString("passkeyRegOptions", optionsJson);
         return Content(optionsJson, "application/json");
@@ -273,6 +304,9 @@ public class AuthController(
 
         var user = await userManager.FindByIdAsync(request.UserId);
         if (user is null) return NotFound();
+
+        if (user.MfaEnrolled)
+            return Unauthorized(new { message = "Two-factor authentication is already enrolled." });
 
         var optionsJson = HttpContext.Session.GetString("passkeyRegOptions");
         if (optionsJson is null) return BadRequest("Registration session expired.");

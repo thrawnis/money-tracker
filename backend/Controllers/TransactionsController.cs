@@ -128,6 +128,10 @@ public class TransactionsController(
         if (userId is null) return Unauthorized();
         if (!await AccountBelongsToUser(accountId, userId)) return NotFound();
 
+        // page=0 would make Skip() throw (500); clamp instead of erroring.
+        page     = Math.Max(1, page);
+        pageSize = Math.Clamp(pageSize, 1, 500);
+
         var user = await userManager.FindByIdAsync(userId);
         if (user is null) return Unauthorized();
         var dek = user.EncryptedDataKey;
@@ -216,6 +220,12 @@ public class TransactionsController(
 
         var balances = new Dictionary<int, decimal>(balanceRows.Count);
         var running = openingBalance;
+        // Header balance is "as of today" — same rule as the Accounts page and
+        // Dashboard, so all three always agree. Rows dated in the future still
+        // get running balances (their projected value), they just don't count
+        // toward the headline number.
+        var balanceToday = DateOnly.FromDateTime(DateTime.UtcNow);
+        var currentBalance = openingBalance;
         foreach (var row in balanceRows
                      .OrderBy(r => r.PostDate ?? r.Date)
                      .ThenBy(r => r.CreatedAt)
@@ -223,6 +233,7 @@ public class TransactionsController(
         {
             running += row.Amount;
             balances[row.Id] = running;
+            if ((row.PostDate ?? row.Date) <= balanceToday) currentBalance = running;
         }
 
         var total = loaded.Count;
@@ -232,7 +243,7 @@ public class TransactionsController(
             .Select(t => MapTransaction(t, dek, balances.GetValueOrDefault(t.Id)))
             .ToList();
 
-        return Ok(new { total, page, pageSize, currentBalance = running, items });
+        return Ok(new { total, page, pageSize, currentBalance, items });
     }
 
     [HttpGet("{id}")]
@@ -333,17 +344,30 @@ public class TransactionsController(
         if (await ValidateReferences(dto, userId) is string refError)
             return BadRequest(new { message = refError });
 
+        bool hasSplits = dto.Splits is { Count: > 0 };
+
+        // ValidateReferences only sees dto.TransferTransactionId, which is null on
+        // edits of an existing transfer (the link lives on the tracked entity) —
+        // re-check here or a transfer leg could acquire splits.
+        if (hasSplits && tx.TransferTransactionId.HasValue)
+            return BadRequest(new { message = "Transfer transactions cannot be split." });
+
+        // The linked leg (if any) is needed both for validation and the sync below.
+        Transaction? linked = tx.TransferTransactionId.HasValue
+            ? await db.Transactions.FindAsync(tx.TransferTransactionId.Value)
+            : null;
+
         int? previousPayeeId = tx.PayeeId != dto.PayeeId ? tx.PayeeId : null;
         bool accountChanged = false;
 
         if (dto.TargetAccountId.HasValue && dto.TargetAccountId.Value != accountId)
         {
             if (!await AccountBelongsToUser(dto.TargetAccountId.Value, userId)) return BadRequest("Target account not found.");
+            if (linked is not null && dto.TargetAccountId.Value == linked.AccountId)
+                return BadRequest(new { message = "Both sides of a transfer cannot be in the same account." });
             tx.AccountId = dto.TargetAccountId.Value;
             accountChanged = true;
         }
-
-        bool hasSplits = dto.Splits is { Count: > 0 };
 
         tx.Date                 = dto.Date;
         tx.PostDate             = dto.PostDate;
@@ -360,20 +384,18 @@ public class TransactionsController(
         await using (var dbTx = await db.Database.BeginTransactionAsync())
         {
             // Sync linked transfer transaction (amount, date, and memo mirror;
-            // PostDate stays on the credit side only). If this leg moved to a
-            // different account, the linked leg's TransferAccountId must follow
-            // so the pair still points at each other's current accounts.
-            if (tx.TransferTransactionId.HasValue)
+            // PostDate stays on the credit side only, and Status deliberately
+            // does NOT mirror — cleared/reconciled is per-account state, each
+            // account reconciles against its own statement). If this leg moved
+            // to a different account, the linked leg's TransferAccountId must
+            // follow so the pair still points at each other's current accounts.
+            if (linked is not null)
             {
-                var linked = await db.Transactions.FindAsync(tx.TransferTransactionId.Value);
-                if (linked is not null)
-                {
-                    linked.Amount        = -tx.Amount;
-                    linked.Date          = tx.Date;
-                    linked.MemoEncrypted = tx.MemoEncrypted;
-                    linked.UpdatedAt     = DateTime.UtcNow;
-                    if (accountChanged) linked.TransferAccountId = tx.AccountId;
-                }
+                linked.Amount        = -tx.Amount;
+                linked.Date          = tx.Date;
+                linked.MemoEncrypted = tx.MemoEncrypted;
+                linked.UpdatedAt     = DateTime.UtcNow;
+                if (accountChanged) linked.TransferAccountId = tx.AccountId;
             }
 
             // Replace the split set wholesale: simpler and safer than diffing,
@@ -398,7 +420,11 @@ public class TransactionsController(
 
             if (previousPayeeId.HasValue)
             {
-                bool payeeStillInUse = await db.Transactions.AnyAsync(t => t.PayeeId == previousPayeeId);
+                // "In use" includes scheduled transactions — their Payee FK is
+                // SetNull on delete, so removing the payee would silently strip
+                // it from every future auto-posted occurrence.
+                bool payeeStillInUse = await db.Transactions.AnyAsync(t => t.PayeeId == previousPayeeId)
+                    || await db.ScheduledTransactions.AnyAsync(s => s.PayeeId == previousPayeeId);
                 if (!payeeStillInUse)
                 {
                     var payee = await db.Payees.FindAsync(previousPayeeId.Value);
@@ -415,6 +441,30 @@ public class TransactionsController(
 
         await audit.LogAsync("UPDATE", "Transaction", id, new { accountId = tx.AccountId, date = tx.Date, amount = tx.Amount });
         return Ok(MapTransaction(tx, user.EncryptedDataKey));
+    }
+
+    /// <summary>
+    /// Status-only update. The register's cleared/reconciled toggle previously
+    /// PUT a body containing only Status to the full Update endpoint — the other
+    /// TransactionDto fields bound to their CLR defaults and silently wiped the
+    /// row (date → 0001-01-01, amount → 0, payee/category/memo → null).
+    /// </summary>
+    [HttpPatch("{id}/status")]
+    public async Task<IActionResult> UpdateStatus(int accountId, int id, StatusDto dto)
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+        if (!await AccountBelongsToUser(accountId, userId)) return NotFound();
+
+        var tx = await db.Transactions.FirstOrDefaultAsync(t => t.Id == id && t.AccountId == accountId);
+        if (tx is null) return NotFound();
+
+        tx.Status    = dto.Status;
+        tx.UpdatedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+
+        await audit.LogAsync("UPDATE", "Transaction", id, new { accountId, status = dto.Status.ToString() });
+        return NoContent();
     }
 
     [HttpDelete("{id}")]
@@ -445,7 +495,9 @@ public class TransactionsController(
 
             if (payeeId.HasValue)
             {
-                bool payeeStillInUse = await db.Transactions.AnyAsync(t => t.PayeeId == payeeId);
+                // Same scheduled-transaction guard as in Update above.
+                bool payeeStillInUse = await db.Transactions.AnyAsync(t => t.PayeeId == payeeId)
+                    || await db.ScheduledTransactions.AnyAsync(s => s.PayeeId == payeeId);
                 if (!payeeStillInUse)
                 {
                     var payee = await db.Payees.FindAsync(payeeId.Value);
@@ -492,3 +544,4 @@ public record TransactionDto(
     List<SplitDto>?   Splits = null);
 
 public record SplitDto(int? CategoryId, decimal Amount, string? Memo);
+public record StatusDto(TransactionStatus Status);

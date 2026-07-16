@@ -14,6 +14,6 @@ export const listAccountBackups = () =>
 
 export const downloadAccountBackup = (fileName: string, exportToken: string) =>
   api.get(`/account-backups/${encodeURIComponent(fileName)}/download`, {
-    params: { exportToken },
+    headers: { 'X-Export-Token': exportToken },
     responseType: 'blob',
   }).then(r => r.data as Blob);

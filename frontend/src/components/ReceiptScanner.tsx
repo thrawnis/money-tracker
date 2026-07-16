@@ -145,7 +145,15 @@ export default function ReceiptScanner({ onConfirm, onCancel }: Props) {
               <button className={styles.btnPrimary} onClick={handleConfirm}>
                 Use This Data
               </button>
-              <button className={styles.btnSecondary} onClick={() => { setExtracted(null); setPreview(null); fileRef.current && (fileRef.current.value = ''); }}>
+              <button
+                className={styles.btnSecondary}
+                onClick={() => {
+                  setExtracted(null);
+                  setPreview(null);
+                  if (previewUrlRef.current) { URL.revokeObjectURL(previewUrlRef.current); previewUrlRef.current = null; }
+                  if (fileRef.current) fileRef.current.value = '';
+                }}
+              >
                 Try Again
               </button>
               <button className={styles.btnSecondary} onClick={onCancel}>Cancel</button>

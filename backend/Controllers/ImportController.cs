@@ -386,7 +386,8 @@ public class ImportController(
                             payee = new Payee
                             {
                                 UserId = userId,
-                                NameEncrypted = encryption.Encrypt(payeeName, dek),
+                                // payeeName is non-null here (guarded above), so Encrypt never returns null
+                                NameEncrypted = encryption.Encrypt(payeeName, dek)!,
                             };
                             db.Payees.Add(payee);
                             await db.SaveChangesAsync();

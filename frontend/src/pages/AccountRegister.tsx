@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { getAccount, getAccounts } from '../api/accounts';
 import { useDeleteAccountFlow } from '../hooks/useDeleteAccountFlow';
-import { getTransactions, createTransaction, updateTransaction, deleteTransaction, createTransfer } from '../api/transactions';
+import { getTransactions, createTransaction, updateTransaction, updateTransactionStatus, deleteTransaction, createTransfer } from '../api/transactions';
 import { getUpcoming } from '../api/scheduledTransactions';
 import { getPreferences } from '../api/preferences';
 import { getCategories } from '../api/categories';
@@ -73,6 +73,7 @@ export default function AccountRegister() {
   const [futureSkip, setFutureSkip] = useState(0);
   const [futureTotal, setFutureTotal] = useState(0);
   const [loadingFuture, setLoadingFuture] = useState(false);
+  const [futureError, setFutureError] = useState('');
 
   // Filters — draft inputs (the panel) vs. applied (what fetches actually use).
   // All pages of a result set must be fetched with the same applied filters,
@@ -111,6 +112,9 @@ export default function AccountRegister() {
   const [showForm, setShowForm] = useState(false);
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
   const [formDirty, setFormDirty] = useState(false);
+  // Bumped when a "new" form needs a remount despite the key staying 'new'
+  // (e.g. a receipt scan landing while a blank form is already open)
+  const [formNonce, setFormNonce] = useState(0);
   const [receiptPrefill, setReceiptPrefill] = useState<Partial<Transaction> | null>(null);
   const [receiptPayeeName, setReceiptPayeeName] = useState<string | undefined>(undefined);
   const [receiptCategoryLabel, setReceiptCategoryLabel] = useState<string | undefined>(undefined);
@@ -340,8 +344,14 @@ export default function AccountRegister() {
 
   // ── Load more past (scroll up) ──
 
+  // Synchronous in-flight flag: the loadingPast STATE lags behind setLoadingPast
+  // by a render, so two IntersectionObserver entries delivered in one batch
+  // would both pass the state check and fetch (and append) the same page twice.
+  const loadingPastRef = useRef(false);
+
   const loadMorePast = useCallback(async () => {
-    if (loadingPast || !hasMorePast) return;
+    if (loadingPastRef.current || !hasMorePast) return;
+    loadingPastRef.current = true;
     setLoadingPast(true);
     const seq = requestSeq.current; // abandon if a new page-1 load happens meanwhile
     try {
@@ -358,15 +368,26 @@ export default function AccountRegister() {
     } catch {
       // pagination errors are retried by the next sentinel intersection
     } finally {
+      loadingPastRef.current = false;
       setLoadingPast(false);
     }
-  }, [loadingPast, hasMorePast, pastPage, accountId, appliedFilters, sortBy, sortDir]);
+  }, [hasMorePast, pastPage, accountId, appliedFilters, sortBy, sortDir]);
 
   // ── Load future bills ──
 
+  // Same stale-response protection as past-transaction fetches: a slow response
+  // for the previous account must never overwrite the current account's bills,
+  // and a replace-load for a new account must not be blocked by (or race with)
+  // an in-flight load for the old one.
+  const futureSeq = useRef(0);
+
   const loadFutureBills = useCallback(async (skip = 0, replace = false) => {
-    if (loadingFuture) return;
+    // A replace supersedes any in-flight load (the seq guard discards it);
+    // append-loads (infinite scroll) still skip while one is running.
+    if (loadingFuture && !replace) return;
+    const seq = ++futureSeq.current;
     setLoadingFuture(true);
+    setFutureError('');
     try {
       const batch = await getUpcoming({
         accountId,
@@ -374,6 +395,7 @@ export default function AccountRegister() {
         limit: FUTURE_BATCH + 1,
         skip,
       });
+      if (seq !== futureSeq.current) return;
       const hasMore = batch.length > FUTURE_BATCH;
       const items = hasMore ? batch.slice(0, FUTURE_BATCH) : batch;
       setFutureBills(prev => replace ? items : [...prev, ...items]);
@@ -381,9 +403,9 @@ export default function AccountRegister() {
       // Update total estimate: if we got a full batch + more indicator, mark as having more
       setFutureTotal(skip + items.length + (hasMore ? 1 : 0));
     } catch {
-      // silently ignore
+      if (seq === futureSeq.current) setFutureError('Failed to load upcoming scheduled transactions.');
     } finally {
-      setLoadingFuture(false);
+      if (seq === futureSeq.current) setLoadingFuture(false);
     }
   }, [loadingFuture, accountId, futureDays]);
 
@@ -451,7 +473,13 @@ export default function AccountRegister() {
       );
       if (!proceed) return;
     }
-    if (data.transferDestAccountId) {
+    // Order matters: an EXISTING transfer submits with transferDestAccountId
+    // set too (the form seeds it from the linked leg), so the editingTx branch
+    // must win or editing a transfer would create a duplicate pair instead of
+    // updating in place (the backend Update syncs the linked leg itself).
+    if (editingTx) {
+      await updateTransaction(accountId, editingTx.id, data);
+    } else if (data.transferDestAccountId) {
       await createTransfer({
         sourceAccountId:      accountId,
         destinationAccountId: data.transferDestAccountId,
@@ -461,8 +489,6 @@ export default function AccountRegister() {
         memo:                 data.memo,
       });
       lastUsedDate.current = data.date;
-    } else if (editingTx) {
-      await updateTransaction(accountId, editingTx.id, data);
     } else {
       await createTransaction(accountId, data);
       lastUsedDate.current = data.date;
@@ -505,7 +531,7 @@ export default function AccountRegister() {
     // Optimistic update with rollback on failure
     setPastTxs(prev => prev.map(t => t.id === tx.id ? { ...t, status: next } : t));
     try {
-      await updateTransaction(accountId, tx.id, { status: next });
+      await updateTransactionStatus(accountId, tx.id, next);
     } catch {
       setPastTxs(prev => prev.map(t => t.id === tx.id ? { ...t, status: previous } : t));
     }
@@ -514,6 +540,9 @@ export default function AccountRegister() {
   const handleReceiptConfirm = (data: ExtractedReceipt) => {
     if (!confirmDiscardIfDirty()) return;
     setShowScanner(false);
+    // Bump the form key: if a blank "new" form is already mounted, the key would
+    // otherwise stay 'new-N' and the form would never re-read the receipt prefill.
+    setFormNonce(n => n + 1);
     setEditingTx(null);
     setReceiptPrefill({
       date: data.date ?? lastUsedDate.current,
@@ -630,7 +659,11 @@ export default function AccountRegister() {
   // stays on the future side of the Today divider (see placement below). ──
   const futureBillsSection = showFuture && (
     <>
-      {loadingFuture && futureBills.length === 0 ? (
+      {futureError && futureBills.length === 0 ? (
+        <tr>
+          <td colSpan={8} className={styles.noUpcoming}>{futureError}</td>
+        </tr>
+      ) : loadingFuture && futureBills.length === 0 ? (
         <tr>
           <td colSpan={8} className={styles.loadingMore}>Loading upcoming…</td>
         </tr>
@@ -680,7 +713,11 @@ export default function AccountRegister() {
           <select
             className={styles.accountSelect}
             value={accountId}
-            onChange={e => navigate(`/accounts/${e.target.value}`)}
+            onChange={e => {
+              // Same unsaved-changes guard as every other form-switching path
+              if (!confirmDiscardIfDirty()) { e.target.value = String(accountId); return; }
+              navigate(`/accounts/${e.target.value}`);
+            }}
           >
             {(() => {
               const active   = allAccounts.filter(a => a.isActive)  .sort((a, b) => a.name.localeCompare(b.name));
@@ -909,7 +946,7 @@ export default function AccountRegister() {
       {showForm && (
         <div ref={formRef}>
         <TransactionForm
-          key={editingTx?.id ?? 'new'}
+          key={editingTx?.id ?? `new-${formNonce}`}
           accountId={accountId}
           accounts={allAccounts}
           initial={editingTx ?? receiptPrefill ?? { date: lastUsedDate.current }}

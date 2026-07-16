@@ -7,7 +7,8 @@ export const getCategories = () =>
 export const createCategory = (data: { name: string; parentId?: number }) =>
   api.post<Category>('/categories', data).then(r => r.data);
 
-export const updateCategory = (id: number, data: { name?: string; parentId?: number | null }) =>
+// Full PUT — both fields are required by the backend and always overwritten.
+export const updateCategory = (id: number, data: { name: string; parentId: number | null }) =>
   api.put<Category>(`/categories/${id}`, data).then(r => r.data);
 
 export const deleteCategory = (id: number) =>

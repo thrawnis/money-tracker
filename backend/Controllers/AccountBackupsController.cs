@@ -28,7 +28,7 @@ public class AccountBackupsController(AppDbContext db, IAccountBackupService acc
     // still ciphertext, but the user asked for password re-entry on every
     // backup download too, as defense in depth.
     [HttpGet("{fileName}/download")]
-    public async Task<IActionResult> Download(string fileName, [FromQuery] string exportToken)
+    public async Task<IActionResult> Download(string fileName, [FromHeader(Name = "X-Export-Token")] string exportToken)
     {
         var userId = GetUserId();
         if (userId is null) return Unauthorized();

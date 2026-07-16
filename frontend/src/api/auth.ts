@@ -28,6 +28,11 @@ export const resetTotpSetup = (exportToken: string) =>
 export const resetTotpEnroll = (code: string) =>
   api.post<{ mfaEnrolled: boolean }>('/auth/mfa/totp/reset-enroll', { code }).then(r => r.data);
 
+// Live server-side enrollment state (the auth context's copy is only as fresh
+// as the last login and goes stale mid-reset).
+export const getMfaStatus = () =>
+  api.get<{ mfaEnrolled: boolean }>('/auth/mfa/status').then(r => r.data);
+
 // withCredentials is set globally on the client (required for the refresh
 // cookie and the MFA-step session cookie on all auth calls)
 export const refreshTokens = () =>

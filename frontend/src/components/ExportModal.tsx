@@ -92,7 +92,7 @@ export default function ExportModal({ onClose }: Props) {
     setDownloadError('');
     try {
       const res = await api.get(`/export/${format}`, {
-        params: { exportToken },
+        headers: { 'X-Export-Token': exportToken },
         responseType: 'blob',
       });
       const ext = format;

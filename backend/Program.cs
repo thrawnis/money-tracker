@@ -42,6 +42,10 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 
 var jwtKey = builder.Configuration["Jwt:Key"]
     ?? throw new InvalidOperationException("Jwt:Key must be set in configuration.");
+// Refuse to boot with the shipped placeholder or a key too short to sign with —
+// a null-check alone happily accepts "CHANGE_ME_..." straight from appsettings.json.
+if (jwtKey.Contains("CHANGE_ME", StringComparison.OrdinalIgnoreCase) || System.Text.Encoding.UTF8.GetByteCount(jwtKey) < 32)
+    throw new InvalidOperationException("Jwt:Key is unset, a placeholder, or shorter than 32 bytes. Set a strong secret before starting.");
 
 builder.Services.AddAuthentication(options =>
 {

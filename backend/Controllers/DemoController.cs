@@ -16,9 +16,7 @@ public class DemoController(DemoSeeder seeder, IConfiguration config) : Controll
 
     [HttpGet("info")]
     public IActionResult Info() =>
-        Ok(IsDemoMode
-            ? new { isDemoMode = true, email = DemoSeeder.DemoEmail }
-            : new { isDemoMode = false, email = (string?)null });
+        Ok(new { isDemoMode = IsDemoMode, email = IsDemoMode ? DemoSeeder.DemoEmail : null });
 
     [HttpPost("reset")]
     [Authorize]

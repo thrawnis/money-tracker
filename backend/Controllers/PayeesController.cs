@@ -73,6 +73,10 @@ public class PayeesController(
         if (duplicate)
             return Conflict(new { message = $"A payee named \"{dto.Name}\" already exists." });
 
+        if (dto.DefaultCategoryId.HasValue &&
+            !await db.Categories.AnyAsync(c => c.Id == dto.DefaultCategoryId.Value && c.UserId == userId))
+            return BadRequest(new { message = "Category not found." });
+
         var payee = new Payee
         {
             UserId            = userId,
@@ -106,6 +110,10 @@ public class PayeesController(
             string.Equals(encryption.Decrypt(p.NameEncrypted, user.EncryptedDataKey), dto.Name, StringComparison.OrdinalIgnoreCase));
         if (duplicate)
             return Conflict(new { message = $"A payee named \"{dto.Name}\" already exists." });
+
+        if (dto.DefaultCategoryId.HasValue &&
+            !await db.Categories.AnyAsync(c => c.Id == dto.DefaultCategoryId.Value && c.UserId == userId))
+            return BadRequest(new { message = "Category not found." });
 
         payee.NameEncrypted     = encryption.Encrypt(dto.Name, user.EncryptedDataKey)!;
         payee.DefaultCategoryId = dto.DefaultCategoryId;

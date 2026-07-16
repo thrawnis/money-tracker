@@ -3,7 +3,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../api/client';
-import { resetTotpSetup, resetTotpEnroll } from '../api/auth';
+import { resetTotpSetup, resetTotpEnroll, getMfaStatus } from '../api/auth';
 import { getDemoInfo, resetDemo } from '../api/demo';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import { getTemplate, previewImport, importWithDuplicates, type PreviewResult } from '../api/import';
@@ -276,8 +276,7 @@ function PreferencesTab() {
 // ── Security ──
 
 function SecurityTab() {
-  const { user } = useAuth();
-  const [mfaEnrolled, setMfaEnrolled] = useState(!!user?.mfaEnrolled);
+  const [mfaEnrolled, setMfaEnrolled] = useState<boolean | null>(null);
   const [showReauth, setShowReauth] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [sharedKey, setSharedKey] = useState('');
@@ -287,7 +286,20 @@ function SecurityTab() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
 
+  // Live server-side state, not the auth context's login-time snapshot: an
+  // abandoned reset leaves MFA disabled server-side, and the stale context
+  // would show "Enabled" on an actually-unprotected account.
+  useEffect(() => {
+    getMfaStatus()
+      .then(s => setMfaEnrolled(s.mfaEnrolled))
+      .catch(() => setError('Failed to load two-factor status.'));
+  }, []);
+
   const inProgress = !!authenticatorUri;
+
+  // A reset in progress means MFA is currently DISABLED server-side — warn
+  // before the user navigates away and leaves the account unprotected.
+  useUnsavedChanges(inProgress);
 
   const handleVerified = async (exportToken: string) => {
     setShowReauth(false);
@@ -332,8 +344,16 @@ function SecurityTab() {
   return (
     <div className={styles.tabSection}>
       <p className={styles.hint}>
-        Two-factor authentication (TOTP) status: <strong>{mfaEnrolled ? 'Enabled' : 'Not enabled'}</strong>
+        Two-factor authentication (TOTP) status:{' '}
+        <strong>{mfaEnrolled === null ? 'Checking…' : mfaEnrolled ? 'Enabled' : 'Not enabled'}</strong>
       </p>
+
+      {mfaEnrolled === false && !inProgress && !success && (
+        <div className={styles.error}>
+          Two-factor authentication is currently disabled — your account is protected by password only.
+          {' '}If you started an authenticator reset and didn't finish it, set up a new authenticator below.
+        </div>
+      )}
 
       {error && <div className={styles.error}>{error}</div>}
       {success && <p style={{ color: '#1a7a40', fontSize: 12 }}>Authenticator reset. Your new code is now active.</p>}
@@ -345,7 +365,7 @@ function SecurityTab() {
             code immediately and generates a new one — you'll need to confirm a code from the new one before
             it takes effect. Requires confirming your password or current authenticator code first.
           </p>
-          <button className={styles.btnSecondary} onClick={() => setShowReauth(true)} disabled={resetting}>
+          <button className={styles.btnSecondary} onClick={() => setShowReauth(true)} disabled={resetting || mfaEnrolled === null}>
             {resetting ? 'Starting…' : mfaEnrolled ? 'Reset Authenticator App' : 'Set Up Authenticator App'}
           </button>
         </>
@@ -354,8 +374,8 @@ function SecurityTab() {
       {inProgress && (
         <div>
           <p className={styles.hint}>
-            Your previous code no longer works. Scan this into your authenticator app and enter a fresh code to
-            finish.
+            <strong>Your previous code no longer works, and two-factor auth stays disabled until you finish.</strong>
+            {' '}Scan this into your authenticator app and enter a fresh code to finish.
           </p>
           <div style={{ margin: '12px 0' }}>
             <QRCodeSVG value={authenticatorUri} size={160} />
