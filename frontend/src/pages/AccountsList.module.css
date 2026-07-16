@@ -89,7 +89,7 @@
   transition: background 0.1s;
 }
 
-.row:hover { background: #f0f6ff; }
+.row:hover { background: #d7e8fb; }
 
 .row td {
   padding: 10px 12px;

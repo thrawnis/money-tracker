@@ -8,12 +8,14 @@ import { getTemplate, previewImport, importWithDuplicates, type PreviewResult } 
 import { getAuditLog, type AuditEntry, type GetAuditParams } from '../api/audit';
 import { getAccounts } from '../api/accounts';
 import { listAccountBackups, downloadAccountBackup, type AccountBackupSummary } from '../api/accountBackups';
+import { getDuplicates, type DuplicateGroup } from '../api/duplicates';
+import { deleteTransaction } from '../api/transactions';
 import type { Account } from '../types';
 import ExportModal from '../components/ExportModal';
 import ReauthModal from '../components/ReauthModal';
 import styles from './Settings.module.css';
 
-type Tab = 'password' | 'export' | 'import' | 'backups' | 'audit';
+type Tab = 'password' | 'export' | 'import' | 'backups' | 'duplicates' | 'audit';
 
 // ── Change Password ──
 
@@ -551,6 +553,106 @@ function BackupsTab() {
   );
 }
 
+// ── Find Duplicates ──
+
+function formatCurrency(n: number) {
+  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
+}
+
+function formatDate(d: string) {
+  return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function DuplicatesTab() {
+  const [groups, setGroups] = useState<DuplicateGroup[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+
+  const load = () => {
+    setLoading(true);
+    setError('');
+    getDuplicates()
+      .then(setGroups)
+      .catch(() => setError('Failed to load duplicate transactions.'))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(load, []);
+
+  const handleDelete = async (accountId: number, id: number) => {
+    if (!confirm('Delete this transaction? This cannot be undone.')) return;
+    setDeletingId(id);
+    try {
+      await deleteTransaction(accountId, id);
+      // Re-fetch rather than patch in place: deleting one row out of a group of
+      // two collapses it below the ">1 transactions" threshold and should
+      // disappear entirely, not linger as a single-row "duplicate".
+      load();
+    } catch {
+      setError('Failed to delete transaction.');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  return (
+    <div className={styles.tabSection}>
+      <p className={styles.hint}>
+        Transactions in the same account, on the same date, for the same amount are grouped below — a common
+        symptom of a file that got imported twice, or genuinely repeated transactions. Review each group and
+        delete anything that shouldn't be there; transfers are excluded since linked transfer legs naturally
+        share a date and amount.
+      </p>
+
+      {loading && <p className={styles.hint}>Loading…</p>}
+      {error && <div className={styles.error}>{error}</div>}
+
+      {!loading && !error && groups.length === 0 && (
+        <p className={styles.hint}>No likely duplicates found.</p>
+      )}
+
+      {groups.map((g, i) => (
+        <table className={styles.dupTable} key={`${g.accountId}-${g.date}-${g.amount}-${i}`} style={{ marginBottom: 16 }}>
+          <thead>
+            <tr>
+              <th colSpan={5}>
+                {g.accountName} — {formatDate(g.date)} — {formatCurrency(g.amount)}
+              </th>
+            </tr>
+            <tr>
+              <th>Payee</th>
+              <th>Category</th>
+              <th>Memo</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {g.transactions.map(t => (
+              <tr key={t.id}>
+                <td>{t.payee ?? <span className={styles.hint}>—</span>}</td>
+                <td>{t.category ?? <span className={styles.hint}>—</span>}</td>
+                <td>{t.memo ?? ''}</td>
+                <td>{t.status}</td>
+                <td>
+                  <button
+                    className={styles.btnDanger}
+                    onClick={() => handleDelete(g.accountId, t.id)}
+                    disabled={deletingId === t.id}
+                  >
+                    {deletingId === t.id ? 'Deleting…' : 'Delete'}
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ))}
+    </div>
+  );
+}
+
 // ── Audit Log ──
 
 const ENTITY_TYPES = ['All', 'Transaction', 'Account', 'Category', 'Payee', 'User'];
@@ -777,6 +879,12 @@ export default function Settings() {
           Account Backups
         </button>
         <button
+          className={`${styles.tab} ${tab === 'duplicates' ? styles.tabActive : ''}`}
+          onClick={() => setTab('duplicates')}
+        >
+          Find Duplicates
+        </button>
+        <button
           className={`${styles.tab} ${tab === 'audit' ? styles.tabActive : ''}`}
           onClick={() => setTab('audit')}
         >
@@ -788,6 +896,7 @@ export default function Settings() {
         {tab === 'export' && <ExportTab />}
         {tab === 'import' && <ImportTab />}
         {tab === 'backups' && <BackupsTab />}
+        {tab === 'duplicates' && <DuplicatesTab />}
         {tab === 'audit' && <AuditLogTab />}
       </div>
     </div>
