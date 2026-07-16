@@ -35,11 +35,13 @@ public class PayeesController(
             .ToListAsync();
 
         var payeeIds = payees.Select(p => p.Id).ToList();
-        var lastUsed = await db.Transactions
+        // Covers full history (including future-dated transactions), matching the
+        // First/Last Transaction semantics used on the Accounts and Categories pages.
+        var stats = await db.Transactions
             .Where(t => t.Account.UserId == userId && t.PayeeId != null && payeeIds.Contains(t.PayeeId!.Value))
             .GroupBy(t => t.PayeeId!.Value)
-            .Select(g => new { PayeeId = g.Key, LastDate = g.Max(t => t.Date) })
-            .ToDictionaryAsync(x => x.PayeeId, x => x.LastDate);
+            .Select(g => new { PayeeId = g.Key, First = g.Min(t => t.Date), Last = g.Max(t => t.Date), Count = g.Count() })
+            .ToDictionaryAsync(x => x.PayeeId, x => x);
 
         var result = payees
             .Select(p => new
@@ -47,7 +49,9 @@ public class PayeesController(
                 id                = p.Id,
                 name              = encryption.Decrypt(p.NameEncrypted, user.EncryptedDataKey),
                 defaultCategoryId = p.DefaultCategoryId,
-                lastUsed          = lastUsed.TryGetValue(p.Id, out var d) ? d : (DateOnly?)null,
+                firstUsed         = stats.TryGetValue(p.Id, out var s) ? s.First : (DateOnly?)null,
+                lastUsed          = stats.TryGetValue(p.Id, out var s2) ? s2.Last : (DateOnly?)null,
+                transactionCount  = stats.TryGetValue(p.Id, out var s3) ? s3.Count : 0,
             })
             .OrderBy(p => p.name);
 

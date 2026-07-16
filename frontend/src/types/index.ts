@@ -84,7 +84,9 @@ export interface Payee {
   id: number;
   name: string;
   defaultCategoryId?: number;
+  firstUsed?: string;
   lastUsed?: string;
+  transactionCount?: number;
 }
 
 export type FrequencyUnit = 'Days' | 'Weeks' | 'Months' | 'Years';

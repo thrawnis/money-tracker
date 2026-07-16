@@ -84,7 +84,7 @@ Update this file whenever requirements change or new features are defined.
 - Each payee can have a default category
 - Payee name is encrypted; unique per user (enforced in memory)
 - Payees page: list, create, edit, delete
-- Last-used date tracked automatically
+- Each payee shows First Transaction, Last Transaction, and transaction count (same "includes future-dated transactions" semantics as Accounts/Categories, explained via the same info-icon popover on each column header)
 - Deletions blocked if payee is referenced by a transaction
 
 ---

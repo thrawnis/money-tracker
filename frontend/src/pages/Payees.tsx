@@ -3,8 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { getPayees, updatePayee, deletePayee } from '../api/payees';
 import { getCategories } from '../api/categories';
 import { usePageTitle } from '../hooks/usePageTitle';
+import InfoIcon from '../components/InfoIcon';
 import type { Payee, Category } from '../types';
 import styles from './Payees.module.css';
+
+const FIRST_TX_INFO = 'Date of the earliest transaction ever assigned to this payee, including future-dated transactions.';
+const LAST_TX_INFO = 'Date of the latest transaction ever assigned to this payee, including future-dated transactions.';
+const COUNT_INFO = 'Total number of transactions assigned to this payee, including future-dated transactions.';
 
 type ApiError = { response?: { data?: { message?: string } } };
 const apiMsg = (err: unknown, fallback: string) =>
@@ -98,13 +103,24 @@ export default function Payees() {
             <tr>
               <th>Payee</th>
               <th>Default Category</th>
-              <th>Last Transaction</th>
+              <th>
+                First Transaction
+                <InfoIcon text={FIRST_TX_INFO} />
+              </th>
+              <th>
+                Last Transaction
+                <InfoIcon text={LAST_TX_INFO} />
+              </th>
+              <th>
+                # Transactions
+                <InfoIcon text={COUNT_INFO} />
+              </th>
               <th></th>
             </tr>
           </thead>
           <tbody>
             {payees.length === 0 && (
-              <tr><td colSpan={4} className={styles.empty}>No payees yet.</td></tr>
+              <tr><td colSpan={6} className={styles.empty}>No payees yet.</td></tr>
             )}
             {payees.map(payee => {
               const defCatLabel = payee.defaultCategoryId
@@ -151,7 +167,9 @@ export default function Payees() {
                       <span className={styles.catLabel}>{defCatLabel}</span>
                     )}
                   </td>
+                  <td className={styles.lastUsed}>{fmt(payee.firstUsed) ?? '—'}</td>
                   <td className={styles.lastUsed}>{fmt(payee.lastUsed) ?? '—'}</td>
+                  <td className={styles.lastUsed}>{payee.transactionCount ?? 0}</td>
                   <td>
                     <div className={styles.rowActions}>
                       <button className={styles.btnSm} onClick={() => { setRenamingId(payee.id); setRenameValue(payee.name); setEditingCatFor(null); }}>Rename</button>
