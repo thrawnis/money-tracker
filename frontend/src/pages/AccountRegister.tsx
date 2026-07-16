@@ -523,7 +523,7 @@ export default function AccountRegister() {
                 <td>{formatDate(bill.nextDueDate)}</td>
                 <td>{bill.payee?.name ?? bill.name}</td>
                 <td>{bill.category?.name ?? ''}</td>
-                <td>{bill.memo ?? ''}</td>
+                <td className={styles.colMemo}>{bill.memo ?? ''}</td>
                 <td className={`${styles.right} ${bill.amount < 0 ? styles.debit : styles.credit}`}>
                   {formatCurrency(bill.amount)}
                 </td>
@@ -712,7 +712,11 @@ export default function AccountRegister() {
           <thead>
             <tr>
               {(['date','payee','category','memo'] as const).map(col => (
-                <th key={col} className={styles.sortable} onClick={() => handleSort(col)}>
+                <th
+                  key={col}
+                  className={`${styles.sortable} ${col === 'memo' ? styles.colMemo : ''}`}
+                  onClick={() => handleSort(col)}
+                >
                   {col.charAt(0).toUpperCase() + col.slice(1)}
                   {sortBy === col
                     ? <span className={styles.sortActive}>{sortDir === 'desc' ? ' ▼' : ' ▲'}</span>
@@ -772,7 +776,7 @@ export default function AccountRegister() {
                       : (tx.payee?.name ?? '—')}
                   </td>
                   <td>{getCategoryLabel(tx, categories)}</td>
-                  <td>{tx.memo ?? ''}</td>
+                  <td className={styles.colMemo}>{tx.memo ?? ''}</td>
                   <td className={`${styles.right} ${tx.amount < 0 ? styles.debit : styles.credit}`}>
                     {formatCurrency(tx.amount)}
                   </td>

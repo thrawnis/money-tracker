@@ -17,6 +17,7 @@
 
 @media (max-width: 768px) {
   .page { padding: 10px 10px; }
+  .colMemo { display: none; }
 }
 
 @keyframes fadeUp {
