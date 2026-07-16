@@ -135,6 +135,10 @@ export default function AccountRegister() {
   const [highlightTxId, setHighlightTxId] = useState<number | null>(null);
   const rowRefs = useRef<Map<number, HTMLTableRowElement>>(new Map());
 
+  // Open the register positioned at the Today divider on first load of an account
+  const todayRowRef = useRef<HTMLTableRowElement>(null);
+  const [scrollToToday, setScrollToToday] = useState(false);
+
   // Infinite scroll sentinels
   const topSentinelRef = useRef<HTMLDivElement>(null);
   const bottomSentinelRef = useRef<HTMLDivElement>(null);
@@ -312,9 +316,18 @@ export default function AccountRegister() {
       setSearchParams(prev => { const p = new URLSearchParams(prev); p.delete('tx'); return p; }, { replace: true });
       loadPage1({}, defBy, defDir, true).then(() => jumpToTransaction(Number(targetTx)));
     } else {
-      loadPage1({}, defBy, defDir, true);
+      loadPage1({}, defBy, defDir, true).then(() => setScrollToToday(true));
     }
   }, [accountId, loadPage1, defaultSortReady]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Position the register at the Today divider once it's rendered after that
+  // initial load (no animation — this is where the page should already be
+  // "open to", not a visible jump).
+  useEffect(() => {
+    if (!scrollToToday) return;
+    todayRowRef.current?.scrollIntoView({ behavior: 'auto', block: 'center' });
+    setScrollToToday(false);
+  }, [scrollToToday, pastTxs, futureBills]);
 
   // Scroll the highlighted row into view once it's rendered; clear after a moment
   useEffect(() => {
@@ -604,7 +617,7 @@ export default function AccountRegister() {
 
   // ── Today divider ──
   const todayDivider = (
-    <tr className={styles.todayRow}>
+    <tr className={styles.todayRow} ref={todayRowRef}>
       <td colSpan={8}>
         <div className={styles.todayDivider}>
           <span className={styles.todayLabel}>Today — {formatDate(today)}</span>
