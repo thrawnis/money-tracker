@@ -85,11 +85,11 @@
 .thCount { text-align: center; white-space: nowrap; }
 
 .infoIcon {
-  display: inline-block;
-  margin-left: 4px;
-  color: #7a95ad;
-  font-weight: 400;
-  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  vertical-align: -1px;
+  margin-left: 5px;
+  color: #9ab2c6;
   cursor: help;
 }
 .infoIcon:hover { color: #336699; }

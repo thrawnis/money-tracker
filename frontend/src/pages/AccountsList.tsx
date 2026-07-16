@@ -30,7 +30,15 @@ const TYPE_LABELS: Record<AccountType, string> = {
 };
 
 function InfoIcon({ text }: { text: string }) {
-  return <span className={styles.infoIcon} title={text}>ⓘ</span>;
+  return (
+    <span className={styles.infoIcon} title={text}>
+      <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">
+        <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" strokeWidth="1.4" />
+        <circle cx="8" cy="4.8" r="1" fill="currentColor" />
+        <path d="M8 7.2v4.6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      </svg>
+    </span>
+  );
 }
 
 function ColumnHeaders() {
