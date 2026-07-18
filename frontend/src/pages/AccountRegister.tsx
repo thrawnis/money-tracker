@@ -87,6 +87,7 @@ export default function AccountRegister() {
   // Filters — draft inputs (the panel) vs. applied (what fetches actually use).
   // All pages of a result set must be fetched with the same applied filters,
   // otherwise pagination mixes filtered and unfiltered rows.
+  const [jumpDate, setJumpDate] = useState('');
   const [filterOpen, setFilterOpen] = useState(false);
   const [filterFrom, setFilterFrom] = useState('');
   const [filterTo, setFilterTo] = useState('');
@@ -312,6 +313,56 @@ export default function AccountRegister() {
     }
   }, [accountId]);
 
+  // Loads pages (newest first) until a transaction on or before the target date
+  // is in the loaded window, then highlights/scrolls to the most recent one on
+  // or before that date. Filters are cleared so the target is always reachable.
+  const jumpToDate = useCallback(async (targetDate: string) => {
+    const seq = ++requestSeq.current;
+    setInitialLoading(true);
+    setError('');
+    try {
+      let page = 1;
+      let accumulated: Transaction[] = [];
+      let total = 0;
+      let balance = 0;
+      const maxPages = 200; // safety cap (~10k transactions)
+      const onOrBefore = (t: Transaction) => (t.postDate ?? t.date) <= targetDate;
+      let reached = false;
+      while (page <= maxPages) {
+        const result = await getTransactions(accountId, { sortBy: 'date', sortDir: 'desc', page, pageSize: PAST_PAGE_SIZE });
+        if (seq !== requestSeq.current) return;
+        accumulated = accumulated.concat(result.items);
+        total = result.total;
+        balance = result.currentBalance;
+        reached = result.items.some(onOrBefore);
+        if (reached || accumulated.length >= total) break;
+        page++;
+      }
+      // Clear any active filter so what's displayed matches the unfiltered pages
+      // we just loaded (and so subsequent load-more stays unfiltered too).
+      setFilterFrom(''); setFilterTo(''); setFilterMinAmount(''); setFilterMaxAmount('');
+      setFilterPayee(''); setFilterCategoryId(''); setFilterMemo(''); setFilterUncategorized(false);
+      setAppliedFilters({});
+      setPastTxs(accumulated);
+      setPastTotal(total);
+      setAccountBalance(balance);
+      setPastPage(page);
+
+      // accumulated is newest-first, so find() returns the most recent tx on or
+      // before the target; if none exists (target predates all history) fall
+      // back to the oldest loaded row.
+      const anchor = accumulated.find(onOrBefore) ?? accumulated[accumulated.length - 1];
+      if (anchor) setHighlightTxId(anchor.id);
+      else setError('This account has no transactions to jump to.');
+    } catch (err) {
+      if (seq !== requestSeq.current) return;
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setError(msg ?? 'Failed to load account data.');
+    } finally {
+      if (seq === requestSeq.current) setInitialLoading(false);
+    }
+  }, [accountId]);
+
   // Full load on mount and whenever the account changes; filters reset per account.
   // Waits for the default-sort preference to load first so the initial fetch
   // uses it directly instead of loading with date/desc and re-fetching.
@@ -320,6 +371,7 @@ export default function AccountRegister() {
     setFilterFrom(''); setFilterTo(''); setFilterMinAmount(''); setFilterMaxAmount('');
     setFilterPayee(''); setFilterCategoryId(''); setFilterMemo(''); setFilterUncategorized(false);
     setAppliedFilters({});
+    setJumpDate('');
     const { sortBy: defBy, sortDir: defDir } = defaultSort.current;
     setSortBy(defBy);
     setSortDir(defDir);
@@ -795,6 +847,19 @@ export default function AccountRegister() {
           <button className={styles.btnSecondary} onClick={() => setShowScanner(true)}>
             📷 Scan Receipt
           </button>
+          <label className={styles.jumpToDate} title="Jump to a date in the register">
+            <span>Jump to</span>
+            <input
+              type="date"
+              value={jumpDate}
+              max={today}
+              onChange={e => {
+                const d = e.target.value;
+                setJumpDate(d);
+                if (d) jumpToDate(d);
+              }}
+            />
+          </label>
           <button className={styles.btnSecondary} onClick={() => setFilterOpen(o => !o)}>
             {filterOpen ? 'Hide Filters' : 'Filters'}
           </button>

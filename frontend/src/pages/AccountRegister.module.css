@@ -118,6 +118,25 @@
   border-color: #99b4cc;
 }
 
+.jumpToDate {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #556;
+  white-space: nowrap;
+}
+.jumpToDate input {
+  padding: 5px 8px;
+  border: 1.5px solid #c5d4e0;
+  border-radius: 5px;
+  font-size: 12px;
+  color: #334;
+  background: #fff;
+  cursor: pointer;
+}
+.jumpToDate input:hover { border-color: #99b4cc; }
+
 /* ── Settings dropdown ── */
 
 .settingsDropdown {
