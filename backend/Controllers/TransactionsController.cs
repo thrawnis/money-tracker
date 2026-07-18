@@ -208,33 +208,44 @@ public class TransactionsController(
         // Always computed over the FULL account history in effective-date order,
         // independent of active filters, sort, or pagination — so each row shows
         // its true historical balance and the header total is always correct.
-        var balanceRows = await db.Transactions
-            .Where(t => t.AccountId == accountId)
-            .Select(t => new { t.Id, t.Date, t.PostDate, t.Amount, t.CreatedAt })
-            .ToListAsync();
-
+        //
+        // Computed as a cumulative SUM window function in Postgres rather than a
+        // foreach loop in .NET: the database can execute this far more
+        // efficiently than pulling every row into app memory and summing there,
+        // which matters once an account's history grows into the thousands+.
+        // {accountId} is interpolated into a FormattableString, so EF parameterizes
+        // it (not string-concatenated) — safe from SQL injection.
         var openingBalance = await db.Accounts
             .Where(a => a.Id == accountId)
             .Select(a => a.OpeningBalance)
             .FirstAsync();
 
-        var balances = new Dictionary<int, decimal>(balanceRows.Count);
-        var running = openingBalance;
+        var balanceRows = await db.Database.SqlQuery<BalanceRow>($"""
+            SELECT
+                t."Id" AS "Id",
+                a."OpeningBalance" + SUM(t."Amount") OVER (
+                    ORDER BY COALESCE(t."PostDate", t."Date"), t."CreatedAt", t."Id"
+                    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                ) AS "RunningBalance",
+                COALESCE(t."PostDate", t."Date") AS "EffectiveDate"
+            FROM "Transactions" t
+            JOIN "Accounts" a ON a."Id" = t."AccountId"
+            WHERE t."AccountId" = {accountId}
+            ORDER BY COALESCE(t."PostDate", t."Date"), t."CreatedAt", t."Id"
+            """).ToListAsync();
+
+        var balances = balanceRows.ToDictionary(r => r.Id, r => r.RunningBalance);
+
         // Header balance is "as of today" — same rule as the Accounts page and
         // Dashboard, so all three always agree. Rows dated in the future still
         // get running balances (their projected value), they just don't count
-        // toward the headline number.
+        // toward the headline number. balanceRows is already ordered ascending,
+        // so the last row on or before today is the correct "as of today" value.
         var balanceToday = DateOnly.FromDateTime(DateTime.UtcNow);
-        var currentBalance = openingBalance;
-        foreach (var row in balanceRows
-                     .OrderBy(r => r.PostDate ?? r.Date)
-                     .ThenBy(r => r.CreatedAt)
-                     .ThenBy(r => r.Id))
-        {
-            running += row.Amount;
-            balances[row.Id] = running;
-            if ((row.PostDate ?? row.Date) <= balanceToday) currentBalance = running;
-        }
+        var currentBalance = balanceRows
+            .Where(r => r.EffectiveDate <= balanceToday)
+            .Select(r => (decimal?)r.RunningBalance)
+            .LastOrDefault() ?? openingBalance;
 
         var total = loaded.Count;
         var items = loaded
@@ -545,3 +556,7 @@ public record TransactionDto(
 
 public record SplitDto(int? CategoryId, decimal Amount, string? Memo);
 public record StatusDto(TransactionStatus Status);
+
+// Keyless projection for the running-balance window-function query — has no
+// corresponding entity/table, only used with Database.SqlQuery<BalanceRow>.
+public record BalanceRow(int Id, decimal RunningBalance, DateOnly EffectiveDate);

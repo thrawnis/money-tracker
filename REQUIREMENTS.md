@@ -143,7 +143,7 @@ Update this file whenever requirements change or new features are defined.
 - Every API endpoint enforces per-user data isolation; no cross-user data leakage — including FK references (payee/category/account IDs in requests are verified against the caller)
 - Transfers created and deleted as an atomic pair (wrapped in DB transactions)
 - Unique-name enforcement for accounts, payees, categories, institutions (case-insensitive)
-- Running balances are computed server-side over the full account history in date order, independent of pagination, filters, or sort
+- Running balances are computed server-side over the full account history in date order, independent of pagination, filters, or sort — via a Postgres cumulative-SUM window function (`SqlQuery<BalanceRow>`), not an in-memory loop, so the database owns the O(n) work as account history grows
 - Account balances exclude future-dated transactions ("as of today") consistently across Dashboard, Accounts page, and register
 - Nightly `pg_dump` backups via the `db-backup` compose service (default 14-day retention, `./data/backups`)
 - Per-account backups (see Accounts) via `./data/account-backups/{userId}/{accountId}/`, max 3 per account, sensitive fields kept encrypted in the backup file
