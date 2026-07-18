@@ -19,6 +19,9 @@ export default function AllTransactions() {
   usePageTitle('Transactions');
 
   const [selectedTx, setSelectedTx] = useState<SearchTransaction | null>(null);
+  // Dirty state reported up from the detail panel's embedded edit form, so
+  // clicking a different row can confirm before discarding unsaved edits.
+  const [panelDirty, setPanelDirty] = useState(false);
 
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<number> | null>(null); // null = all
@@ -268,7 +271,12 @@ export default function AllTransactions() {
               <tr
                 key={tx.id}
                 className={styles.txRow}
-                onClick={() => setSelectedTx(tx)}
+                onClick={() => {
+                  if (selectedTx?.id === tx.id) return;
+                  if (panelDirty && !confirm('You have unsaved changes to this transaction. Discard them?')) return;
+                  setPanelDirty(false);
+                  setSelectedTx(tx);
+                }}
                 title="View transaction details"
               >
                 <td className={styles.noWrap}>{formatDate(tx.date)}</td>
@@ -316,8 +324,9 @@ export default function AllTransactions() {
           transactionId={selectedTx.id}
           accountName={selectedTx.accountName}
           accounts={accounts}
-          onClose={() => setSelectedTx(null)}
+          onClose={() => { setSelectedTx(null); setPanelDirty(false); }}
           onChanged={() => loadPage(1, true)}
+          onDirtyChange={setPanelDirty}
         />
       )}
     </div>

@@ -300,6 +300,14 @@ export default function AccountRegister() {
         if (found || accumulated.length >= total) break;
         page++;
       }
+      // The accumulated pages are date-ordered (newest-first internally) — if a
+      // non-date sort was active, leaving it would mislabel the list under the
+      // old column header AND make the next load-more append pages of a
+      // different sort onto this accumulation (duplicates/out-of-order rows).
+      // Forcing sortBy to date keeps everything consistent; sortDir is left
+      // alone since date display in either direction renders correctly from
+      // the newest-first internal order.
+      setSortBy('date');
       setPastTxs(accumulated);
       setPastTotal(total);
       setAccountBalance(balance);
@@ -344,6 +352,9 @@ export default function AccountRegister() {
       setFilterFrom(''); setFilterTo(''); setFilterMinAmount(''); setFilterMaxAmount('');
       setFilterPayee(''); setFilterCategoryId(''); setFilterMemo(''); setFilterUncategorized(false);
       setAppliedFilters({});
+      // Same reasoning as jumpToTransaction: the accumulation is date-ordered,
+      // so a lingering non-date sort would mislabel it and desync load-more.
+      setSortBy('date');
       setPastTxs(accumulated);
       setPastTotal(total);
       setAccountBalance(balance);
@@ -912,15 +923,18 @@ export default function AccountRegister() {
             📷 Scan Receipt
           </button>
           <label className={styles.jumpToDate} title="Jump to a date in the register">
-            <span>Jump to</span>
+            <span className={styles.jumpToDateLabel}>Jump to</span>
             <input
               type="date"
               value={jumpDate}
               max={today}
               onChange={e => {
                 const d = e.target.value;
-                setJumpDate(d);
                 if (d) jumpToDate(d);
+                // Reset to empty so picking the SAME date again still fires
+                // onChange ('' → date is a change; date → same date is not) —
+                // this is an action trigger, not a persistent filter value.
+                setJumpDate('');
               }}
             />
           </label>

@@ -18,6 +18,9 @@
 @media (max-width: 768px) {
   .page { padding: 10px 10px; }
   .colMemo { display: none; }
+  /* The date input is self-explanatory; drop its text label to keep the
+     header row compact on small screens. */
+  .jumpToDateLabel { display: none; }
 }
 
 @keyframes fadeUp {

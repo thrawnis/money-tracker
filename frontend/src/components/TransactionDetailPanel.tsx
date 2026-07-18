@@ -12,6 +12,9 @@ interface Props {
   accounts: Account[];
   onClose: () => void;
   onChanged: () => void;
+  /** Reports the embedded edit form's dirty state so the parent list can
+   *  guard row-switching the same way close/Escape are guarded here. */
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 function formatCurrency(amount: number) {
@@ -22,13 +25,25 @@ function formatDate(d: string) {
   return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 }
 
-export default function TransactionDetailPanel({ accountId, transactionId, accountName, accounts, onClose, onChanged }: Props) {
+export default function TransactionDetailPanel({ accountId, transactionId, accountName, accounts, onClose, onChanged, onDirtyChange }: Props) {
   const navigate = useNavigate();
   const [tx, setTx] = useState<Transaction | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [mode, setMode] = useState<'view' | 'edit'>('view');
   const [deleting, setDeleting] = useState(false);
+  const [formDirty, setFormDirty] = useState(false);
+
+  // Same guard as the register: closing (X, Escape, overlay click) while the
+  // edit form has unsaved changes must ask first, not silently discard.
+  const confirmDiscardIfDirty = () =>
+    !formDirty || confirm('You have unsaved changes to this transaction. Discard them?');
+  const guardedClose = () => { if (confirmDiscardIfDirty()) onClose(); };
+
+  const handleDirtyChange = (dirty: boolean) => {
+    setFormDirty(dirty);
+    onDirtyChange?.(dirty);
+  };
 
   useEffect(() => {
     setLoading(true);
@@ -41,10 +56,13 @@ export default function TransactionDetailPanel({ accountId, transactionId, accou
   }, [accountId, transactionId]);
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (!formDirty || confirm('You have unsaved changes to this transaction. Discard them?')) onClose();
+    };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, [onClose, formDirty]);
 
   const handleSave = async (data: Omit<Transaction, 'id' | 'accountId' | 'createdAt' | 'updatedAt' | 'splits'> & { targetAccountId?: number; transferDestAccountId?: number; splits?: SplitInput[] }) => {
     if (tx && (tx.status === 'Cleared' || tx.status === 'Reconciled')) {
@@ -77,11 +95,11 @@ export default function TransactionDetailPanel({ accountId, transactionId, accou
     accounts.find(a => a.id === transferAccountId)?.name ?? 'account';
 
   return (
-    <div className={styles.overlay} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+    <div className={styles.overlay} onClick={e => { if (e.target === e.currentTarget) guardedClose(); }}>
       <div className={styles.panel}>
         <div className={styles.header}>
           <h3 className={styles.title}>{mode === 'edit' ? 'Edit Transaction' : 'Transaction Details'}</h3>
-          <button className={styles.closeBtn} onClick={onClose} aria-label="Close">✕</button>
+          <button className={styles.closeBtn} onClick={guardedClose} aria-label="Close">✕</button>
         </div>
 
         <div className={styles.body}>
@@ -194,7 +212,8 @@ export default function TransactionDetailPanel({ accountId, transactionId, accou
               accounts={accounts}
               initial={tx}
               onSave={handleSave}
-              onCancel={() => setMode('view')}
+              onCancel={() => { handleDirtyChange(false); setMode('view'); }}
+              onDirtyChange={handleDirtyChange}
             />
           )}
         </div>

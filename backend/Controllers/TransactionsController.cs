@@ -200,8 +200,11 @@ public class TransactionsController(
                 ? loaded.OrderBy(t => t.Status).ThenBy(t => t.CreatedAt).ToList()
                 : loaded.OrderByDescending(t => t.Status).ThenByDescending(t => t.CreatedAt).ToList(),
             _          => asc  // "date" (default)
-                ? loaded.OrderBy(t => t.PostDate ?? t.Date).ThenBy(t => t.CreatedAt).ToList()
-                : loaded.OrderByDescending(t => t.PostDate ?? t.Date).ThenByDescending(t => t.CreatedAt).ToList(),
+                // Id tie-break matches the running-balance window function's
+                // ORDER BY exactly, so the Balance column reads monotonically
+                // even when rows share both effective date and CreatedAt.
+                ? loaded.OrderBy(t => t.PostDate ?? t.Date).ThenBy(t => t.CreatedAt).ThenBy(t => t.Id).ToList()
+                : loaded.OrderByDescending(t => t.PostDate ?? t.Date).ThenByDescending(t => t.CreatedAt).ThenByDescending(t => t.Id).ToList(),
         };
 
         // ── Running balances ──────────────────────────────────────────────────

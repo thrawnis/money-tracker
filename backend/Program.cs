@@ -69,6 +69,26 @@ builder.Services.AddAuthentication(options =>
 
 builder.Services.AddAuthorization();
 
+// ── Forwarded headers (nginx reverse proxy) ───────────────────────────────────
+// Deployed behind the compose nginx frontend, RemoteIpAddress is otherwise the
+// proxy's address — which would make the per-IP rate limiter below throttle
+// ALL clients as one bucket (and let one abusive client lock everyone out of
+// login). Only proxies on private networks are trusted to supply
+// X-Forwarded-For, so a client hitting the API directly can't spoof its way
+// past the limiter.
+
+builder.Services.Configure<Microsoft.AspNetCore.Builder.ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor
+                             | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+    // RFC1918 ranges — covers the docker-compose network the nginx proxy lives on
+    options.KnownNetworks.Add(new Microsoft.AspNetCore.HttpOverrides.IPNetwork(System.Net.IPAddress.Parse("10.0.0.0"), 8));
+    options.KnownNetworks.Add(new Microsoft.AspNetCore.HttpOverrides.IPNetwork(System.Net.IPAddress.Parse("172.16.0.0"), 12));
+    options.KnownNetworks.Add(new Microsoft.AspNetCore.HttpOverrides.IPNetwork(System.Net.IPAddress.Parse("192.168.0.0"), 16));
+});
+
 // ── Rate limiting (auth + demo endpoints) ─────────────────────────────────────
 
 builder.Services.AddRateLimiter(options =>
@@ -76,6 +96,7 @@ builder.Services.AddRateLimiter(options =>
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
     options.AddPolicy("auth", httpContext =>
         RateLimitPartition.GetFixedWindowLimiter(
+            // Real client IP once UseForwardedHeaders has run (see pipeline order)
             httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
             _ => new FixedWindowRateLimiterOptions
             {
@@ -192,6 +213,9 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+
+// Must run before anything that reads RemoteIpAddress (the rate limiter)
+app.UseForwardedHeaders();
 
 app.UseCors();
 app.UseRateLimiter();

@@ -69,6 +69,7 @@ export default function Reports() {
   const [savedReports, setSavedReports] = useState<SavedReport[]>([]);
   const [saveReportName, setSaveReportName] = useState('');
   const [savingReport, setSavingReport] = useState(false);
+  const [savedReportError, setSavedReportError] = useState('');
 
   // saveReportName doubles as the display title for a loaded saved report, so
   // "dirty" means it differs from what's actually saved — not just non-empty.
@@ -187,6 +188,7 @@ export default function Reports() {
   const handleSaveReport = async () => {
     if (!saveReportName) return;
     setSavingReport(true);
+    setSavedReportError('');
     try {
       if (activeSavedId !== null) {
         const updated = await updateSavedReport(activeSavedId, { name: saveReportName, params: currentParams() });
@@ -198,16 +200,17 @@ export default function Reports() {
       }
     } catch (err) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
-      alert(msg ?? 'Failed to save report.');
+      setSavedReportError(msg ?? 'Failed to save report.');
     }
     finally { setSavingReport(false); }
   };
 
   const handleDeleteSaved = async (id: number) => {
+    setSavedReportError('');
     try {
       await deleteSavedReport(id);
     } catch {
-      alert('Failed to delete saved report.');
+      setSavedReportError('Failed to delete saved report.');
       return;
     }
     setSavedReports(prev => prev.filter(r => r.id !== id));
@@ -379,6 +382,7 @@ export default function Reports() {
 
           {monthlyError && <div className={styles.errorMsg}>{monthlyError}</div>}
           {catError && <div className={styles.errorMsg}>{catError}</div>}
+          {savedReportError && <div className={styles.errorMsg}>{savedReportError}</div>}
 
           {reportType === 'monthly' && monthlyReport && (
             <div className={styles.tableWrapper}>

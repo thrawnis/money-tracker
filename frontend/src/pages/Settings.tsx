@@ -501,6 +501,7 @@ function ImportTab() {
   };
 
   const handleDownloadTemplate = async (format: 'csv' | 'xlsx') => {
+    setError('');
     try {
       const blob = await getTemplate(format);
       const url = URL.createObjectURL(blob);
@@ -510,7 +511,7 @@ function ImportTab() {
       a.click();
       URL.revokeObjectURL(url);
     } catch {
-      alert('Failed to download template.');
+      setError('Failed to download template.');
     }
   };
 
@@ -719,6 +720,7 @@ function BackupsTab() {
   const handleVerified = async (fileName: string, exportToken: string) => {
     setReauthFile(null);
     setDownloadingFile(fileName);
+    setError('');
     try {
       const blob = await downloadAccountBackup(fileName, exportToken);
       const url = URL.createObjectURL(blob);
@@ -728,7 +730,7 @@ function BackupsTab() {
       a.click();
       URL.revokeObjectURL(url);
     } catch {
-      alert('Failed to download backup. Your identity check may have expired — try again.');
+      setError('Failed to download backup. Your identity check may have expired — try again.');
     } finally {
       setDownloadingFile(null);
     }

@@ -16,6 +16,8 @@
 
 .tabs {
   display: flex;
+  /* Nine tabs now — wrap on narrow screens instead of overflowing the page */
+  flex-wrap: wrap;
   gap: 0;
   border-bottom: 2px solid #b0c4d8;
   margin-bottom: 24px;
