@@ -26,6 +26,15 @@ function formatDate(d: string) {
 const PAST_PAGE_SIZE = 50;
 const FUTURE_BATCH = 5;
 
+// Past transactions are ALWAYS fetched newest-first, regardless of the display
+// sort, so page 1 is always the window nearest today (that's what "open to
+// Today" and the running-balance-from-now anchoring need). Only date-ascending
+// display differs from fetch order, and we reverse the loaded rows at render
+// time for that case. Non-date sorts fetch in the chosen direction as before —
+// there's no "today" anchor to preserve for them.
+const fetchSortDir = (sortField: string, displayDir: 'asc' | 'desc'): 'asc' | 'desc' =>
+  sortField === 'date' ? 'desc' : displayDir;
+
 interface TxFilters {
   from?: string;
   to?: string;
@@ -224,7 +233,7 @@ export default function AccountRegister() {
     setInitialLoading(true);
     setError('');
     try {
-      const txParams = { ...filters, sortBy: sb, sortDir: sd, page: 1, pageSize: PAST_PAGE_SIZE };
+      const txParams = { ...filters, sortBy: sb, sortDir: fetchSortDir(sb, sd), page: 1, pageSize: PAST_PAGE_SIZE };
       if (full) {
         const [acc, txResult, cats, accs, insts] = await Promise.all([
           getAccount(accountId),
@@ -355,10 +364,13 @@ export default function AccountRegister() {
     setLoadingPast(true);
     const seq = requestSeq.current; // abandon if a new page-1 load happens meanwhile
     try {
+      // Always fetches the next OLDER page (fetch order is newest-first), so
+      // this appends to the tail of the newest-first pastTxs array whether the
+      // display is ascending or descending — the render layer handles direction.
       const nextPage = pastPage + 1;
       const result = await getTransactions(accountId, {
         ...appliedFilters,
-        sortBy, sortDir,
+        sortBy, sortDir: fetchSortDir(sortBy, sortDir),
         page: nextPage,
         pageSize: PAST_PAGE_SIZE,
       });
@@ -576,12 +588,14 @@ export default function AccountRegister() {
   const isChronologicalAsc = sortBy === 'date' && sortDir === 'asc';
   const isDateSort = sortBy === 'date';
 
-  // pastTxs can itself contain real, manually-dated future transactions
-  // (e.g. post-dated checks) — split those out so they render on the
-  // correct side of the Today divider/scheduled-bills section instead of
-  // always being lumped in with the true past/today transactions.
-  const futureRealTxs = isDateSort ? pastTxs.filter(tx => tx.date > today) : [];
-  const restTxs = isDateSort ? pastTxs.filter(tx => tx.date <= today) : pastTxs;
+  // pastTxs is stored newest-first (fetch order). Split out real future-dated
+  // transactions (e.g. post-dated checks) so they render on the correct side of
+  // the Today divider, then flip to oldest-first for ascending date display —
+  // fetch order never changes, only how we render it.
+  const futureRealTxsRaw = isDateSort ? pastTxs.filter(tx => tx.date > today) : [];
+  const restTxsRaw = isDateSort ? pastTxs.filter(tx => tx.date <= today) : pastTxs;
+  const futureRealTxs = isChronologicalAsc ? [...futureRealTxsRaw].reverse() : futureRealTxsRaw;
+  const restTxs = isChronologicalAsc ? [...restTxsRaw].reverse() : restTxsRaw;
 
   const renderTxRow = (tx: Transaction) => (
     <tr
@@ -654,6 +668,26 @@ export default function AccountRegister() {
       </td>
     </tr>
   );
+
+  // ── "Load older" sentinel ──
+  // Sits at whichever end of the past-transaction block holds the OLDEST loaded
+  // row: the bottom for newest-first display (scroll down for older), the top
+  // for oldest-first display (scroll up for older). Only one instance renders,
+  // so topSentinelRef always attaches to the live one.
+  const loadOlderSentinel = hasMorePast && (
+    <tr>
+      <td colSpan={8} className={styles.sentinelCell}>
+        <div ref={topSentinelRef} className={styles.sentinel} />
+        {loadingPast && <span className={styles.loadingMore}>Loading older transactions…</span>}
+      </td>
+    </tr>
+  );
+
+  const pastRows = restTxs.length === 0 && !initialLoading
+    ? (futureRealTxs.length === 0 && (
+        <tr><td colSpan={8} className={styles.emptyMsg}>No transactions found.</td></tr>
+      ))
+    : restTxs.map(renderTxRow);
 
   // ── Scheduled (bill) transactions — always future-dated, so this section
   // stays on the future side of the Today divider (see placement below). ──
@@ -905,39 +939,30 @@ export default function AccountRegister() {
             </tr>
           </thead>
           <tbody>
-            {/* Everything future-dated (real future transactions + scheduled bills, or
-                the "no upcoming" placeholder) clusters together on the future side of
-                the Today divider, which side depends on sort direction: above Today
-                when newest-first (desc, the default — future sorts before today),
-                below Today when oldest-first (asc — future sorts after today). */}
-            {!isChronologicalAsc && futureRealTxs.map(renderTxRow)}
-            {!isChronologicalAsc && futureBillsSection}
-            {!isChronologicalAsc && todayDivider}
-
-            {/* ── Past / current transactions ── */}
-            {restTxs.length === 0 && !initialLoading ? (
-              futureRealTxs.length === 0 && (
-                <tr>
-                  <td colSpan={8} className={styles.emptyMsg}>No transactions found.</td>
-                </tr>
-              )
+            {/* Two mirror-image layouts. Newest-first (desc, default): future/today
+                at the top, newest→oldest past below, "load older" sentinel at the
+                bottom. Oldest-first (asc): "load older" sentinel at the top,
+                oldest→newest past below, today/future at the bottom. Either way the
+                loaded window is the transactions nearest today (fetch is always
+                newest-first), so the block adjacent to the Today divider is the
+                recent activity and the open-to-Today scroll lands correctly. */}
+            {isChronologicalAsc ? (
+              <>
+                {loadOlderSentinel}
+                {pastRows}
+                {todayDivider}
+                {futureBillsSection}
+                {futureRealTxs.map(renderTxRow)}
+              </>
             ) : (
-              restTxs.map(renderTxRow)
+              <>
+                {futureRealTxs.map(renderTxRow)}
+                {futureBillsSection}
+                {todayDivider}
+                {pastRows}
+                {loadOlderSentinel}
+              </>
             )}
-
-            {/* ── Load-more-past sentinel (bottom of loaded past transactions) ── */}
-            {hasMorePast && (
-              <tr>
-                <td colSpan={8} className={styles.sentinelCell}>
-                  <div ref={topSentinelRef} className={styles.sentinel} />
-                  {loadingPast && <span className={styles.loadingMore}>Loading older transactions…</span>}
-                </td>
-              </tr>
-            )}
-
-            {isChronologicalAsc && todayDivider}
-            {isChronologicalAsc && futureBillsSection}
-            {isChronologicalAsc && futureRealTxs.map(renderTxRow)}
           </tbody>
         </table>
       </div>
