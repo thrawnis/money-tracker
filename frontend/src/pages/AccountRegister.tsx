@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, useLayoutEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { getAccount, getAccounts } from '../api/accounts';
@@ -156,6 +156,7 @@ export default function AccountRegister() {
   // Infinite scroll sentinels
   const topSentinelRef = useRef<HTMLDivElement>(null);
   const bottomSentinelRef = useRef<HTMLDivElement>(null);
+  const tableWrapperRef = useRef<HTMLDivElement>(null);
   const formRef = useRef<HTMLDivElement>(null);
 
   // Keyboard shortcut: N = new transaction
@@ -410,6 +411,18 @@ export default function AccountRegister() {
   // would both pass the state check and fetch (and append) the same page twice.
   const loadingPastRef = useRef(false);
 
+  // Scroll-anchoring for oldest-first display: newly-loaded older transactions
+  // are inserted ABOVE the content the user is currently looking at (fetch is
+  // always newest-first internally; ascending display reverses it, so a
+  // "load older" append lands at the top of the visible list). The browser has
+  // no way to know it should keep the user's current rows in place — it just
+  // renders the taller content with the same scrollTop, which visually shoves
+  // the previously-visible rows down and off screen, landing the viewport on
+  // the tail end of the newly-inserted batch instead. pendingScrollAnchorRef
+  // captures the scroll height right before that insertion so the layout
+  // effect below can compensate scrollTop by exactly how much content grew.
+  const pendingScrollAnchorRef = useRef<number | null>(null);
+
   const loadMorePast = useCallback(async () => {
     if (loadingPastRef.current || !hasMorePast) return;
     loadingPastRef.current = true;
@@ -427,6 +440,9 @@ export default function AccountRegister() {
         pageSize: PAST_PAGE_SIZE,
       });
       if (seq !== requestSeq.current) return;
+      if (sortBy === 'date' && sortDir === 'asc' && tableWrapperRef.current) {
+        pendingScrollAnchorRef.current = tableWrapperRef.current.scrollHeight;
+      }
       setPastTxs(prev => [...prev, ...result.items]);
       setPastPage(nextPage);
     } catch {
@@ -436,6 +452,17 @@ export default function AccountRegister() {
       setLoadingPast(false);
     }
   }, [hasMorePast, pastPage, accountId, appliedFilters, sortBy, sortDir]);
+
+  // Runs synchronously after the DOM reflects the prepended rows but before
+  // the browser paints, so the compensating scroll jump is never visible.
+  useLayoutEffect(() => {
+    const anchor = pendingScrollAnchorRef.current;
+    if (anchor == null) return;
+    pendingScrollAnchorRef.current = null;
+    const el = tableWrapperRef.current;
+    if (!el) return;
+    el.scrollTop += el.scrollHeight - anchor;
+  }, [pastTxs]);
 
   // ── Load future bills ──
 
@@ -1010,7 +1037,7 @@ export default function AccountRegister() {
       )}
 
       {/* ── Register table ── */}
-      <div className={styles.tableWrapper}>
+      <div className={styles.tableWrapper} ref={tableWrapperRef}>
         <table className={styles.table}>
           <thead>
             <tr>
