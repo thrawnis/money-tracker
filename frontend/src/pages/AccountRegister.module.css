@@ -440,12 +440,25 @@
 
 /* ── Future rows ── */
 
+/* Real transactions dated after today, shown inline in the regular table
+   (not the separate scheduled-bills section) — just a muted text color so
+   they're distinguishable at a glance without looking like an error state. */
+.txRowFuture td { color: #8a95a3; }
+.txRowFuture .debit, .txRowFuture .credit { color: inherit; }
+
 .futureTxRow td {
   opacity: 0.5;
   font-style: italic;
   background: #f8fdf8;
 }
 .futureTxRow:hover td { opacity: 0.75; background: #f0faf2; }
+
+.recurringIcon {
+  display: inline-block;
+  margin-right: 4px;
+  color: #6a9fb5;
+  font-size: 11px;
+}
 
 /* ── Misc ── */
 

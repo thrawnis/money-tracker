@@ -484,15 +484,38 @@ export default function AccountRegister() {
 
   // ── Infinite scroll via IntersectionObserver ──
 
+  // Read the latest callbacks/values via refs instead of effect dependencies.
+  // loadMorePast's identity changes every time pastPage advances (same for
+  // loadFutureBills/futureSkip), and IntersectionObserver fires its callback
+  // immediately on observe() if the target is already intersecting — so
+  // recreating the observer on every dependency change re-triggered a load
+  // immediately, whose success changed the dependency again, recreating the
+  // observer again... a runaway loop that blew through every past page in a
+  // fraction of a second. The observer itself now only needs to be (re)created
+  // when a sentinel row's presence in the DOM can actually change.
+  const loadMorePastRef = useRef(loadMorePast);
+  const loadFutureBillsRef = useRef(loadFutureBills);
+  const futureSkipRef = useRef(futureSkip);
+  const showFutureRef = useRef(showFuture);
+  const hasMoreFutureRef = useRef(hasMoreFuture);
+  useEffect(() => {
+    loadMorePastRef.current = loadMorePast;
+    loadFutureBillsRef.current = loadFutureBills;
+    futureSkipRef.current = futureSkip;
+    showFutureRef.current = showFuture;
+    hasMoreFutureRef.current = hasMoreFuture;
+  });
+
   useEffect(() => {
     const observer = new IntersectionObserver(entries => {
       for (const entry of entries) {
         if (!entry.isIntersecting) continue;
-        if (entry.target === topSentinelRef.current && hasMorePast) {
-          loadMorePast();
+        // loadMorePast is self-guarded (bails if already loading or exhausted).
+        if (entry.target === topSentinelRef.current) {
+          loadMorePastRef.current();
         }
-        if (entry.target === bottomSentinelRef.current && showFuture && hasMoreFuture) {
-          loadFutureBills(futureSkip);
+        if (entry.target === bottomSentinelRef.current && showFutureRef.current && hasMoreFutureRef.current) {
+          loadFutureBillsRef.current(futureSkipRef.current);
         }
       }
     }, { threshold: 0.1 });
@@ -500,7 +523,12 @@ export default function AccountRegister() {
     if (topSentinelRef.current) observer.observe(topSentinelRef.current);
     if (bottomSentinelRef.current) observer.observe(bottomSentinelRef.current);
     return () => observer.disconnect();
-  }, [hasMorePast, loadMorePast, showFuture, hasMoreFuture, loadFutureBills, futureSkip]);
+    // Only re-observe when a sentinel row can actually appear/disappear from
+    // the DOM (hasMorePast/showFuture/hasMoreFuture gate their conditional
+    // render) or the register itself switches ends (oldest-first display moves
+    // the "load older" sentinel from the bottom of the list to the top).
+    // Everything else is read via ref above.
+  }, [hasMorePast, showFuture, hasMoreFuture, sortBy, sortDir]);
 
   // ── Filters ──
 
@@ -653,7 +681,7 @@ export default function AccountRegister() {
     <tr
       key={tx.id}
       ref={el => { if (el) rowRefs.current.set(tx.id, el); else rowRefs.current.delete(tx.id); }}
-      className={`${styles.txRow} ${styles.txRowClickable} ${highlightTxId === tx.id ? styles.txRowHighlight : ''} ${editingTx?.id === tx.id ? styles.txRowSelected : ''}`}
+      className={`${styles.txRow} ${styles.txRowClickable} ${(tx.postDate ?? tx.date) > today ? styles.txRowFuture : ''} ${highlightTxId === tx.id ? styles.txRowHighlight : ''} ${editingTx?.id === tx.id ? styles.txRowSelected : ''}`}
       onClick={() => handleEdit(tx)}
       onContextMenu={e => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, tx }); }}
     >
@@ -759,8 +787,11 @@ export default function AccountRegister() {
         </tr>
       ) : (
         futureBills.map(bill => (
-          <tr key={`sched-${bill.id}`} className={styles.futureTxRow}>
-            <td>{formatDate(bill.nextDueDate)}</td>
+          <tr key={`sched-${bill.id}`} className={`${styles.futureTxRow} ${styles.txRowFuture}`}>
+            <td>
+              <span className={styles.recurringIcon} title="Recurring scheduled transaction">↻</span>
+              {formatDate(bill.nextDueDate)}
+            </td>
             <td>{bill.payee?.name ?? bill.name}</td>
             <td>{bill.category?.name ?? ''}</td>
             <td className={styles.colMemo}>{bill.memo ?? ''}</td>
