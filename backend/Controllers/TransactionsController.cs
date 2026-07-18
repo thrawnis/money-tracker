@@ -122,7 +122,7 @@ public class TransactionsController(
         [FromQuery] string     sortBy  = "date",
         [FromQuery] string     sortDir = "desc",
         [FromQuery] int        page     = 1,
-        [FromQuery] int        pageSize = 50)
+        [FromQuery] int        pageSize = 100)
     {
         var userId = GetUserId();
         if (userId is null) return Unauthorized();

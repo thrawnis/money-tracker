@@ -11,7 +11,7 @@ function formatDate(d: string) {
   return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
 }
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 100;
 
 export default function TransactionSearch() {
   usePageTitle('Transaction Search');

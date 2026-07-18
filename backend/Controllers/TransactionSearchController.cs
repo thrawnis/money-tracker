@@ -36,7 +36,7 @@ public class TransactionSearchController(
         [FromQuery] DateOnly? to,
         [FromQuery] int[]?  accountIds,
         [FromQuery] int     page     = 1,
-        [FromQuery] int     pageSize = 50)
+        [FromQuery] int     pageSize = 100)
     {
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
