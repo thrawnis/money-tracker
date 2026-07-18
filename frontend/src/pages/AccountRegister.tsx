@@ -518,7 +518,13 @@ export default function AccountRegister() {
           loadFutureBillsRef.current(futureSkipRef.current);
         }
       }
-    }, { threshold: 0.1 });
+    // rootMargin extends the trigger zone well past the visible edge, so the
+    // next batch is fetched and appended *before* the user's scroll gesture
+    // reaches it — without this, the sentinel only fires once it's actually
+    // on screen, by which point the user's scroll momentum has already
+    // stopped (they hit the bottom of the currently-rendered content), so
+    // nothing continues until they manually scroll again.
+    }, { threshold: 0.1, rootMargin: '800px 0px' });
 
     if (topSentinelRef.current) observer.observe(topSentinelRef.current);
     if (bottomSentinelRef.current) observer.observe(bottomSentinelRef.current);
