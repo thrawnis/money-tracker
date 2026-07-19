@@ -75,7 +75,11 @@ public class ScheduledTransactionsController(
             parentId = s.Category.ParentId,
         },
         memo         = encryption.Decrypt(s.MemoEncrypted, dek),
-        amount              = s.Amount,
+        // Transfers always debit the source account when posted (see
+        // CreateTransferPairAsync), regardless of the sign stored on the
+        // schedule — mirror that here so the preview matches what actually
+        // gets created.
+        amount              = s.TransferAccountId.HasValue ? -Math.Abs(s.Amount) : s.Amount,
         frequencyInterval   = s.FrequencyInterval,
         frequencyUnit       = s.FrequencyUnit,
         daysOfWeekMask      = s.DaysOfWeekMask,
