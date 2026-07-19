@@ -183,6 +183,21 @@
 .table tbody tr:hover { background: #f5f8fc; }
 .table tbody tr:last-child td { border-bottom: none; }
 
+.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+.sortable:hover { background: linear-gradient(to bottom, #d4e4f0, #cddce8); }
+
+.sortActive {
+  color: #1a6bbf;
+  font-size: 0.9em;
+}
+.sortIdle {
+  color: #9aabbb;
+  font-size: 0.9em;
+}
+
 .transferLabel {
   color: #2563ab;
   font-style: italic;

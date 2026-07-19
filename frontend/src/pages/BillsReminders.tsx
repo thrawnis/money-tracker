@@ -45,6 +45,21 @@ function formatFrequency(interval: number, unit: FrequencyUnit, daysOfWeekMask?:
   return `Every ${interval} ${unit}`;
 }
 
+type SortColumn = 'name' | 'payee' | 'account' | 'amount' | 'frequency' | 'nextDueDate' | 'days' | 'isActive';
+
+// Rough day-equivalent so Frequency sorts by how often it recurs rather than
+// alphabetically ("Every 2 Weeks" vs "Every Month" should compare sensibly).
+const FREQUENCY_UNIT_DAYS: Record<FrequencyUnit, number> = { Days: 1, Weeks: 7, Months: 30, Years: 365 };
+function frequencyDays(item: ScheduledTransaction): number {
+  return item.frequencyInterval * FREQUENCY_UNIT_DAYS[item.frequencyUnit];
+}
+
+function payeeLabel(item: ScheduledTransaction, accounts: Account[]): string {
+  return item.transferAccountId
+    ? `Transfer → ${accounts.find(a => a.id === item.transferAccountId)?.name ?? 'account'}`
+    : (item.payee?.name ?? '');
+}
+
 interface FormState {
   name: string;
   accountId: string;
@@ -100,6 +115,8 @@ export default function BillsReminders() {
   const [payeeSuggestions, setPayeeSuggestions] = useState<Payee[]>([]);
   const [categorySuggestions, setCategorySuggestions] = useState<{ id: number; label: string }[]>([]);
   const [showCatSugg, setShowCatSugg] = useState(false);
+  const [sortBy, setSortBy] = useState<SortColumn>('nextDueDate');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
   // Dirty = form differs from its snapshot at open time (an untouched form,
   // new or editing, is not dirty — emptyForm() pre-fills nextDueDate)
@@ -326,6 +343,44 @@ export default function BillsReminders() {
     return Math.round((due.getTime() - today.getTime()) / 86400000);
   };
 
+  const handleSort = (col: SortColumn) => {
+    if (sortBy === col) {
+      setSortDir(d => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortBy(col);
+      setSortDir('asc');
+    }
+  };
+
+  const sortedItems = [...items].sort((a, b) => {
+    let cmp = 0;
+    switch (sortBy) {
+      case 'name': cmp = a.name.localeCompare(b.name); break;
+      case 'payee': cmp = payeeLabel(a, accounts).localeCompare(payeeLabel(b, accounts)); break;
+      case 'account': {
+        const an = a.account?.name ?? accounts.find(x => x.id === a.accountId)?.name ?? '';
+        const bn = b.account?.name ?? accounts.find(x => x.id === b.accountId)?.name ?? '';
+        cmp = an.localeCompare(bn);
+        break;
+      }
+      case 'amount': cmp = a.amount - b.amount; break;
+      case 'frequency': cmp = frequencyDays(a) - frequencyDays(b); break;
+      case 'nextDueDate': cmp = a.nextDueDate.localeCompare(b.nextDueDate); break;
+      case 'days': cmp = daysUntil(a.nextDueDate) - daysUntil(b.nextDueDate); break;
+      case 'isActive': cmp = Number(a.isActive) - Number(b.isActive); break;
+    }
+    return sortDir === 'desc' ? -cmp : cmp;
+  });
+
+  const sortHeader = (col: SortColumn, label: string) => (
+    <th className={styles.sortable} onClick={() => handleSort(col)}>
+      {label}
+      {sortBy === col
+        ? <span className={styles.sortActive}>{sortDir === 'desc' ? ' ▼' : ' ▲'}</span>
+        : <span className={styles.sortIdle}> ⇅</span>}
+    </th>
+  );
+
   return (
     <div className={styles.page}>
       <div className={styles.pageHeader}>
@@ -508,22 +563,22 @@ export default function BillsReminders() {
         <table className={styles.table}>
           <thead>
             <tr>
-              <th>Name</th>
-              <th>Payee</th>
-              <th>Account</th>
-              <th>Amount</th>
-              <th>Frequency</th>
-              <th>Next Due</th>
-              <th>Days</th>
-              <th>Active</th>
+              {sortHeader('name', 'Name')}
+              {sortHeader('payee', 'Payee')}
+              {sortHeader('account', 'Account')}
+              {sortHeader('amount', 'Amount')}
+              {sortHeader('frequency', 'Frequency')}
+              {sortHeader('nextDueDate', 'Next Due')}
+              {sortHeader('days', 'Days')}
+              {sortHeader('isActive', 'Active')}
               <th></th>
             </tr>
           </thead>
           <tbody>
-            {items.length === 0 ? (
+            {sortedItems.length === 0 ? (
               <tr><td colSpan={9} className={styles.emptyMsg}>No bills found.</td></tr>
             ) : (
-              items.map(item => {
+              sortedItems.map(item => {
                 const days = daysUntil(item.nextDueDate);
                 return (
                   <tr key={item.id} className={days < 0 ? styles.overdue : ''}>
