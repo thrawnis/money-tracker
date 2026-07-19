@@ -327,7 +327,12 @@ export default function BillsReminders() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Delete this bill?')) return;
+    if (!confirm(
+      'Delete this recurring bill/reminder?\n\n' +
+      "This stops it from creating any new occurrences, but won't touch transactions " +
+      "already created from it (past or future-dated) — those stay in your register " +
+      'exactly as they are.'
+    )) return;
     try {
       await deleteScheduledTransaction(id);
       load();
