@@ -1,4 +1,5 @@
 import { useState, useEffect, type FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { useAuth } from '../contexts/AuthContext';
@@ -10,7 +11,7 @@ import { getTemplate, previewImport, importWithDuplicates, type PreviewResult } 
 import { getAuditLog, type AuditEntry, type GetAuditParams } from '../api/audit';
 import { getAccounts } from '../api/accounts';
 import { listAccountBackups, downloadAccountBackup, type AccountBackupSummary } from '../api/accountBackups';
-import { getDuplicates, type DuplicateGroup } from '../api/duplicates';
+import { getDuplicates, type DuplicateGroup, type DuplicateTransaction } from '../api/duplicates';
 import { deleteTransaction } from '../api/transactions';
 import { getInstitutions, updateInstitution, deleteInstitution } from '../api/institutions';
 import { getPreferences, updatePreferences } from '../api/preferences';
@@ -951,43 +952,61 @@ function DuplicatesTab() {
         <p className={styles.hint}>No likely duplicates found.</p>
       )}
 
-      {groups.map((g, i) => (
-        <table className={styles.dupTable} key={`${g.accountId}-${g.date}-${g.amount}-${i}`} style={{ marginBottom: 16 }}>
-          <thead>
-            <tr>
-              <th colSpan={5}>
-                {g.accountName} — {formatDate(g.date)} — {formatCurrency(g.amount)}
-              </th>
-            </tr>
-            <tr>
-              <th>Payee</th>
-              <th>Category</th>
-              <th>Memo</th>
-              <th>Status</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {g.transactions.map(t => (
-              <tr key={t.id}>
-                <td>{t.payee ?? <span className={styles.hint}>—</span>}</td>
-                <td>{t.category ?? <span className={styles.hint}>—</span>}</td>
-                <td>{t.memo ?? ''}</td>
-                <td>{t.status}</td>
-                <td>
-                  <button
-                    className={styles.btnDanger}
-                    onClick={() => handleDelete(g.accountId, t.id)}
-                    disabled={deletingId === t.id}
-                  >
-                    {deletingId === t.id ? 'Deleting…' : 'Delete'}
-                  </button>
-                </td>
+      {groups.map((g, i) => {
+        // A field only helps distinguish these rows if the transactions in
+        // this group actually disagree on it — highlight just those cells.
+        const fields: Array<keyof DuplicateTransaction> = ['payee', 'category', 'memo', 'checkNumber', 'status'];
+        const varies = Object.fromEntries(
+          fields.map(f => [f, new Set(g.transactions.map(t => t[f] ?? '')).size > 1])
+        ) as Record<keyof DuplicateTransaction, boolean>;
+
+        return (
+          <table className={styles.dupTable} key={`${g.accountId}-${g.date}-${g.amount}-${i}`} style={{ marginBottom: 16 }}>
+            <thead>
+              <tr>
+                <th colSpan={6}>
+                  {g.accountName} — {formatDate(g.date)} — {formatCurrency(g.amount)}
+                </th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      ))}
+              <tr>
+                <th>Payee</th>
+                <th>Category</th>
+                <th>Memo</th>
+                <th>Check #</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {g.transactions.map(t => (
+                <tr key={t.id}>
+                  <td className={varies.payee ? styles.dupDiffCell : undefined}>
+                    {t.payee ?? <span className={styles.hint}>—</span>}
+                  </td>
+                  <td className={varies.category ? styles.dupDiffCell : undefined}>
+                    {t.category ?? <span className={styles.hint}>—</span>}
+                  </td>
+                  <td className={varies.memo ? styles.dupDiffCell : undefined}>{t.memo ?? ''}</td>
+                  <td className={varies.checkNumber ? styles.dupDiffCell : undefined}>{t.checkNumber ?? ''}</td>
+                  <td className={varies.status ? styles.dupDiffCell : undefined}>{t.status}</td>
+                  <td style={{ display: 'flex', gap: 8 }}>
+                    <Link className={styles.btnSecondary} to={`/accounts/${g.accountId}?tx=${t.id}`}>
+                      View
+                    </Link>
+                    <button
+                      className={styles.btnDanger}
+                      onClick={() => handleDelete(g.accountId, t.id)}
+                      disabled={deletingId === t.id}
+                    >
+                      {deletingId === t.id ? 'Deleting…' : 'Delete'}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        );
+      })}
     </div>
   );
 }

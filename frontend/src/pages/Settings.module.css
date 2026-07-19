@@ -284,6 +284,17 @@
   color: #336699;
 }
 
+.dupDiffCell {
+  background: #fff6d8;
+  font-weight: 600;
+}
+
+.dupTable a.btnSecondary {
+  display: inline-block;
+  text-decoration: none;
+  padding: 4px 12px;
+}
+
 .actions {
   display: flex;
   gap: 8px;
