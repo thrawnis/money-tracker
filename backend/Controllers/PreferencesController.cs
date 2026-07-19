@@ -32,6 +32,7 @@ public class PreferencesController(
         {
             defaultRegisterSortBy  = user.DefaultRegisterSortBy,
             defaultRegisterSortDir = user.DefaultRegisterSortDir,
+            defaultFutureDays      = user.DefaultFutureDays,
         });
     }
 
@@ -48,19 +49,23 @@ public class PreferencesController(
             return BadRequest(new { message = "Invalid sort field." });
         if (dto.DefaultRegisterSortDir is not null && !ValidSortDirs.Contains(dto.DefaultRegisterSortDir))
             return BadRequest(new { message = "Invalid sort direction." });
+        if (dto.DefaultFutureDays is int days && (days < 1 || days > 3650))
+            return BadRequest(new { message = "Days ahead must be between 1 and 3650." });
 
         user.DefaultRegisterSortBy  = dto.DefaultRegisterSortBy;
         user.DefaultRegisterSortDir = dto.DefaultRegisterSortDir;
+        user.DefaultFutureDays      = dto.DefaultFutureDays;
         await db.SaveChangesAsync();
 
         return Ok(new
         {
             defaultRegisterSortBy  = user.DefaultRegisterSortBy,
             defaultRegisterSortDir = user.DefaultRegisterSortDir,
+            defaultFutureDays      = user.DefaultFutureDays,
         });
     }
 }
 
 // Null fields mean "use the built-in default" — lets the user explicitly reset
-// to (date, newest first) instead of just omitting a field they never set.
-public record PreferencesDto(string? DefaultRegisterSortBy, string? DefaultRegisterSortDir);
+// to (date, newest first, 31 days) instead of just omitting a field they never set.
+public record PreferencesDto(string? DefaultRegisterSortBy, string? DefaultRegisterSortDir, int? DefaultFutureDays);

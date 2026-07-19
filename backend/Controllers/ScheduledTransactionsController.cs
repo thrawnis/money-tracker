@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using MoneyTracker.Auth.Services;
 using MoneyTracker.Data;
 using MoneyTracker.Models;
+using MoneyTracker.Services;
 
 namespace MoneyTracker.Controllers;
 
@@ -40,10 +41,21 @@ public class ScheduledTransactionsController(
             !await db.Accounts.AnyAsync(a => a.Id == dto.TransferAccountId.Value && a.UserId == userId))
             return "Transfer account not found.";
 
+        if (dto.DaysOfWeekMask is int mask && (mask <= 0 || mask > 0b1111111))
+            return "Invalid days-of-week selection.";
+
         return null;
     }
 
-    private object MapScheduled(ScheduledTransaction s, string dek) => new
+    // Only meaningful for Weeks — normalized here so it can never linger
+    // stale on a schedule that's since been switched to Days/Months/Years.
+    private static int? NormalizedDaysOfWeekMask(ScheduledTransactionDto dto) =>
+        dto.FrequencyUnit == FrequencyUnit.Weeks ? dto.DaysOfWeekMask : null;
+
+    // occurrenceDate overrides NextDueDate when this represents one of possibly
+    // several projected occurrences of the same schedule (see GetUpcoming) —
+    // the stored record only ever holds the schedule's single earliest due date.
+    private object MapScheduled(ScheduledTransaction s, string dek, DateOnly? occurrenceDate = null) => new
     {
         id           = s.Id,
         name         = s.Name,
@@ -58,14 +70,16 @@ public class ScheduledTransactionsController(
         categoryId   = s.CategoryId,
         category     = s.Category is null ? null : new
         {
-            id   = s.Category.Id,
-            name = encryption.Decrypt(s.Category.NameEncrypted, dek),
+            id       = s.Category.Id,
+            name     = encryption.Decrypt(s.Category.NameEncrypted, dek),
+            parentId = s.Category.ParentId,
         },
         memo         = encryption.Decrypt(s.MemoEncrypted, dek),
         amount              = s.Amount,
         frequencyInterval   = s.FrequencyInterval,
         frequencyUnit       = s.FrequencyUnit,
-        nextDueDate         = s.NextDueDate,
+        daysOfWeekMask      = s.DaysOfWeekMask,
+        nextDueDate         = occurrenceDate ?? s.NextDueDate,
         reminderDays = s.ReminderDays,
         isActive     = s.IsActive,
         transferAccountId = s.TransferAccountId,
@@ -108,22 +122,44 @@ public class ScheduledTransactionsController(
         var from   = DateOnly.FromDateTime(DateTime.UtcNow);
         var cutoff = from.AddDays(days);
 
+        // NextDueDate is always each schedule's EARLIEST occurrence (the posting
+        // job keeps it current), so "NextDueDate <= cutoff" is both necessary and
+        // sufficient to find every schedule that has at least one occurrence in
+        // the window — occurrences only ever move forward from there.
         var query = db.ScheduledTransactions
-            .Where(s => s.UserId == userId && s.IsActive && s.NextDueDate >= from && s.NextDueDate <= cutoff);
+            .Where(s => s.UserId == userId && s.IsActive && s.NextDueDate <= cutoff);
 
         if (accountId.HasValue)
             query = query.Where(s => s.AccountId == accountId.Value);
 
-        var items = await query
+        var schedules = await query
             .Include(s => s.Payee)
             .Include(s => s.Category)
             .Include(s => s.Account)
-            .OrderBy(s => s.NextDueDate)
-            .Skip(skip)
-            .Take(limit)
             .ToListAsync();
 
-        return Ok(items.Select(s => MapScheduled(s, user.EncryptedDataKey)));
+        // Project every occurrence of each schedule within [from, cutoff] — not
+        // just the next one — so e.g. a weekly bill shows every week it's due
+        // within the selected "days ahead" range, not a single row.
+        var occurrences = new List<(ScheduledTransaction Sched, DateOnly Date)>();
+        foreach (var s in schedules)
+        {
+            var date = s.NextDueDate;
+            var guard = 0;
+            while (date <= cutoff && guard++ < 366)
+            {
+                if (date >= from) occurrences.Add((s, date));
+                date = ScheduledTransactionPostingService.Advance(date, s);
+            }
+        }
+
+        var page = occurrences
+            .OrderBy(o => o.Date).ThenBy(o => o.Sched.Id)
+            .Skip(skip)
+            .Take(limit)
+            .ToList();
+
+        return Ok(page.Select(o => MapScheduled(o.Sched, user.EncryptedDataKey, o.Date)));
     }
 
     [HttpPost]
@@ -150,6 +186,7 @@ public class ScheduledTransactionsController(
             Amount             = dto.Amount,
             FrequencyInterval  = dto.FrequencyInterval,
             FrequencyUnit      = dto.FrequencyUnit,
+            DaysOfWeekMask     = NormalizedDaysOfWeekMask(dto),
             NextDueDate        = dto.NextDueDate,
             ReminderDays  = dto.ReminderDays,
             CreatedAt     = DateTime.UtcNow,
@@ -187,6 +224,7 @@ public class ScheduledTransactionsController(
         scheduled.Amount            = dto.Amount;
         scheduled.FrequencyInterval = dto.FrequencyInterval;
         scheduled.FrequencyUnit     = dto.FrequencyUnit;
+        scheduled.DaysOfWeekMask    = NormalizedDaysOfWeekMask(dto);
         scheduled.NextDueDate       = dto.NextDueDate;
         scheduled.ReminderDays  = dto.ReminderDays;
 
@@ -222,4 +260,5 @@ public record ScheduledTransactionDto(
     FrequencyUnit FrequencyUnit,
     DateOnly NextDueDate,
     int ReminderDays,
-    int? TransferAccountId);
+    int? TransferAccountId,
+    int? DaysOfWeekMask = null);

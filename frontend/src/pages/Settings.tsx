@@ -185,9 +185,12 @@ const SORT_FIELD_OPTIONS: { value: string; label: string }[] = [
   { value: 'status',   label: 'Status' },
 ];
 
+const DEFAULT_FUTURE_DAYS = 31;
+
 function PreferencesTab() {
   const [sortBy, setSortBy] = useState('date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [futureDays, setFutureDays] = useState(String(DEFAULT_FUTURE_DAYS));
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -198,17 +201,20 @@ function PreferencesTab() {
       .then(p => {
         setSortBy(p.defaultRegisterSortBy ?? 'date');
         setSortDir(p.defaultRegisterSortDir ?? 'desc');
+        setFutureDays(String(p.defaultFutureDays ?? DEFAULT_FUTURE_DAYS));
       })
       .catch(() => setError('Failed to load preferences.'))
       .finally(() => setLoading(false));
   }, []);
 
   const handleSave = async () => {
+    const days = Math.max(1, Math.min(3650, Number(futureDays) || DEFAULT_FUTURE_DAYS));
     setSaving(true);
     setError('');
     setSaved(false);
     try {
-      await updatePreferences({ defaultRegisterSortBy: sortBy, defaultRegisterSortDir: sortDir });
+      await updatePreferences({ defaultRegisterSortBy: sortBy, defaultRegisterSortDir: sortDir, defaultFutureDays: days });
+      setFutureDays(String(days));
       setSaved(true);
     } catch {
       setError('Failed to save preferences.');
@@ -222,9 +228,10 @@ function PreferencesTab() {
     setError('');
     setSaved(false);
     try {
-      await updatePreferences({ defaultRegisterSortBy: null, defaultRegisterSortDir: null });
+      await updatePreferences({ defaultRegisterSortBy: null, defaultRegisterSortDir: null, defaultFutureDays: null });
       setSortBy('date');
       setSortDir('desc');
+      setFutureDays(String(DEFAULT_FUTURE_DAYS));
       setSaved(true);
     } catch {
       setError('Failed to reset preferences.');
@@ -258,6 +265,21 @@ function PreferencesTab() {
             <option value="asc">Ascending (oldest / lowest first)</option>
           </select>
         </div>
+      </div>
+
+      <p className={styles.hint}>
+        How many days ahead the register's "upcoming scheduled transactions" section looks.
+      </p>
+      <div style={{ marginBottom: 16 }}>
+        <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 4 }}>Days ahead</label>
+        <input
+          type="number"
+          min={1}
+          max={3650}
+          value={futureDays}
+          onChange={e => { setFutureDays(e.target.value); setSaved(false); }}
+          style={{ width: 90 }}
+        />
       </div>
 
       <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>

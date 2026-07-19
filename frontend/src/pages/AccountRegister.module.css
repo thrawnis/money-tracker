@@ -177,13 +177,11 @@
   color: #556;
 }
 
-.settingsDaysInput {
-  width: 60px;
-  padding: 3px 6px;
-  border: 1.5px solid #c5d4e0;
-  border-radius: 4px;
-  font-size: 12px;
-  background: #fafbfc;
+.settingsHint {
+  margin: 0;
+  font-size: 11px;
+  color: #889;
+  font-style: italic;
 }
 
 .settingsDivider {

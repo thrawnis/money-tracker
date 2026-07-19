@@ -60,7 +60,7 @@ public class ScheduledTransactionPostingService(
                 else
                     db.Transactions.Add(NewTransaction(s, s.AccountId, s.Amount));
 
-                var next = Advance(s.NextDueDate, s.FrequencyUnit, Math.Max(1, s.FrequencyInterval));
+                var next = Advance(s.NextDueDate, s);
                 if (next <= s.NextDueDate) // defensive: never loop on a non-advancing date
                 {
                     await dbTx.RollbackAsync(ct);
@@ -111,12 +111,35 @@ public class ScheduledTransactionPostingService(
         UpdatedAt     = DateTime.UtcNow,
     };
 
-    private static DateOnly Advance(DateOnly date, FrequencyUnit unit, int interval) => unit switch
+    /// <summary>
+    /// Computes the next occurrence date after <paramref name="date"/> for a
+    /// schedule — shared with ScheduledTransactionsController.GetUpcoming,
+    /// which projects every occurrence within the "days ahead" window rather
+    /// than just the next one.
+    /// </summary>
+    public static DateOnly Advance(DateOnly date, ScheduledTransaction s)
     {
-        FrequencyUnit.Days   => date.AddDays(interval),
-        FrequencyUnit.Weeks  => date.AddDays(7 * interval),
-        FrequencyUnit.Months => date.AddMonths(interval),
-        FrequencyUnit.Years  => date.AddYears(interval),
-        _                    => date.AddMonths(interval),
-    };
+        // Specific-weekdays schedule (e.g. "every Mon/Wed/Fri"): find the next
+        // date strictly after the current one whose weekday bit is set, rather
+        // than a flat N-week jump. Bit N = (int)DayOfWeek N (Sunday=0 → bit 1).
+        if (s.FrequencyUnit == FrequencyUnit.Weeks && s.DaysOfWeekMask is int mask && mask != 0)
+        {
+            for (var i = 1; i <= 7; i++)
+            {
+                var candidate = date.AddDays(i);
+                if ((mask & (1 << (int)candidate.DayOfWeek)) != 0) return candidate;
+            }
+            return date; // unreachable when mask != 0, but keeps this total
+        }
+
+        var interval = Math.Max(1, s.FrequencyInterval);
+        return s.FrequencyUnit switch
+        {
+            FrequencyUnit.Days   => date.AddDays(interval),
+            FrequencyUnit.Weeks  => date.AddDays(7 * interval),
+            FrequencyUnit.Months => date.AddMonths(interval),
+            FrequencyUnit.Years  => date.AddYears(interval),
+            _                    => date.AddMonths(interval),
+        };
+    }
 }

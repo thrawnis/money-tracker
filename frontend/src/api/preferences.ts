@@ -3,6 +3,7 @@ import api from './client';
 export interface Preferences {
   defaultRegisterSortBy?: string | null;
   defaultRegisterSortDir?: 'asc' | 'desc' | null;
+  defaultFutureDays?: number | null;
 }
 
 export const getPreferences = (): Promise<Preferences> =>

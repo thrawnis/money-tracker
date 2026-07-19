@@ -75,7 +75,9 @@ export default function AccountRegister() {
 
   // Future scheduled transactions
   const [showFuture, setShowFuture] = useState(true);
-  const [futureDays, setFutureDays] = useState(14);
+  // Seeded from the user's saved preference (Settings → Preferences) below;
+  // 31 is the built-in default until that loads or if none was ever set.
+  const [futureDays, setFutureDays] = useState(31);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsRef = useRef<HTMLDivElement>(null);
   const [futureBills, setFutureBills] = useState<ScheduledTransaction[]>([]);
@@ -113,8 +115,9 @@ export default function AccountRegister() {
           sortBy: p.defaultRegisterSortBy ?? 'date',
           sortDir: p.defaultRegisterSortDir ?? 'desc',
         };
+        if (p.defaultFutureDays) setFutureDays(p.defaultFutureDays);
       })
-      .catch(() => { /* fall back to date/desc */ })
+      .catch(() => { /* fall back to date/desc, 31 days */ })
       .finally(() => setDefaultSortReady(true));
   }, []);
 
@@ -813,9 +816,74 @@ export default function AccountRegister() {
       ))
     : restTxs.map(renderTxRow);
 
-  // ── Scheduled (bill) transactions — always future-dated, so this section
-  // stays on the future side of the Today divider (see placement below). ──
-  const futureBillsSection = showFuture && (
+  // ── Merged future items ──
+  // Real future-dated transactions (manual/post-dated entries) and scheduled
+  // bill occurrences used to render as two entirely separate blocks — a bill
+  // due before a manually-entered future transaction would still show below
+  // it. Interleave them by date instead, in a single chronological sequence.
+  type FutureItem =
+    | { kind: 'tx'; date: string; key: string; tx: Transaction }
+    | { kind: 'bill'; date: string; key: string; bill: ScheduledTransaction };
+
+  const futureItemsChrono: FutureItem[] = [
+    ...futureRealTxsRaw.map(tx => ({ kind: 'tx' as const, date: tx.postDate ?? tx.date, key: `tx-${tx.id}`, tx })),
+    ...(showFuture ? futureBills.map(bill => ({
+      kind: 'bill' as const, date: bill.nextDueDate, key: `bill-${bill.id}-${bill.nextDueDate}`, bill,
+    })) : []),
+  ].sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+
+  // Projected balance for bill occurrences: walk forward from the header's
+  // "as of today" balance, accumulating amounts in chronological order — the
+  // same formula the server uses for real transactions' own runningBalance
+  // (used as-is when present), so a projected bill balance lines up exactly
+  // with the real transactions around it.
+  const billProjectedBalance = new Map<string, number>();
+  {
+    let running = accountBalance;
+    for (const item of futureItemsChrono) {
+      if (item.kind === 'tx') {
+        running = item.tx.runningBalance ?? running + item.tx.amount;
+      } else {
+        running += item.bill.amount;
+        billProjectedBalance.set(item.key, running);
+      }
+    }
+  }
+
+  const renderBillRow = (bill: ScheduledTransaction, key: string) => {
+    const balance = billProjectedBalance.get(key);
+    return (
+      <tr key={key} className={`${styles.futureTxRow} ${styles.txRowFuture}`}>
+        <td>
+          <span className={styles.recurringIcon} title="Recurring scheduled transaction">↻</span>
+          {formatDate(bill.nextDueDate)}
+        </td>
+        <td>{bill.payee?.name ?? bill.name}</td>
+        <td>{getBillCategoryLabel(bill, categories)}</td>
+        <td className={styles.colMemo}>{bill.memo ?? ''}</td>
+        <td className={`${styles.right} ${bill.amount < 0 ? styles.debit : styles.credit}`}>
+          {formatCurrency(bill.amount)}
+        </td>
+        <td className={`${styles.right} ${(balance ?? 0) < 0 ? styles.debit : ''}`}>
+          {balance != null ? formatCurrency(balance) : '—'}
+        </td>
+        <td><span className={styles.statusScheduled}>Scheduled</span></td>
+        <td />
+      </tr>
+    );
+  };
+
+  const futureItemsDisplay = isChronologicalAsc ? futureItemsChrono : [...futureItemsChrono].reverse();
+  const futureItemRows = futureItemsDisplay.map(item =>
+    item.kind === 'tx' ? renderTxRow(item.tx) : renderBillRow(item.bill, item.key)
+  );
+
+  // Bills-specific loading/error/empty state and the "load more upcoming"
+  // sentinel aren't dated items, so they stay a fixed block at the
+  // far-future edge of the merged rows (top in desc display, bottom in
+  // asc) rather than interleaved — same edge-of-block placement as the
+  // "load older" sentinel on the past side.
+  const futureBillsStatus = showFuture && (
     <>
       {futureError && futureBills.length === 0 ? (
         <tr>
@@ -829,27 +897,8 @@ export default function AccountRegister() {
         <tr>
           <td colSpan={8} className={styles.noUpcoming}>No upcoming scheduled transactions.</td>
         </tr>
-      ) : (
-        futureBills.map(bill => (
-          <tr key={`sched-${bill.id}`} className={`${styles.futureTxRow} ${styles.txRowFuture}`}>
-            <td>
-              <span className={styles.recurringIcon} title="Recurring scheduled transaction">↻</span>
-              {formatDate(bill.nextDueDate)}
-            </td>
-            <td>{bill.payee?.name ?? bill.name}</td>
-            <td>{bill.category?.name ?? ''}</td>
-            <td className={styles.colMemo}>{bill.memo ?? ''}</td>
-            <td className={`${styles.right} ${bill.amount < 0 ? styles.debit : styles.credit}`}>
-              {formatCurrency(bill.amount)}
-            </td>
-            <td className={styles.right}>—</td>
-            <td><span className={styles.statusScheduled}>Scheduled</span></td>
-            <td />
-          </tr>
-        ))
-      )}
+      ) : null}
 
-      {/* Load-more-future sentinel (bottom) */}
       {hasMoreFuture && (
         <tr>
           <td colSpan={8} className={styles.sentinelCell}>
@@ -957,23 +1006,9 @@ export default function AccountRegister() {
                   />
                   Show upcoming transactions
                 </label>
-                <div className={styles.settingsRow}>
-                  <label htmlFor="futureDaysInput">Days ahead</label>
-                  <input
-                    id="futureDaysInput"
-                    type="number"
-                    min={1}
-                    max={3650}
-                    value={futureDays}
-                    onChange={e => {
-                      const v = Math.max(1, Math.min(3650, Number(e.target.value) || 14));
-                      setFutureDays(v);
-                      setFutureBills([]);
-                      setFutureSkip(0);
-                    }}
-                    className={styles.settingsDaysInput}
-                  />
-                </div>
+                <p className={styles.settingsHint}>
+                  "Days ahead" is set in Settings → Preferences.
+                </p>
                 <div className={styles.settingsDivider} />
                 <button
                   className={styles.settingsAction}
@@ -1094,13 +1129,13 @@ export default function AccountRegister() {
                 {loadOlderSentinel}
                 {pastRows}
                 {todayDivider}
-                {futureBillsSection}
-                {futureRealTxs.map(renderTxRow)}
+                {futureItemRows}
+                {futureBillsStatus}
               </>
             ) : (
               <>
-                {futureRealTxs.map(renderTxRow)}
-                {futureBillsSection}
+                {futureBillsStatus}
+                {futureItemRows}
                 {todayDivider}
                 {pastRows}
                 {loadOlderSentinel}
@@ -1179,4 +1214,19 @@ function getCategoryLabel(tx: Transaction, categories: Category[]): string {
     }
   }
   return tx.category?.name ?? '';
+}
+
+// Same "Parent:Sub" resolution as getCategoryLabel, but for a scheduled
+// transaction (which has no splits).
+function getBillCategoryLabel(bill: ScheduledTransaction, categories: Category[]): string {
+  if (!bill.categoryId) return '';
+  for (const cat of categories) {
+    if (cat.id === bill.categoryId) return cat.name;
+    if (cat.subCategories) {
+      for (const sub of cat.subCategories) {
+        if (sub.id === bill.categoryId) return `${cat.name}:${sub.name}`;
+      }
+    }
+  }
+  return bill.category?.name ?? '';
 }

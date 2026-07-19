@@ -235,4 +235,30 @@
   white-space: nowrap;
 }
 .frequencyInterval { width: 58px; }
+.frequencyInterval:disabled { background: #f0f0f0; color: #999; }
 .frequencyUnit { flex: 1; }
+
+.weekdayRow {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.weekdayToggle {
+  padding: 5px 10px;
+  border: 1.5px solid #c5d4e0;
+  border-radius: 4px;
+  background: #fff;
+  color: #556;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+.weekdayToggle:hover { background: #f0f4f8; }
+
+.weekdayToggleActive {
+  background: #003366;
+  border-color: #003366;
+  color: #fff;
+}
+.weekdayToggleActive:hover { background: #004488; }

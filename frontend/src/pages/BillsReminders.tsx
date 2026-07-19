@@ -15,6 +15,17 @@ import styles from './BillsReminders.module.css';
 
 const FREQUENCY_UNITS: FrequencyUnit[] = ['Days', 'Weeks', 'Months', 'Years'];
 
+// Bit N = JS Date.getDay() value N (Sunday=0 → bit 1, ... Saturday=6 → bit 64).
+const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+const maskFromDays = (days: boolean[]): number | undefined => {
+  const mask = days.reduce((m, checked, i) => checked ? m | (1 << i) : m, 0);
+  return mask || undefined; // 0 means "none selected" — treat as unset
+};
+
+const daysFromMask = (mask?: number): boolean[] =>
+  Array.from({ length: 7 }, (_, i) => !!(mask && (mask & (1 << i))));
+
 function formatCurrency(n: number) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
 }
@@ -23,7 +34,11 @@ function formatDate(d: string) {
   return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
 }
 
-function formatFrequency(interval: number, unit: FrequencyUnit): string {
+function formatFrequency(interval: number, unit: FrequencyUnit, daysOfWeekMask?: number): string {
+  if (unit === 'Weeks' && daysOfWeekMask) {
+    const days = WEEKDAY_LABELS.filter((_, i) => daysOfWeekMask & (1 << i));
+    return `Every ${days.join('/')}`;
+  }
   if (interval === 1) {
     return `Every ${unit.slice(0, -1)}`; // "Every Month", "Every Week", etc.
   }
@@ -43,6 +58,8 @@ interface FormState {
   amount: string;
   frequencyInterval: string;
   frequencyUnit: FrequencyUnit;
+  /** Only used when frequencyUnit === 'Weeks'; index i = WEEKDAY_LABELS[i]. */
+  daysOfWeek: boolean[];
   nextDueDate: string;
   reminderDays: string;
   isActive: boolean;
@@ -61,6 +78,7 @@ const emptyForm = (): FormState => ({
   amount: '',
   frequencyInterval: '1',
   frequencyUnit: 'Months',
+  daysOfWeek: [false, false, false, false, false, false, false],
   nextDueDate: new Date().toISOString().slice(0, 10),
   reminderDays: '3',
   isActive: true,
@@ -243,6 +261,7 @@ export default function BillsReminders() {
         amount: Number(form.amount),
         frequencyInterval: Number(form.frequencyInterval),
         frequencyUnit: form.frequencyUnit,
+        daysOfWeekMask: form.frequencyUnit === 'Weeks' ? maskFromDays(form.daysOfWeek) : undefined,
         nextDueDate: form.nextDueDate,
         reminderDays: Number(form.reminderDays) || 0,
         isActive: form.isActive,
@@ -280,6 +299,7 @@ export default function BillsReminders() {
       amount: String(item.amount),
       frequencyInterval: String(item.frequencyInterval),
       frequencyUnit: item.frequencyUnit,
+      daysOfWeek: daysFromMask(item.daysOfWeekMask),
       nextDueDate: item.nextDueDate.slice(0, 10),
       reminderDays: String(item.reminderDays),
       isActive: item.isActive,
@@ -411,18 +431,46 @@ export default function BillsReminders() {
                   min="1"
                   className={styles.frequencyInterval}
                   value={form.frequencyInterval}
+                  disabled={form.frequencyUnit === 'Weeks' && form.daysOfWeek.some(Boolean)}
                   onChange={e => setForm(f => ({ ...f, frequencyInterval: e.target.value }))}
                 />
                 <select
                   className={styles.frequencyUnit}
                   value={form.frequencyUnit}
-                  onChange={e => setForm(f => ({ ...f, frequencyUnit: e.target.value as FrequencyUnit }))}
+                  onChange={e => setForm(f => ({
+                    ...f,
+                    frequencyUnit: e.target.value as FrequencyUnit,
+                    // Only meaningful for Weeks — clear so it can't linger
+                    // stale on a schedule switched to Days/Months/Years.
+                    daysOfWeek: e.target.value === 'Weeks' ? f.daysOfWeek : [false, false, false, false, false, false, false],
+                  }))}
                 >
                   {FREQUENCY_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
                 </select>
               </div>
               {formErrors.frequencyInterval && <span className={styles.fieldError}>{formErrors.frequencyInterval}</span>}
             </div>
+            {form.frequencyUnit === 'Weeks' && (
+              <div className={styles.formField} style={{ gridColumn: '1 / -1' }}>
+                <label>Or on specific weekdays (overrides "Every N Weeks" above)</label>
+                <div className={styles.weekdayRow}>
+                  {WEEKDAY_LABELS.map((label, i) => (
+                    <button
+                      key={label}
+                      type="button"
+                      className={`${styles.weekdayToggle} ${form.daysOfWeek[i] ? styles.weekdayToggleActive : ''}`}
+                      onClick={() => setForm(f => {
+                        const next = [...f.daysOfWeek];
+                        next[i] = !next[i];
+                        return { ...f, daysOfWeek: next };
+                      })}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className={styles.formField}>
               <label>Next Due Date *</label>
               <input type="date" value={form.nextDueDate} onChange={e => setForm(f => ({ ...f, nextDueDate: e.target.value }))} />
@@ -489,7 +537,7 @@ export default function BillsReminders() {
                     </td>
                     <td>{item.account?.name ?? accounts.find(a => a.id === item.accountId)?.name ?? '—'}</td>
                     <td className={styles.amount}>{formatCurrency(item.amount)}</td>
-                    <td>{formatFrequency(item.frequencyInterval, item.frequencyUnit)}</td>
+                    <td>{formatFrequency(item.frequencyInterval, item.frequencyUnit, item.daysOfWeekMask)}</td>
                     <td>{formatDate(item.nextDueDate)}</td>
                     <td className={days < 0 ? styles.overdueText : ''}>{days < 0 ? 'Overdue' : `${days}d`}</td>
                     <td>{item.isActive ? 'Yes' : 'No'}</td>

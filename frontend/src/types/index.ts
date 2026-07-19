@@ -104,6 +104,10 @@ export interface ScheduledTransaction {
   amount: number;
   frequencyInterval: number;
   frequencyUnit: FrequencyUnit;
+  /** Only meaningful when frequencyUnit is 'Weeks': bitmask of specific
+   *  weekdays (bit N = JS/CSS Date.getDay() value N, Sunday=1, ... Saturday=64).
+   *  Undefined/0 means the plain frequencyInterval-weeks behavior applies. */
+  daysOfWeekMask?: number;
   nextDueDate: string;
   reminderDays: number;
   isActive: boolean;

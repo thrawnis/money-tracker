@@ -43,6 +43,14 @@ public class ScheduledTransaction
     public FrequencyUnit FrequencyUnit { get; set; } = FrequencyUnit.Months;
     public DateOnly NextDueDate { get; set; }
 
+    // Only meaningful when FrequencyUnit == Weeks: a bitmask of specific
+    // weekdays (bit N = System.DayOfWeek value N, so Sunday=1, Monday=2, ...
+    // Saturday=64) for schedules like "every Mon/Wed/Fri" instead of a flat
+    // N-week interval. Null/0 means the classic FrequencyInterval-weeks
+    // behavior applies. Always null for non-Weeks units — enforced by the
+    // controller, not just left unused, so it can't linger stale.
+    public int? DaysOfWeekMask { get; set; }
+
     // How many days before due date to show the reminder
     public int ReminderDays { get; set; } = 3;
 

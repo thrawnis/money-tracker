@@ -16,6 +16,10 @@ public class ApplicationUser : IdentityUser
     public string? DefaultRegisterSortBy { get; set; }
     public string? DefaultRegisterSortDir { get; set; }
 
+    // How many days ahead the register's "upcoming scheduled transactions"
+    // section looks; null means the built-in default (31 days).
+    public int? DefaultFutureDays { get; set; }
+
     public ICollection<RefreshToken> RefreshTokens { get; set; } = [];
     public ICollection<UserPasskeyCredential> PasskeyCredentials { get; set; } = [];
 }
