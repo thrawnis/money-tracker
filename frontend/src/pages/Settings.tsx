@@ -271,63 +271,76 @@ function PreferencesTab() {
 
       {error && <div className={styles.error}>{error}</div>}
 
-      <div style={{ display: 'flex', gap: 20, alignItems: 'flex-end', marginBottom: 16 }}>
-        <div>
-          <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 4 }}>Sort field</label>
-          <select value={sortBy} onChange={e => { setSortBy(e.target.value); setSaved(false); }}>
-            {SORT_FIELD_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
-        </div>
-        <div>
-          <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 4 }}>Sort direction</label>
-          <select value={sortDir} onChange={e => { setSortDir(e.target.value as 'asc' | 'desc'); setSaved(false); }}>
-            <option value="desc">Descending (newest / highest first)</option>
-            <option value="asc">Ascending (oldest / lowest first)</option>
-          </select>
+      <div className={styles.prefGroup}>
+        <p className={styles.prefGroupTitle}>Register default sort</p>
+        <p className={styles.hint}>
+          Choose the sort field and direction the account register uses when you first open it. Manually changing
+          the sort while viewing a register only applies for that visit — it doesn't change this default.
+        </p>
+        <div style={{ display: 'flex', gap: 20, alignItems: 'flex-end' }}>
+          <div>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 4 }}>Sort field</label>
+            <select value={sortBy} onChange={e => { setSortBy(e.target.value); setSaved(false); }}>
+              {SORT_FIELD_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 4 }}>Sort direction</label>
+            <select value={sortDir} onChange={e => { setSortDir(e.target.value as 'asc' | 'desc'); setSaved(false); }}>
+              <option value="desc">Descending (newest / highest first)</option>
+              <option value="asc">Ascending (oldest / lowest first)</option>
+            </select>
+          </div>
         </div>
       </div>
 
-      <p className={styles.hint}>
-        How many days ahead the register's "upcoming scheduled transactions" preview section looks. These are
-        just a projected preview, not real transactions, until they're actually due.
-      </p>
-      <div style={{ marginBottom: 20 }}>
-        <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 4 }}>Days ahead (preview)</label>
-        <input
-          type="number"
-          min={1}
-          max={3650}
-          value={futureDays}
-          onChange={e => { setFutureDays(e.target.value); setSaved(false); }}
-          style={{ width: 90 }}
-        />
+      <div className={styles.prefGroup}>
+        <p className={styles.prefGroupTitle}>Upcoming transactions preview</p>
+        <p className={styles.hint}>
+          How many days ahead the register's "upcoming scheduled transactions" preview section looks. These are
+          just a projected preview, not real transactions, until they're actually due.
+        </p>
+        <div>
+          <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 4 }}>Days ahead (preview)</label>
+          <input
+            type="number"
+            min={1}
+            max={3650}
+            value={futureDays}
+            onChange={e => { setFutureDays(e.target.value); setSaved(false); }}
+            style={{ width: 90 }}
+          />
+        </div>
       </div>
 
-      <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, cursor: 'pointer' }}>
-        <input
-          type="checkbox"
-          checked={autoCreate}
-          onChange={e => { setAutoCreate(e.target.checked); setSaved(false); }}
-        />
-        <span style={{ fontSize: 13, fontWeight: 700 }}>Auto-create upcoming recurring transactions</span>
-      </label>
-      <p className={styles.hint}>
-        When enabled, recurring transactions are created as real, future-dated transactions — editable in the
-        register — once they're within the window below, instead of only appearing when actually due. This is
-        separate from the preview window above: a recurring transaction can show in the preview well before it's
-        auto-created, or auto-create can be set further out than the preview shows.
-      </p>
-      <div style={{ marginBottom: 16 }}>
-        <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 4 }}>Days ahead (auto-create)</label>
-        <input
-          type="number"
-          min={1}
-          max={3650}
-          value={autoCreateDays}
-          disabled={!autoCreate}
-          onChange={e => { setAutoCreateDays(e.target.value); setSaved(false); }}
-          style={{ width: 90 }}
-        />
+      <div className={styles.prefGroup}>
+        <p className={styles.prefGroupTitle}>Auto-create upcoming recurring transactions</p>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={autoCreate}
+            onChange={e => { setAutoCreate(e.target.checked); setSaved(false); }}
+          />
+          <span style={{ fontSize: 13, fontWeight: 700 }}>Enable auto-create</span>
+        </label>
+        <p className={styles.hint}>
+          When enabled, recurring transactions are created as real, future-dated transactions — editable in the
+          register — once they're within the window below, instead of only appearing when actually due. This is
+          separate from the preview window above: a recurring transaction can show in the preview well before it's
+          auto-created, or auto-create can be set further out than the preview shows.
+        </p>
+        <div>
+          <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 4 }}>Days ahead (auto-create)</label>
+          <input
+            type="number"
+            min={1}
+            max={3650}
+            value={autoCreateDays}
+            disabled={!autoCreate}
+            onChange={e => { setAutoCreateDays(e.target.value); setSaved(false); }}
+            style={{ width: 90 }}
+          />
+        </div>
       </div>
 
       <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
