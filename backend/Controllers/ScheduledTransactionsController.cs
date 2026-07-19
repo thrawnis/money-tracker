@@ -16,7 +16,8 @@ namespace MoneyTracker.Controllers;
 public class ScheduledTransactionsController(
     AppDbContext db,
     IEncryptionService encryption,
-    UserManager<ApplicationUser> userManager) : ControllerBase
+    UserManager<ApplicationUser> userManager,
+    ScheduledTransactionPostingService postingService) : ControllerBase
 {
     private string? GetUserId() => User.FindFirstValue(ClaimTypes.NameIdentifier);
 
@@ -211,6 +212,12 @@ public class ScheduledTransactionsController(
         db.ScheduledTransactions.Add(scheduled);
         await db.SaveChangesAsync();
 
+        // Materialize immediately rather than waiting for the next 6-hour
+        // background tick — a bill due today/soon, or within the user's
+        // auto-create window, should show as a real transaction right away.
+        await postingService.PostDueAsync(HttpContext.RequestAborted);
+        await postingService.CreateFutureAsync(HttpContext.RequestAborted);
+
         return CreatedAtAction(nameof(GetAll), new { },
             MapScheduled(scheduled, user.EncryptedDataKey));
     }
@@ -245,6 +252,12 @@ public class ScheduledTransactionsController(
         scheduled.ReminderDays  = dto.ReminderDays;
 
         await db.SaveChangesAsync();
+
+        // Same reasoning as Create: an edited NextDueDate/amount/etc. should
+        // be reflected in materialized transactions immediately, not after
+        // up to 6 hours.
+        await postingService.PostDueAsync(HttpContext.RequestAborted);
+        await postingService.CreateFutureAsync(HttpContext.RequestAborted);
 
         return Ok(MapScheduled(scheduled, user.EncryptedDataKey));
     }

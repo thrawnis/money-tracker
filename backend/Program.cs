@@ -167,7 +167,11 @@ builder.Services.AddSingleton(UrlEncoder.Default);
 builder.Services.AddScoped<ExportService>();
 builder.Services.AddScoped<DemoSeeder>();
 builder.Services.AddSingleton<IAccountBackupService, AccountBackupService>();
-builder.Services.AddHostedService<ScheduledTransactionPostingService>();
+// Registered as itself (not just IHostedService) so controllers can inject it
+// directly to trigger an immediate posting pass right after a schedule is
+// created/edited, instead of waiting for the next 6-hour background tick.
+builder.Services.AddSingleton<ScheduledTransactionPostingService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<ScheduledTransactionPostingService>());
 
 // ── MVC & Swagger ─────────────────────────────────────────────────────────────
 
