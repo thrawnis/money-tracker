@@ -103,7 +103,7 @@ Update this file whenever requirements change or new features are defined.
 
 ## Bills & Reminders (Scheduled Transactions)
 
-- Scheduled transaction fields: name, account, amount, payee (optional), category (optional), memo (encrypted, optional), next due date, frequency (N Days/Weeks/Months/Years), reminder days before due
+- Scheduled transaction fields: name, account, amount, payee (optional), category (optional, autocomplete text field — same find-or-create-on-the-fly behavior as the transaction form's category field, including "Parent: Sub" syntax), memo (encrypted, optional), next due date, frequency (N Days/Weeks/Months/Years), reminder days before due
 - Supports scheduled transfers between accounts
 - Bills can be active or inactive
 - Bills & Reminders page shows upcoming items sorted by due date

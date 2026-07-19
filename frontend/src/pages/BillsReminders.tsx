@@ -8,7 +8,7 @@ import {
   deleteScheduledTransaction,
 } from '../api/scheduledTransactions';
 import { getAccounts } from '../api/accounts';
-import { getCategories } from '../api/categories';
+import { getCategories, createCategory } from '../api/categories';
 import { getPayees, createPayee } from '../api/payees';
 import type { ScheduledTransaction, Account, Category, Payee, FrequencyUnit } from '../types';
 import styles from './BillsReminders.module.css';
@@ -37,7 +37,8 @@ interface FormState {
   transferAccountId: string;
   payeeInput: string;
   payeeId?: number;
-  categoryId: string;
+  categoryInput: string;
+  categoryId?: number;
   memo: string;
   amount: string;
   frequencyInterval: string;
@@ -54,7 +55,8 @@ const emptyForm = (): FormState => ({
   transferAccountId: '',
   payeeInput: '',
   payeeId: undefined,
-  categoryId: '',
+  categoryInput: '',
+  categoryId: undefined,
   memo: '',
   amount: '',
   frequencyInterval: '1',
@@ -78,6 +80,8 @@ export default function BillsReminders() {
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [payeeSuggestions, setPayeeSuggestions] = useState<Payee[]>([]);
+  const [categorySuggestions, setCategorySuggestions] = useState<{ id: number; label: string }[]>([]);
+  const [showCatSugg, setShowCatSugg] = useState(false);
 
   // Dirty = form differs from its snapshot at open time (an untouched form,
   // new or editing, is not dirty — emptyForm() pre-fills nextDueDate)
@@ -117,6 +121,59 @@ export default function BillsReminders() {
       }
     }
   }
+
+  const handleCategoryInput = (val: string) => {
+    setForm(f => ({ ...f, categoryInput: val, categoryId: undefined }));
+    if (val.length >= 1) {
+      const sug = allCategories.filter(c => c.label.toLowerCase().includes(val.toLowerCase())).slice(0, 10);
+      setCategorySuggestions(sug);
+      setShowCatSugg(true);
+    } else {
+      setShowCatSugg(false);
+    }
+  };
+
+  const selectCategory = (c: { id: number; label: string }) => {
+    setForm(f => ({ ...f, categoryInput: c.label, categoryId: c.id }));
+    setShowCatSugg(false);
+  };
+
+  // Same find-or-create-on-the-fly behavior as TransactionForm: an exact
+  // label match resolves to its id; "Parent: Sub" creates whichever parts
+  // don't already exist; a plain name creates a new top-level category.
+  const resolveCategoryInput = async (input: string): Promise<number | undefined> => {
+    const trimmed = input.trim();
+    if (!trimmed) return undefined;
+
+    const flat = allCategories;
+    const exact = flat.find(c => c.label.toLowerCase() === trimmed.toLowerCase());
+    if (exact) return exact.id;
+
+    const colonIdx = trimmed.indexOf(':');
+    if (colonIdx > 0) {
+      const parentName = trimmed.slice(0, colonIdx).trim();
+      const subName = trimmed.slice(colonIdx + 1).trim();
+
+      let parent = categories.find(c => c.name.toLowerCase() === parentName.toLowerCase());
+      if (!parent) {
+        parent = await createCategory({ name: parentName, parentId: undefined });
+        setCategories(prev => [...prev, { ...parent!, subCategories: [] }]);
+      }
+
+      const existingSub = parent.subCategories?.find(s => s.name.toLowerCase() === subName.toLowerCase());
+      if (existingSub) return existingSub.id;
+
+      const newSub = await createCategory({ name: subName, parentId: parent.id });
+      setCategories(prev => prev.map(c =>
+        c.id === parent!.id ? { ...c, subCategories: [...(c.subCategories ?? []), newSub] } : c
+      ));
+      return newSub.id;
+    }
+
+    const newCat = await createCategory({ name: trimmed, parentId: undefined });
+    setCategories(prev => [...prev, { ...newCat, subCategories: [] }]);
+    return newCat.id;
+  };
 
   const validate = () => {
     const e: Record<string, string> = {};
@@ -166,11 +223,22 @@ export default function BillsReminders() {
           return;
         }
       }
+      let resolvedCategoryId = form.categoryId;
+      if (form.categoryInput && !resolvedCategoryId) {
+        try {
+          resolvedCategoryId = await resolveCategoryInput(form.categoryInput);
+        } catch (catErr: unknown) {
+          const msg = (catErr as { response?: { data?: { message?: string } } })?.response?.data?.message;
+          setFormErrors(prev => ({ ...prev, submit: msg ?? 'Failed to create category.' }));
+          setSaving(false);
+          return;
+        }
+      }
       const data = {
         name: form.name,
         accountId: Number(form.accountId),
         payeeId: form.isTransfer ? undefined : resolvedPayeeId,
-        categoryId: form.isTransfer ? undefined : (form.categoryId ? Number(form.categoryId) : undefined),
+        categoryId: form.isTransfer ? undefined : resolvedCategoryId,
         memo: form.memo || undefined,
         amount: Number(form.amount),
         frequencyInterval: Number(form.frequencyInterval),
@@ -206,7 +274,8 @@ export default function BillsReminders() {
       transferAccountId: item.transferAccountId ? String(item.transferAccountId) : '',
       payeeInput: item.payee?.name ?? '',
       payeeId: item.payeeId,
-      categoryId: item.categoryId ? String(item.categoryId) : '',
+      categoryInput: item.categoryId ? (allCategories.find(c => c.id === item.categoryId)?.label ?? '') : '',
+      categoryId: item.categoryId,
       memo: item.memo ?? '',
       amount: String(item.amount),
       frequencyInterval: String(item.frequencyInterval),
@@ -271,7 +340,7 @@ export default function BillsReminders() {
                 <input
                   type="checkbox"
                   checked={form.isTransfer}
-                  onChange={e => setForm(f => ({ ...f, isTransfer: e.target.checked, transferAccountId: '', payeeInput: '', payeeId: undefined, categoryId: '' }))}
+                  onChange={e => setForm(f => ({ ...f, isTransfer: e.target.checked, transferAccountId: '', payeeInput: '', payeeId: undefined, categoryInput: '', categoryId: undefined }))}
                 />
                 {' '}Scheduled transfer between accounts
               </label>
@@ -310,12 +379,22 @@ export default function BillsReminders() {
               </div>
             )}
             {!form.isTransfer && (
-              <div className={styles.formField}>
+              <div className={styles.formField} style={{ position: 'relative' }}>
                 <label>Category</label>
-                <select value={form.categoryId} onChange={e => setForm(f => ({ ...f, categoryId: e.target.value }))}>
-                  <option value="">None</option>
-                  {allCategories.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
-                </select>
+                <input
+                  value={form.categoryInput}
+                  onChange={e => handleCategoryInput(e.target.value)}
+                  onBlur={() => setTimeout(() => setShowCatSugg(false), 150)}
+                  autoComplete="off"
+                  placeholder="e.g. Food or Food: Groceries"
+                />
+                {showCatSugg && categorySuggestions.length > 0 && (
+                  <ul className={styles.suggestions}>
+                    {categorySuggestions.map(c => (
+                      <li key={c.id} onMouseDown={() => selectCategory(c)} className={styles.suggestion}>{c.label}</li>
+                    ))}
+                  </ul>
+                )}
               </div>
             )}
             <div className={styles.formField}>
