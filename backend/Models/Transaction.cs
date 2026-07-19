@@ -45,6 +45,19 @@ public class Transaction
     public int? TransferTransactionId { get; set; }
     public int? TransferAccountId { get; set; }
 
+    // Set when this transaction was materialized from a recurring schedule —
+    // either because it became due, or (if the user enabled the preference)
+    // pre-created ahead of time so it's editable before it's actually due.
+    // Never set/changed by the public Create/Update endpoints, only by
+    // ScheduledTransactionPostingService. Used to dedupe: the same occurrence
+    // (ScheduledTransactionId, Date) is never materialized twice, and an
+    // already-materialized occurrence is excluded from the "upcoming
+    // scheduled transactions" preview (it's showing as a real transaction
+    // instead). SetNull on schedule deletion — deleting a bill shouldn't
+    // delete transactions it already generated.
+    public int? ScheduledTransactionId { get; set; }
+    public ScheduledTransaction? ScheduledTransaction { get; set; }
+
     // Present only when this transaction is split across multiple categories;
     // when non-empty, CategoryId is null and Splits.Sum(Amount) == Amount.
     public ICollection<TransactionSplit> Splits { get; set; } = [];

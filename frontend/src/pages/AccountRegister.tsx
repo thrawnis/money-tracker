@@ -733,6 +733,9 @@ export default function AccountRegister() {
       onContextMenu={e => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, tx }); }}
     >
       <td>
+        {tx.scheduledTransactionId != null && (
+          <span className={styles.recurringIcon} title="Created from a recurring schedule">↻</span>
+        )}
         {/* Transfer source side: always show transaction date (post date belongs to destination) */}
         {tx.transferTransactionId && tx.amount < 0 ? formatDate(tx.date) :
           tx.postDate ? (

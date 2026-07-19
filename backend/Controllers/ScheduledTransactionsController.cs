@@ -138,6 +138,18 @@ public class ScheduledTransactionsController(
             .Include(s => s.Account)
             .ToListAsync();
 
+        // Occurrences already materialized as real transactions (posted when
+        // due, or pre-created by the auto-create-future preference) shouldn't
+        // also show as a projected "upcoming" preview — they're showing up as
+        // real, editable transactions in the register instead.
+        var scheduleIds = schedules.Select(s => s.Id).ToList();
+        var materialized = await db.Transactions
+            .Where(t => t.ScheduledTransactionId != null && scheduleIds.Contains(t.ScheduledTransactionId!.Value)
+                     && t.Date >= from && t.Date <= cutoff)
+            .Select(t => new { ScheduledTransactionId = t.ScheduledTransactionId!.Value, t.Date })
+            .ToListAsync();
+        var materializedSet = materialized.Select(m => (m.ScheduledTransactionId, m.Date)).ToHashSet();
+
         // Project every occurrence of each schedule within [from, cutoff] — not
         // just the next one — so e.g. a weekly bill shows every week it's due
         // within the selected "days ahead" range, not a single row.
@@ -148,7 +160,7 @@ public class ScheduledTransactionsController(
             var guard = 0;
             while (date <= cutoff && guard++ < 366)
             {
-                if (date >= from) occurrences.Add((s, date));
+                if (date >= from && !materializedSet.Contains((s.Id, date))) occurrences.Add((s, date));
                 date = ScheduledTransactionPostingService.Advance(date, s);
             }
         }

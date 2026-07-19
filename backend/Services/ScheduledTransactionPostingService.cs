@@ -5,16 +5,31 @@ using MoneyTracker.Models;
 namespace MoneyTracker.Services;
 
 /// <summary>
-/// Background job that materializes due scheduled transactions into real
-/// transactions and advances their NextDueDate. Runs at startup and then
-/// every 6 hours. Transfers post as a linked pair; the memo ciphertext is
-/// copied directly since both records belong to the same user (same DEK).
+/// Background job that materializes scheduled transactions into real
+/// transactions. Runs at startup and then every 6 hours, doing two
+/// independent passes each time:
+///
+///  1. PostDueAsync — materializes every occurrence up to and including
+///     today and advances NextDueDate past it (back-filling missed runs,
+///     e.g. the app was down for a month).
+///  2. CreateFutureAsync — for users who opted in
+///     (ApplicationUser.AutoCreateFutureTransactions), pre-creates
+///     occurrences within their configured "days ahead" window WITHOUT
+///     advancing NextDueDate, so they show up as real, editable
+///     transactions before they're actually due.
+///
+/// Both dedupe by (ScheduledTransactionId, Date) — a future occurrence
+/// pre-created by pass 2 is never re-created by pass 1 once it becomes due,
+/// and either pass is safe to re-run. Transfers post as a linked pair; the
+/// memo ciphertext is copied directly since both records belong to the same
+/// user (same DEK).
 /// </summary>
 public class ScheduledTransactionPostingService(
     IServiceScopeFactory scopeFactory,
     ILogger<ScheduledTransactionPostingService> logger) : BackgroundService
 {
     private static readonly TimeSpan Interval = TimeSpan.FromHours(6);
+    private const int DefaultAutoCreateFutureDays = 31;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -23,6 +38,7 @@ public class ScheduledTransactionPostingService(
             try
             {
                 await PostDueAsync(stoppingToken);
+                await CreateFutureAsync(stoppingToken);
             }
             catch (Exception ex)
             {
@@ -55,10 +71,20 @@ public class ScheduledTransactionPostingService(
             {
                 await using var dbTx = await db.Database.BeginTransactionAsync(ct);
 
-                if (s.TransferAccountId.HasValue)
-                    await CreateTransferPairAsync(db, s, ct);
-                else
-                    db.Transactions.Add(NewTransaction(s, s.AccountId, s.Amount));
+                // Already materialized ahead of time by CreateFutureAsync (or a
+                // previous run that inserted the transaction but was
+                // interrupted before advancing NextDueDate) — don't duplicate,
+                // just move the cursor past it.
+                var alreadyExists = await db.Transactions
+                    .AnyAsync(t => t.ScheduledTransactionId == s.Id && t.Date == s.NextDueDate, ct);
+
+                if (!alreadyExists)
+                {
+                    if (s.TransferAccountId.HasValue)
+                        await CreateTransferPairAsync(db, s, s.NextDueDate, ct);
+                    else
+                        db.Transactions.Add(NewTransaction(s, s.AccountId, s.Amount, s.NextDueDate));
+                }
 
                 var next = Advance(s.NextDueDate, s);
                 if (next <= s.NextDueDate) // defensive: never loop on a non-advancing date
@@ -75,18 +101,76 @@ public class ScheduledTransactionPostingService(
                 await db.SaveChangesAsync(ct);
                 await dbTx.CommitAsync(ct);
 
-                await audit.LogSystemAsync("SCHEDULED_POST", "Transaction",
-                    new { scheduledTransactionId = s.Id, date = postedDate, amount = s.Amount });
+                if (!alreadyExists)
+                {
+                    await audit.LogSystemAsync("SCHEDULED_POST", "Transaction",
+                        new { scheduledTransactionId = s.Id, date = postedDate, amount = s.Amount });
+                }
             }
         }
     }
 
-    private static async Task CreateTransferPairAsync(AppDbContext db, ScheduledTransaction s, CancellationToken ct)
+    /// <summary>
+    /// For users who opted in, pre-creates real transactions for occurrences
+    /// within their configured "days ahead" window that haven't happened yet
+    /// — so they're visible and editable in the register before they're
+    /// actually due. Never advances NextDueDate; PostDueAsync still owns that
+    /// when the occurrence's date arrives (and will find it already exists
+    /// via the dedupe check there, so it isn't posted a second time).
+    /// </summary>
+    public async Task CreateFutureAsync(CancellationToken ct)
+    {
+        using var scope = scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var audit = scope.ServiceProvider.GetRequiredService<IAuditService>();
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+        var schedules = await db.ScheduledTransactions
+            .Include(s => s.User)
+            .Where(s => s.IsActive && s.User.AutoCreateFutureTransactions)
+            .ToListAsync(ct);
+
+        foreach (var s in schedules)
+        {
+            var cutoff = today.AddDays(s.User.AutoCreateFutureDays ?? DefaultAutoCreateFutureDays);
+            var date = s.NextDueDate;
+            var guard = 0;
+            while (date <= cutoff && guard++ < 366)
+            {
+                // date <= today is PostDueAsync's job — only pre-create genuinely
+                // future occurrences here.
+                if (date > today)
+                {
+                    var exists = await db.Transactions
+                        .AnyAsync(t => t.ScheduledTransactionId == s.Id && t.Date == date, ct);
+                    if (!exists)
+                    {
+                        await using var dbTx = await db.Database.BeginTransactionAsync(ct);
+
+                        if (s.TransferAccountId.HasValue)
+                            await CreateTransferPairAsync(db, s, date, ct);
+                        else
+                            db.Transactions.Add(NewTransaction(s, s.AccountId, s.Amount, date));
+
+                        await db.SaveChangesAsync(ct);
+                        await dbTx.CommitAsync(ct);
+
+                        await audit.LogSystemAsync("SCHEDULED_PRECREATE", "Transaction",
+                            new { scheduledTransactionId = s.Id, date, amount = s.Amount });
+                    }
+                }
+                date = Advance(date, s);
+            }
+        }
+    }
+
+    private static async Task CreateTransferPairAsync(AppDbContext db, ScheduledTransaction s, DateOnly date, CancellationToken ct)
     {
         var amount = Math.Abs(s.Amount);
 
-        var debit  = NewTransaction(s, s.AccountId, -amount);
-        var credit = NewTransaction(s, s.TransferAccountId!.Value, amount);
+        var debit  = NewTransaction(s, s.AccountId, -amount, date);
+        var credit = NewTransaction(s, s.TransferAccountId!.Value, amount, date);
         debit.TransferAccountId  = s.TransferAccountId.Value;
         credit.TransferAccountId = s.AccountId;
 
@@ -98,15 +182,16 @@ public class ScheduledTransactionPostingService(
         credit.TransferTransactionId = debit.Id;
     }
 
-    private static Transaction NewTransaction(ScheduledTransaction s, int accountId, decimal amount) => new()
+    private static Transaction NewTransaction(ScheduledTransaction s, int accountId, decimal amount, DateOnly date) => new()
     {
         AccountId     = accountId,
-        Date          = s.NextDueDate,
+        Date          = date,
         PayeeId       = s.PayeeId,
         CategoryId    = s.CategoryId,
         MemoEncrypted = s.MemoEncrypted, // same user → same DEK → ciphertext is reusable
         Amount        = amount,
         Status        = TransactionStatus.Uncleared,
+        ScheduledTransactionId = s.Id,
         CreatedAt     = DateTime.UtcNow,
         UpdatedAt     = DateTime.UtcNow,
     };

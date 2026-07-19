@@ -191,6 +191,8 @@ function PreferencesTab() {
   const [sortBy, setSortBy] = useState('date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [futureDays, setFutureDays] = useState(String(DEFAULT_FUTURE_DAYS));
+  const [autoCreate, setAutoCreate] = useState(false);
+  const [autoCreateDays, setAutoCreateDays] = useState(String(DEFAULT_FUTURE_DAYS));
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -202,6 +204,8 @@ function PreferencesTab() {
         setSortBy(p.defaultRegisterSortBy ?? 'date');
         setSortDir(p.defaultRegisterSortDir ?? 'desc');
         setFutureDays(String(p.defaultFutureDays ?? DEFAULT_FUTURE_DAYS));
+        setAutoCreate(!!p.autoCreateFutureTransactions);
+        setAutoCreateDays(String(p.autoCreateFutureDays ?? DEFAULT_FUTURE_DAYS));
       })
       .catch(() => setError('Failed to load preferences.'))
       .finally(() => setLoading(false));
@@ -209,12 +213,20 @@ function PreferencesTab() {
 
   const handleSave = async () => {
     const days = Math.max(1, Math.min(3650, Number(futureDays) || DEFAULT_FUTURE_DAYS));
+    const autoDays = Math.max(1, Math.min(3650, Number(autoCreateDays) || DEFAULT_FUTURE_DAYS));
     setSaving(true);
     setError('');
     setSaved(false);
     try {
-      await updatePreferences({ defaultRegisterSortBy: sortBy, defaultRegisterSortDir: sortDir, defaultFutureDays: days });
+      await updatePreferences({
+        defaultRegisterSortBy: sortBy,
+        defaultRegisterSortDir: sortDir,
+        defaultFutureDays: days,
+        autoCreateFutureTransactions: autoCreate,
+        autoCreateFutureDays: autoDays,
+      });
       setFutureDays(String(days));
+      setAutoCreateDays(String(autoDays));
       setSaved(true);
     } catch {
       setError('Failed to save preferences.');
@@ -228,10 +240,18 @@ function PreferencesTab() {
     setError('');
     setSaved(false);
     try {
-      await updatePreferences({ defaultRegisterSortBy: null, defaultRegisterSortDir: null, defaultFutureDays: null });
+      await updatePreferences({
+        defaultRegisterSortBy: null,
+        defaultRegisterSortDir: null,
+        defaultFutureDays: null,
+        autoCreateFutureTransactions: false,
+        autoCreateFutureDays: null,
+      });
       setSortBy('date');
       setSortDir('desc');
       setFutureDays(String(DEFAULT_FUTURE_DAYS));
+      setAutoCreate(false);
+      setAutoCreateDays(String(DEFAULT_FUTURE_DAYS));
       setSaved(true);
     } catch {
       setError('Failed to reset preferences.');
@@ -268,16 +288,44 @@ function PreferencesTab() {
       </div>
 
       <p className={styles.hint}>
-        How many days ahead the register's "upcoming scheduled transactions" section looks.
+        How many days ahead the register's "upcoming scheduled transactions" preview section looks. These are
+        just a projected preview, not real transactions, until they're actually due.
       </p>
-      <div style={{ marginBottom: 16 }}>
-        <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 4 }}>Days ahead</label>
+      <div style={{ marginBottom: 20 }}>
+        <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 4 }}>Days ahead (preview)</label>
         <input
           type="number"
           min={1}
           max={3650}
           value={futureDays}
           onChange={e => { setFutureDays(e.target.value); setSaved(false); }}
+          style={{ width: 90 }}
+        />
+      </div>
+
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, cursor: 'pointer' }}>
+        <input
+          type="checkbox"
+          checked={autoCreate}
+          onChange={e => { setAutoCreate(e.target.checked); setSaved(false); }}
+        />
+        <span style={{ fontSize: 13, fontWeight: 700 }}>Auto-create upcoming recurring transactions</span>
+      </label>
+      <p className={styles.hint}>
+        When enabled, recurring transactions are created as real, future-dated transactions — editable in the
+        register — once they're within the window below, instead of only appearing when actually due. This is
+        separate from the preview window above: a recurring transaction can show in the preview well before it's
+        auto-created, or auto-create can be set further out than the preview shows.
+      </p>
+      <div style={{ marginBottom: 16 }}>
+        <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 4 }}>Days ahead (auto-create)</label>
+        <input
+          type="number"
+          min={1}
+          max={3650}
+          value={autoCreateDays}
+          disabled={!autoCreate}
+          onChange={e => { setAutoCreateDays(e.target.value); setSaved(false); }}
           style={{ width: 90 }}
         />
       </div>

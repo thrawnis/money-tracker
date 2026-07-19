@@ -54,6 +54,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             e.Property(t => t.Amount).HasPrecision(18, 2);
             e.HasOne(t => t.Payee).WithMany(p => p.Transactions).HasForeignKey(t => t.PayeeId).OnDelete(DeleteBehavior.SetNull);
             e.HasOne(t => t.Category).WithMany(c => c.Transactions).HasForeignKey(t => t.CategoryId).OnDelete(DeleteBehavior.SetNull);
+            e.HasOne(t => t.ScheduledTransaction).WithMany().HasForeignKey(t => t.ScheduledTransactionId).OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<TransactionSplit>(e =>

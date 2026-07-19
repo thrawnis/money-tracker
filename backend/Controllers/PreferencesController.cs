@@ -30,9 +30,11 @@ public class PreferencesController(
 
         return Ok(new
         {
-            defaultRegisterSortBy  = user.DefaultRegisterSortBy,
-            defaultRegisterSortDir = user.DefaultRegisterSortDir,
-            defaultFutureDays      = user.DefaultFutureDays,
+            defaultRegisterSortBy       = user.DefaultRegisterSortBy,
+            defaultRegisterSortDir      = user.DefaultRegisterSortDir,
+            defaultFutureDays           = user.DefaultFutureDays,
+            autoCreateFutureTransactions = user.AutoCreateFutureTransactions,
+            autoCreateFutureDays         = user.AutoCreateFutureDays,
         });
     }
 
@@ -51,21 +53,32 @@ public class PreferencesController(
             return BadRequest(new { message = "Invalid sort direction." });
         if (dto.DefaultFutureDays is int days && (days < 1 || days > 3650))
             return BadRequest(new { message = "Days ahead must be between 1 and 3650." });
+        if (dto.AutoCreateFutureDays is int autoDays && (autoDays < 1 || autoDays > 3650))
+            return BadRequest(new { message = "Auto-create days ahead must be between 1 and 3650." });
 
-        user.DefaultRegisterSortBy  = dto.DefaultRegisterSortBy;
-        user.DefaultRegisterSortDir = dto.DefaultRegisterSortDir;
-        user.DefaultFutureDays      = dto.DefaultFutureDays;
+        user.DefaultRegisterSortBy        = dto.DefaultRegisterSortBy;
+        user.DefaultRegisterSortDir       = dto.DefaultRegisterSortDir;
+        user.DefaultFutureDays            = dto.DefaultFutureDays;
+        user.AutoCreateFutureTransactions = dto.AutoCreateFutureTransactions;
+        user.AutoCreateFutureDays         = dto.AutoCreateFutureDays;
         await db.SaveChangesAsync();
 
         return Ok(new
         {
-            defaultRegisterSortBy  = user.DefaultRegisterSortBy,
-            defaultRegisterSortDir = user.DefaultRegisterSortDir,
-            defaultFutureDays      = user.DefaultFutureDays,
+            defaultRegisterSortBy       = user.DefaultRegisterSortBy,
+            defaultRegisterSortDir      = user.DefaultRegisterSortDir,
+            defaultFutureDays           = user.DefaultFutureDays,
+            autoCreateFutureTransactions = user.AutoCreateFutureTransactions,
+            autoCreateFutureDays         = user.AutoCreateFutureDays,
         });
     }
 }
 
 // Null fields mean "use the built-in default" — lets the user explicitly reset
 // to (date, newest first, 31 days) instead of just omitting a field they never set.
-public record PreferencesDto(string? DefaultRegisterSortBy, string? DefaultRegisterSortDir, int? DefaultFutureDays);
+public record PreferencesDto(
+    string? DefaultRegisterSortBy,
+    string? DefaultRegisterSortDir,
+    int? DefaultFutureDays,
+    bool AutoCreateFutureTransactions = false,
+    int? AutoCreateFutureDays = null);

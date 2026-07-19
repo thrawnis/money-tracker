@@ -88,6 +88,7 @@ public class TransactionsController(
         status                = tx.Status,
         transferTransactionId = tx.TransferTransactionId,
         transferAccountId     = tx.TransferAccountId,
+        scheduledTransactionId = tx.ScheduledTransactionId,
         splits                = tx.Splits.Count == 0 ? null : tx.Splits.Select(s => new
         {
             id         = s.Id,

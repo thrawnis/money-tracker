@@ -54,6 +54,10 @@ export interface Transaction {
   status: TransactionStatus;
   transferTransactionId?: number;
   transferAccountId?: number;
+  // Set when this transaction was materialized from a recurring schedule
+  // (posted when due, or pre-created ahead of time via the auto-create
+  // preference) — shows the recurring (↻) icon in the register.
+  scheduledTransactionId?: number;
   // Present only when split across multiple categories; categoryId/category
   // are null/undefined in that case — the splits carry the breakdown.
   splits?: TransactionSplit[];
