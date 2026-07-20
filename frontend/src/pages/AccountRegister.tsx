@@ -1185,6 +1185,30 @@ export default function AccountRegister() {
             </button>
           )}
           <button className={styles.dropdownEdit} onClick={() => { const tx = contextMenu.tx; setContextMenu(null); handleEdit(tx); }}>Edit</button>
+          <button
+            className={styles.dropdownGoto}
+            onClick={() => {
+              const tx = contextMenu.tx;
+              setContextMenu(null);
+              navigate('/bills', {
+                state: {
+                  prefill: {
+                    accountId,
+                    isTransfer: !!tx.transferAccountId,
+                    transferAccountId: tx.transferAccountId,
+                    payeeId: tx.payeeId,
+                    payeeName: tx.payee?.name,
+                    categoryId: tx.categoryId,
+                    memo: tx.memo,
+                    amount: tx.amount,
+                    nextDueDate: tx.date,
+                  },
+                },
+              });
+            }}
+          >
+            Make Recurring…
+          </button>
           <button className={styles.dropdownDelete} onClick={() => { const id = contextMenu.tx.id; setContextMenu(null); handleDelete(id); }}>Delete</button>
         </div>
       )}

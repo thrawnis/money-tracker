@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import {
@@ -80,6 +81,34 @@ interface FormState {
   isActive: boolean;
 }
 
+// Passed via navigate('/bills', { state: { prefill } }) from a transaction's
+// "Make Recurring…" context menu action in AccountRegister.
+export interface RecurringPrefill {
+  accountId: number;
+  isTransfer: boolean;
+  transferAccountId?: number;
+  payeeId?: number;
+  payeeName?: string;
+  categoryId?: number;
+  memo?: string;
+  amount: number;
+  nextDueDate: string;
+}
+
+const formFromPrefill = (p: RecurringPrefill, allCategories: { id: number; label: string }[]): FormState => ({
+  ...emptyForm(),
+  accountId: String(p.accountId),
+  isTransfer: p.isTransfer,
+  transferAccountId: p.transferAccountId ? String(p.transferAccountId) : '',
+  payeeInput: p.isTransfer ? '' : (p.payeeName ?? ''),
+  payeeId: p.isTransfer ? undefined : p.payeeId,
+  categoryInput: !p.isTransfer && p.categoryId ? (allCategories.find(c => c.id === p.categoryId)?.label ?? '') : '',
+  categoryId: p.isTransfer ? undefined : p.categoryId,
+  memo: p.memo ?? '',
+  amount: String(p.amount),
+  nextDueDate: p.nextDueDate.slice(0, 10),
+});
+
 const emptyForm = (): FormState => ({
   name: '',
   accountId: '',
@@ -101,6 +130,8 @@ const emptyForm = (): FormState => ({
 
 export default function BillsReminders() {
   usePageTitle('Bills & Reminders');
+  const location = useLocation();
+  const navigate = useNavigate();
   const [items, setItems] = useState<ScheduledTransaction[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -156,6 +187,22 @@ export default function BillsReminders() {
       }
     }
   }
+
+  // Arriving from a transaction's "Make Recurring…" action — open the New
+  // Bill form pre-filled once categories are loaded (needed to resolve the
+  // category label), then clear the nav state so a refresh/back doesn't
+  // reopen it.
+  useEffect(() => {
+    const prefill = (location.state as { prefill?: RecurringPrefill } | null)?.prefill;
+    if (!prefill || loading) return;
+    setEditId(null);
+    const f = formFromPrefill(prefill, allCategories);
+    setForm(f);
+    setFormBaseline(JSON.stringify(f));
+    setShowForm(true);
+    navigate('.', { replace: true, state: null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, location.state]);
 
   const handleCategoryInput = (val: string) => {
     setForm(f => ({ ...f, categoryInput: val, categoryId: undefined }));
