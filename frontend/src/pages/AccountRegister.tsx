@@ -724,6 +724,24 @@ export default function AccountRegister() {
   const futureRealTxs = isChronologicalAsc ? [...futureRealTxsRaw].reverse() : futureRealTxsRaw;
   const restTxs = isChronologicalAsc ? [...restTxsRaw].reverse() : restTxsRaw;
 
+  const goToBillsPrefilled = (tx: Transaction) => {
+    navigate('/bills', {
+      state: {
+        prefill: {
+          accountId,
+          isTransfer: !!tx.transferAccountId,
+          transferAccountId: tx.transferAccountId,
+          payeeId: tx.payeeId,
+          payeeName: tx.payee?.name,
+          categoryId: tx.categoryId,
+          memo: tx.memo,
+          amount: tx.amount,
+          nextDueDate: tx.date,
+        },
+      },
+    });
+  };
+
   const renderTxRow = (tx: Transaction) => (
     <tr
       key={tx.id}
@@ -779,7 +797,27 @@ export default function AccountRegister() {
           >⋯</button>
           {openMenuId === tx.id && (
             <div className={styles.actionsDropdown}>
+              {tx.transferTransactionId && tx.transferAccountId && (
+                <button
+                  className={styles.dropdownGoto}
+                  onClick={e => {
+                    e.stopPropagation();
+                    const dest = tx.transferAccountId;
+                    const destTxId = tx.transferTransactionId;
+                    setOpenMenuId(null);
+                    navigate(`/accounts/${dest}?tx=${destTxId}`);
+                  }}
+                >
+                  Go to Other Account →
+                </button>
+              )}
               <button className={styles.dropdownEdit} onClick={e => { e.stopPropagation(); setOpenMenuId(null); handleEdit(tx); }}>Edit</button>
+              <button
+                className={styles.dropdownGoto}
+                onClick={e => { e.stopPropagation(); setOpenMenuId(null); goToBillsPrefilled(tx); }}
+              >
+                Make Recurring…
+              </button>
               <button className={styles.dropdownDelete} onClick={e => { e.stopPropagation(); setOpenMenuId(null); handleDelete(tx.id); }}>Delete</button>
             </div>
           )}
@@ -1187,25 +1225,7 @@ export default function AccountRegister() {
           <button className={styles.dropdownEdit} onClick={() => { const tx = contextMenu.tx; setContextMenu(null); handleEdit(tx); }}>Edit</button>
           <button
             className={styles.dropdownGoto}
-            onClick={() => {
-              const tx = contextMenu.tx;
-              setContextMenu(null);
-              navigate('/bills', {
-                state: {
-                  prefill: {
-                    accountId,
-                    isTransfer: !!tx.transferAccountId,
-                    transferAccountId: tx.transferAccountId,
-                    payeeId: tx.payeeId,
-                    payeeName: tx.payee?.name,
-                    categoryId: tx.categoryId,
-                    memo: tx.memo,
-                    amount: tx.amount,
-                    nextDueDate: tx.date,
-                  },
-                },
-              });
-            }}
+            onClick={() => { const tx = contextMenu.tx; setContextMenu(null); goToBillsPrefilled(tx); }}
           >
             Make Recurring…
           </button>
