@@ -194,7 +194,7 @@ public class ScheduledTransactionsController(
         var scheduled = new ScheduledTransaction
         {
             UserId        = userId,
-            Name          = dto.Name,
+            Name          = dto.Name ?? "",
             AccountId     = dto.AccountId,
             PayeeId       = dto.PayeeId,
             CategoryId    = dto.CategoryId,
@@ -238,7 +238,7 @@ public class ScheduledTransactionsController(
         if (await ValidateReferences(dto, userId) is string refError)
             return BadRequest(new { message = refError });
 
-        scheduled.Name          = dto.Name;
+        scheduled.Name          = dto.Name ?? "";
         scheduled.AccountId     = dto.AccountId;
         scheduled.PayeeId       = dto.PayeeId;
         scheduled.CategoryId    = dto.CategoryId;
@@ -279,7 +279,7 @@ public class ScheduledTransactionsController(
 }
 
 public record ScheduledTransactionDto(
-    string Name,
+    string? Name,
     int AccountId,
     int? PayeeId,
     int? CategoryId,

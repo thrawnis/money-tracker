@@ -899,7 +899,12 @@ export default function AccountRegister() {
           <span className={styles.recurringIcon} title="Recurring scheduled transaction">↻</span>
           {formatDate(bill.nextDueDate)}
         </td>
-        <td>{bill.payee?.name ?? bill.name}</td>
+        <td>
+          {bill.payee?.name
+            ?? (bill.transferAccountId
+              ? `Transfer → ${allAccounts.find(a => a.id === bill.transferAccountId)?.name ?? 'account'}`
+              : (bill.name || '—'))}
+        </td>
         <td>{getBillCategoryLabel(bill, categories)}</td>
         <td className={styles.colMemo}>{bill.memo ?? ''}</td>
         <td className={`${styles.right} ${bill.amount < 0 ? styles.debit : styles.credit}`}>

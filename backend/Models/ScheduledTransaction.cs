@@ -18,7 +18,7 @@ public class ScheduledTransaction
     public string UserId { get; set; } = null!;
     public ApplicationUser User { get; set; } = null!;
 
-    [Required, MaxLength(100)]
+    [MaxLength(100)]
     public string Name { get; set; } = string.Empty;
 
     public int AccountId { get; set; }

@@ -259,7 +259,6 @@ export default function BillsReminders() {
 
   const validate = () => {
     const e: Record<string, string> = {};
-    if (!form.name) e.name = 'Name required';
     if (!form.accountId) e.accountId = 'Account required';
     if (form.isTransfer && !form.transferAccountId) e.transferAccountId = 'Destination account required';
     if (form.isTransfer && form.transferAccountId === form.accountId) e.transferAccountId = 'Source and destination must differ';
@@ -317,7 +316,7 @@ export default function BillsReminders() {
         }
       }
       const data = {
-        name: form.name,
+        name: form.name || undefined,
         accountId: Number(form.accountId),
         payeeId: form.isTransfer ? undefined : resolvedPayeeId,
         categoryId: form.isTransfer ? undefined : resolvedCategoryId,
@@ -351,7 +350,7 @@ export default function BillsReminders() {
   const handleEdit = (item: ScheduledTransaction) => {
     setEditId(item.id);
     const f: FormState = {
-      name: item.name,
+      name: item.name ?? '',
       accountId: String(item.accountId),
       isTransfer: !!item.transferAccountId,
       transferAccountId: item.transferAccountId ? String(item.transferAccountId) : '',
@@ -407,7 +406,7 @@ export default function BillsReminders() {
   const sortedItems = [...items].sort((a, b) => {
     let cmp = 0;
     switch (sortBy) {
-      case 'name': cmp = a.name.localeCompare(b.name); break;
+      case 'name': cmp = (a.name ?? '').localeCompare(b.name ?? ''); break;
       case 'payee': cmp = payeeLabel(a, accounts).localeCompare(payeeLabel(b, accounts)); break;
       case 'account': {
         const an = a.account?.name ?? accounts.find(x => x.id === a.accountId)?.name ?? '';
@@ -450,9 +449,8 @@ export default function BillsReminders() {
           {formErrors.submit && <div className={styles.formError}>{formErrors.submit}</div>}
           <div className={styles.formGrid}>
             <div className={styles.formField}>
-              <label>Name *</label>
+              <label>Name</label>
               <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-              {formErrors.name && <span className={styles.fieldError}>{formErrors.name}</span>}
             </div>
             <div className={styles.formField}>
               <label>Account *</label>
@@ -634,7 +632,7 @@ export default function BillsReminders() {
                 const days = daysUntil(item.nextDueDate);
                 return (
                   <tr key={item.id} className={days < 0 ? styles.overdue : ''}>
-                    <td>{item.name}</td>
+                    <td>{item.name || payeeLabel(item, accounts) || '—'}</td>
                     <td>
                       {item.transferAccountId
                         ? <span className={styles.transferLabel}>

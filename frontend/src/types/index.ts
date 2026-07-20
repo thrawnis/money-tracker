@@ -97,7 +97,7 @@ export type FrequencyUnit = 'Days' | 'Weeks' | 'Months' | 'Years';
 
 export interface ScheduledTransaction {
   id: number;
-  name: string;
+  name?: string;
   accountId: number;
   account?: Account;
   payeeId?: number;
