@@ -19,6 +19,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<UserPasskeyCredential> PasskeyCredentials => Set<UserPasskeyCredential>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<DismissedDuplicateGroup> DismissedDuplicateGroups => Set<DismissedDuplicateGroup>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -84,6 +85,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         {
             e.HasOne(t => t.User).WithMany().HasForeignKey(t => t.UserId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(t => t.Token).IsUnique();
+        });
+
+        modelBuilder.Entity<DismissedDuplicateGroup>(e =>
+        {
+            e.Property(d => d.Amount).HasPrecision(18, 2);
+            e.HasOne(d => d.User).WithMany().HasForeignKey(d => d.UserId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(d => new { d.UserId, d.AccountId, d.Date, d.Amount }).IsUnique();
         });
 
         // ── Auth ──────────────────────────────────────────────────────────────

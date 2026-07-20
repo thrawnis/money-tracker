@@ -295,6 +295,23 @@
   padding: 4px 12px;
 }
 
+.dupTableIgnored {
+  opacity: 0.6;
+}
+
+.dupIgnoredBadge {
+  display: inline-block;
+  margin-left: 10px;
+  padding: 1px 8px;
+  border-radius: 10px;
+  background: #d8dee3;
+  color: #445;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
 .actions {
   display: flex;
   gap: 8px;

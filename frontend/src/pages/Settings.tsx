@@ -11,7 +11,7 @@ import { getTemplate, previewImport, importWithDuplicates, type PreviewResult } 
 import { getAuditLog, type AuditEntry, type GetAuditParams } from '../api/audit';
 import { getAccounts } from '../api/accounts';
 import { listAccountBackups, downloadAccountBackup, type AccountBackupSummary } from '../api/accountBackups';
-import { getDuplicates, type DuplicateGroup, type DuplicateTransaction } from '../api/duplicates';
+import { getDuplicates, ignoreDuplicateGroup, unignoreDuplicateGroup, type DuplicateGroup, type DuplicateTransaction } from '../api/duplicates';
 import { deleteTransaction } from '../api/transactions';
 import { getInstitutions, updateInstitution, deleteInstitution } from '../api/institutions';
 import { getPreferences, updatePreferences } from '../api/preferences';
@@ -897,17 +897,19 @@ function DuplicatesTab() {
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [includeMemo, setIncludeMemo] = useState(false);
   const [includeCategory, setIncludeCategory] = useState(false);
+  const [showIgnored, setShowIgnored] = useState(false);
+  const [togglingKey, setTogglingKey] = useState('');
 
   const load = () => {
     setLoading(true);
     setError('');
-    getDuplicates({ includeMemo, includeCategory })
+    getDuplicates({ includeMemo, includeCategory, showIgnored })
       .then(setGroups)
       .catch(() => setError('Failed to load duplicate transactions.'))
       .finally(() => setLoading(false));
   };
 
-  useEffect(load, [includeMemo, includeCategory]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(load, [includeMemo, includeCategory, showIgnored]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleDelete = async (accountId: number, id: number) => {
     if (!confirm('Delete this transaction? This cannot be undone.')) return;
@@ -925,16 +927,46 @@ function DuplicatesTab() {
     }
   };
 
+  const groupKeyOf = (g: DuplicateGroup) => `${g.accountId}-${g.date}-${g.amount}`;
+
+  const handleIgnore = async (g: DuplicateGroup) => {
+    const key = groupKeyOf(g);
+    setTogglingKey(key);
+    try {
+      await ignoreDuplicateGroup({ accountId: g.accountId, date: g.date, amount: g.amount });
+      load();
+    } catch {
+      setError('Failed to ignore this group.');
+    } finally {
+      setTogglingKey('');
+    }
+  };
+
+  const handleUnignore = async (g: DuplicateGroup) => {
+    const key = groupKeyOf(g);
+    setTogglingKey(key);
+    try {
+      await unignoreDuplicateGroup({ accountId: g.accountId, date: g.date, amount: g.amount });
+      load();
+    } catch {
+      setError('Failed to un-ignore this group.');
+    } finally {
+      setTogglingKey('');
+    }
+  };
+
   return (
     <div className={styles.tabSection}>
       <p className={styles.hint}>
         Transactions in the same account, on the same date, for the same amount are grouped below — a common
         symptom of a file that got imported twice, or genuinely repeated transactions. Review each group and
         delete anything that shouldn't be there; transfers are excluded since linked transfer legs naturally
-        share a date and amount.
+        share a date and amount. If a group isn't actually a duplicate, you can ignore it — it stays hidden as
+        long as nothing about it changes, and reappears automatically if a member transaction is edited or
+        another transaction joins the group.
       </p>
 
-      <div style={{ display: 'flex', gap: 20, marginBottom: 14 }}>
+      <div style={{ display: 'flex', gap: 20, marginBottom: 14, flexWrap: 'wrap' }}>
         <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
           <input type="checkbox" checked={includeMemo} onChange={e => setIncludeMemo(e.target.checked)} />
           Also match memo
@@ -942,6 +974,10 @@ function DuplicatesTab() {
         <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
           <input type="checkbox" checked={includeCategory} onChange={e => setIncludeCategory(e.target.checked)} />
           Also match category
+        </label>
+        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <input type="checkbox" checked={showIgnored} onChange={e => setShowIgnored(e.target.checked)} />
+          Show ignored groups
         </label>
       </div>
 
@@ -959,13 +995,38 @@ function DuplicatesTab() {
         const varies = Object.fromEntries(
           fields.map(f => [f, new Set(g.transactions.map(t => t[f] ?? '')).size > 1])
         ) as Record<keyof DuplicateTransaction, boolean>;
+        const key = groupKeyOf(g);
 
         return (
-          <table className={styles.dupTable} key={`${g.accountId}-${g.date}-${g.amount}-${i}`} style={{ marginBottom: 16 }}>
+          <table
+            className={`${styles.dupTable} ${g.ignored ? styles.dupTableIgnored : ''}`}
+            key={`${key}-${i}`}
+            style={{ marginBottom: 16 }}
+          >
             <thead>
               <tr>
-                <th colSpan={6}>
+                <th colSpan={5}>
                   {g.accountName} — {formatDate(g.date)} — {formatCurrency(g.amount)}
+                  {g.ignored && <span className={styles.dupIgnoredBadge}>Ignored</span>}
+                </th>
+                <th>
+                  {g.ignored ? (
+                    <button
+                      className={styles.btnSecondary}
+                      onClick={() => handleUnignore(g)}
+                      disabled={togglingKey === key}
+                    >
+                      {togglingKey === key ? 'Un-ignoring…' : 'Un-ignore'}
+                    </button>
+                  ) : (
+                    <button
+                      className={styles.btnSecondary}
+                      onClick={() => handleIgnore(g)}
+                      disabled={togglingKey === key}
+                    >
+                      {togglingKey === key ? 'Ignoring…' : 'Ignore'}
+                    </button>
+                  )}
                 </th>
               </tr>
               <tr>
