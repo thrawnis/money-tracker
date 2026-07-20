@@ -1,7 +1,7 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { getDuplicates, ignoreDuplicateGroup, unignoreDuplicateGroup, type DuplicateGroup, type DuplicateTransaction } from '../api/duplicates';
-import { deleteTransaction } from '../api/transactions';
+import { deleteTransaction, getTransaction } from '../api/transactions';
 import { getInstitutions, updateInstitution, deleteInstitution } from '../api/institutions';
 import { getAccounts } from '../api/accounts';
 import {
@@ -9,7 +9,7 @@ import {
   type PayeeMappingRule,
 } from '../api/payeeMappingRules';
 import { getPayees } from '../api/payees';
-import type { Account, Institution, Payee } from '../types';
+import type { Account, Institution, Payee, Transaction } from '../types';
 import TransactionDetailPanel from '../components/TransactionDetailPanel';
 // Reuses Settings' styling for visual consistency between the two tabbed
 // utility-page shells rather than duplicating the same CSS.
@@ -36,6 +36,10 @@ function DuplicatesTab() {
   const [togglingKey, setTogglingKey] = useState('');
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [selectedTx, setSelectedTx] = useState<{ accountId: number; id: number; accountName: string } | null>(null);
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
+  const [expandedTxs, setExpandedTxs] = useState<Transaction[] | null>(null);
+  const [expandedLoading, setExpandedLoading] = useState(false);
+  const [expandedError, setExpandedError] = useState('');
 
   const load = () => {
     setLoading(true);
@@ -66,6 +70,26 @@ function DuplicatesTab() {
   };
 
   const groupKeyOf = (g: DuplicateGroup) => `${g.accountId}-${g.date}-${g.amount}`;
+
+  // Fetches the full record for every transaction in the group at once, so
+  // they can all be compared side by side instead of viewing one at a time.
+  const toggleCompare = async (g: DuplicateGroup) => {
+    const key = groupKeyOf(g);
+    if (expandedKey === key) { setExpandedKey(null); setExpandedTxs(null); return; }
+
+    setExpandedKey(key);
+    setExpandedTxs(null);
+    setExpandedError('');
+    setExpandedLoading(true);
+    try {
+      const full = await Promise.all(g.transactions.map(t => getTransaction(g.accountId, t.id)));
+      setExpandedTxs(full);
+    } catch {
+      setExpandedError('Failed to load full transaction details.');
+    } finally {
+      setExpandedLoading(false);
+    }
+  };
 
   // Mark the group ignored/unignored in place rather than re-fetching — a
   // full reload would drop a newly-ignored group out of the list right away
@@ -141,10 +165,9 @@ function DuplicatesTab() {
         const key = groupKeyOf(g);
 
         return (
+          <div key={`${key}-${i}`} style={{ marginBottom: 16 }}>
           <table
             className={`${styles.dupTable} ${g.ignored ? styles.dupTableIgnored : ''}`}
-            key={`${key}-${i}`}
-            style={{ marginBottom: 16 }}
           >
             <thead>
               <tr>
@@ -153,23 +176,28 @@ function DuplicatesTab() {
                   {g.ignored && <span className={styles.dupIgnoredBadge}>Ignored</span>}
                 </th>
                 <th>
-                  {g.ignored ? (
-                    <button
-                      className={styles.btnSecondary}
-                      onClick={() => handleUnignore(g)}
-                      disabled={togglingKey === key}
-                    >
-                      {togglingKey === key ? 'Un-ignoring…' : 'Un-ignore'}
+                  <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                    <button className={styles.btnSecondary} onClick={() => toggleCompare(g)}>
+                      {expandedKey === key ? 'Hide Details' : 'Compare Details'}
                     </button>
-                  ) : (
-                    <button
-                      className={styles.btnSecondary}
-                      onClick={() => handleIgnore(g)}
-                      disabled={togglingKey === key}
-                    >
-                      {togglingKey === key ? 'Ignoring…' : 'Ignore'}
-                    </button>
-                  )}
+                    {g.ignored ? (
+                      <button
+                        className={styles.btnSecondary}
+                        onClick={() => handleUnignore(g)}
+                        disabled={togglingKey === key}
+                      >
+                        {togglingKey === key ? 'Un-ignoring…' : 'Un-ignore'}
+                      </button>
+                    ) : (
+                      <button
+                        className={styles.btnSecondary}
+                        onClick={() => handleIgnore(g)}
+                        disabled={togglingKey === key}
+                      >
+                        {togglingKey === key ? 'Ignoring…' : 'Ignore'}
+                      </button>
+                    )}
+                  </div>
                 </th>
               </tr>
               <tr>
@@ -212,6 +240,15 @@ function DuplicatesTab() {
               ))}
             </tbody>
           </table>
+
+          {expandedKey === key && (
+            <div className={styles.dupCompare}>
+              {expandedLoading && <p className={styles.hint}>Loading full details…</p>}
+              {expandedError && <div className={styles.error}>{expandedError}</div>}
+              {expandedTxs && <CompareTable transactions={expandedTxs} onEdit={t => setSelectedTx({ accountId: g.accountId, id: t.id, accountName: g.accountName })} />}
+            </div>
+          )}
+          </div>
         );
       })}
 
@@ -226,6 +263,58 @@ function DuplicatesTab() {
         />
       )}
     </div>
+  );
+}
+
+// Full side-by-side comparison of every transaction in a duplicate group —
+// one column per transaction, one row per field — so they can all be reviewed
+// at once instead of opening them one at a time. Differing values per row are
+// highlighted the same way the summary table highlights differing columns.
+function CompareTable({ transactions, onEdit }: { transactions: Transaction[]; onEdit: (t: Transaction) => void }) {
+  const rows: { label: string; values: string[] }[] = [
+    { label: 'Date', values: transactions.map(t => formatDate(t.date)) },
+    { label: 'Post Date', values: transactions.map(t => t.postDate ? formatDate(t.postDate) : '') },
+    { label: 'Payee', values: transactions.map(t => t.payee?.name ?? '') },
+    { label: 'Category', values: transactions.map(t => t.splits?.length ? `Split (${t.splits.length})` : (t.category?.name ?? '')) },
+    { label: 'Memo', values: transactions.map(t => t.memo ?? '') },
+    { label: 'Check #', values: transactions.map(t => t.checkNumber ?? '') },
+    { label: 'Amount', values: transactions.map(t => formatCurrency(t.amount)) },
+    { label: 'Status', values: transactions.map(t => t.status) },
+    { label: 'Created', values: transactions.map(t => new Date(t.createdAt).toLocaleString()) },
+    { label: 'Last Updated', values: transactions.map(t => new Date(t.updatedAt).toLocaleString()) },
+  ];
+
+  return (
+    <table className={styles.dupTable}>
+      <thead>
+        <tr>
+          <th>Field</th>
+          {transactions.map(t => (
+            <th key={t.id}>
+              #{t.id}{' '}
+              <button className={styles.btnSecondary} style={{ marginLeft: 6 }} onClick={() => onEdit(t)}>
+                Edit
+              </button>
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map(row => {
+          const differs = new Set(row.values).size > 1;
+          return (
+            <tr key={row.label}>
+              <td style={{ fontWeight: 700 }}>{row.label}</td>
+              {row.values.map((v, i) => (
+                <td key={i} className={differs ? styles.dupDiffCell : undefined}>
+                  {v || <span className={styles.hint}>—</span>}
+                </td>
+              ))}
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
   );
 }
 

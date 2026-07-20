@@ -312,6 +312,14 @@
   letter-spacing: 0.3px;
 }
 
+.dupCompare {
+  margin-top: 4px;
+  padding: 12px;
+  background: #f5f8fc;
+  border: 1px solid #d8dee3;
+  border-radius: 6px;
+}
+
 .actions {
   display: flex;
   gap: 8px;
