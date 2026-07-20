@@ -1,10 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { getDuplicates, ignoreDuplicateGroup, unignoreDuplicateGroup, type DuplicateGroup, type DuplicateTransaction } from '../api/duplicates';
 import { deleteTransaction } from '../api/transactions';
 import { getInstitutions, updateInstitution, deleteInstitution } from '../api/institutions';
-import type { Institution } from '../types';
+import {
+  getPayeeMappingRules, createPayeeMappingRule, deletePayeeMappingRule,
+  type PayeeMappingRule,
+} from '../api/payeeMappingRules';
+import { getPayees } from '../api/payees';
+import type { Institution, Payee } from '../types';
 // Reuses Settings' styling for visual consistency between the two tabbed
 // utility-page shells rather than duplicating the same CSS.
 import styles from './Settings.module.css';
@@ -309,9 +314,136 @@ function InstitutionsTab() {
   );
 }
 
+// ── Payee Mapping Rules ──
+
+function PayeeMappingRulesTab() {
+  const [rules, setRules] = useState<PayeeMappingRule[]>([]);
+  const [payees, setPayees] = useState<Payee[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [pattern, setPattern] = useState('');
+  const [isRegex, setIsRegex] = useState(false);
+  const [targetPayeeId, setTargetPayeeId] = useState<number | ''>('');
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+
+  const load = () => {
+    setLoading(true);
+    setError('');
+    Promise.all([getPayeeMappingRules(), getPayees()])
+      .then(([r, p]) => { setRules(r); setPayees(p); })
+      .catch(() => setError('Failed to load payee mapping rules.'))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(load, []);
+
+  const handleCreate = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!pattern.trim() || targetPayeeId === '') return;
+    setSaving(true);
+    setError('');
+    try {
+      await createPayeeMappingRule({ pattern: pattern.trim(), isRegex, targetPayeeId });
+      setPattern('');
+      setIsRegex(false);
+      setTargetPayeeId('');
+      load();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setError(msg ?? 'Failed to create rule.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm('Delete this mapping rule?')) return;
+    setDeletingId(id);
+    try {
+      await deletePayeeMappingRule(id);
+      load();
+    } catch {
+      setError('Failed to delete rule.');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  return (
+    <div className={styles.tabSection}>
+      <p className={styles.hint}>
+        When importing, a raw payee name that matches one of these rules is automatically resolved to the payee you
+        choose here, instead of creating a new (often near-duplicate) payee. Patterns are case-insensitive: use{' '}
+        <code>*</code> as a wildcard (e.g. <code>Amazon*</code>, <code>*Amazon*</code>), or switch to regex for
+        anything more specific.
+      </p>
+
+      {error && <div className={styles.error}>{error}</div>}
+
+      <form onSubmit={handleCreate} style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: 16 }}>
+        <div>
+          <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 4 }}>Pattern</label>
+          <input
+            type="text"
+            value={pattern}
+            onChange={e => setPattern(e.target.value)}
+            placeholder={isRegex ? '^AMZN\\s?Mktp' : 'Amazon*'}
+            style={{ width: 220 }}
+          />
+        </div>
+        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <input type="checkbox" checked={isRegex} onChange={e => setIsRegex(e.target.checked)} />
+          Regex
+        </label>
+        <div>
+          <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 4 }}>Maps to payee</label>
+          <select value={targetPayeeId} onChange={e => setTargetPayeeId(e.target.value ? Number(e.target.value) : '')}>
+            <option value="">Select…</option>
+            {payees.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        </div>
+        <button className={styles.btnPrimary} disabled={saving || !pattern.trim() || targetPayeeId === ''}>
+          {saving ? 'Adding…' : 'Add Rule'}
+        </button>
+      </form>
+
+      {loading && <p className={styles.hint}>Loading…</p>}
+      {!loading && rules.length === 0 && <p className={styles.hint}>No mapping rules yet.</p>}
+
+      {rules.length > 0 && (
+        <table className={styles.dupTable}>
+          <thead>
+            <tr>
+              <th>Pattern</th>
+              <th>Type</th>
+              <th>Maps to</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {rules.map(r => (
+              <tr key={r.id}>
+                <td>{r.pattern}</td>
+                <td>{r.isRegex ? 'Regex' : 'Wildcard/Exact'}</td>
+                <td>{r.targetPayeeName}</td>
+                <td>
+                  <button className={styles.btnDanger} onClick={() => handleDelete(r.id)} disabled={deletingId === r.id}>
+                    {deletingId === r.id ? 'Deleting…' : 'Delete'}
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
 // ── Page shell ──
 
-type Tab = 'duplicates' | 'institutions';
+type Tab = 'duplicates' | 'institutions' | 'payeeMappingRules';
 
 export default function Utilities() {
   usePageTitle('Utilities');
@@ -335,10 +467,17 @@ export default function Utilities() {
         >
           Institutions
         </button>
+        <button
+          className={`${styles.tab} ${tab === 'payeeMappingRules' ? styles.tabActive : ''}`}
+          onClick={() => setTab('payeeMappingRules')}
+        >
+          Payee Mapping Rules
+        </button>
       </div>
       <div className={styles.tabContent}>
         {tab === 'duplicates' && <DuplicatesTab />}
         {tab === 'institutions' && <InstitutionsTab />}
+        {tab === 'payeeMappingRules' && <PayeeMappingRulesTab />}
       </div>
     </div>
   );
