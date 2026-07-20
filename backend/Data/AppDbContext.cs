@@ -20,6 +20,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<UserPasskeyCredential> PasskeyCredentials => Set<UserPasskeyCredential>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<DismissedDuplicateGroup> DismissedDuplicateGroups => Set<DismissedDuplicateGroup>();
+    public DbSet<PayeeMappingRule> PayeeMappingRules => Set<PayeeMappingRule>();
+    public DbSet<ImportDraft> ImportDrafts => Set<ImportDraft>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -92,6 +94,19 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             e.Property(d => d.Amount).HasPrecision(18, 2);
             e.HasOne(d => d.User).WithMany().HasForeignKey(d => d.UserId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(d => new { d.UserId, d.AccountId, d.Date, d.Amount }).IsUnique();
+        });
+
+        modelBuilder.Entity<PayeeMappingRule>(e =>
+        {
+            e.HasOne(r => r.User).WithMany().HasForeignKey(r => r.UserId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(r => r.TargetPayee).WithMany().HasForeignKey(r => r.TargetPayeeId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ImportDraft>(e =>
+        {
+            e.HasOne(d => d.User).WithMany().HasForeignKey(d => d.UserId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(d => d.Account).WithMany().HasForeignKey(d => d.AccountId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(d => new { d.UserId, d.AccountId }).IsUnique();
         });
 
         // ── Auth ──────────────────────────────────────────────────────────────

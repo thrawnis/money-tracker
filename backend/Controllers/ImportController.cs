@@ -11,6 +11,7 @@ using Microsoft.EntityFrameworkCore;
 using MoneyTracker.Auth.Services;
 using MoneyTracker.Data;
 using MoneyTracker.Models;
+using MoneyTracker.Services;
 
 namespace MoneyTracker.Controllers;
 
@@ -82,15 +83,40 @@ public class ImportController(
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
 
-        var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+        byte[] fileBytes;
+        using (var ms = new MemoryStream()) { await file.CopyToAsync(ms); fileBytes = ms.ToArray(); }
+
+        var result = await BuildPreviewAsync(userId, file.FileName, fileBytes, accountId);
+        if (result.Error is not null) return result.Error;
+
+        // Stage this upload so the review isn't lost if the user is interrupted
+        // before committing. Only for single-account imports — multi-account
+        // QIF/JSON files don't have one AccountId to key a draft on.
+        if (accountId.HasValue)
+        {
+            var draftId = await SaveDraftAsync(userId, accountId.Value, file.FileName, fileBytes, result.Rows!.Count);
+            result.Response!.DraftId = draftId;
+        }
+
+        return Ok(result.Response);
+    }
+
+    // Shared by both a fresh upload and resuming a saved ImportDraft — parses
+    // the file, computes duplicates/transfer-match preview, and flags raw payee
+    // strings that don't already resolve to a known payee or mapping rule so
+    // the caller can ask the user to confirm/redirect them before committing.
+    private async Task<(IActionResult? Error, PreviewResponse? Response, List<CsvRow>? Rows)> BuildPreviewAsync(
+        string userId, string fileName, byte[] fileBytes, int? accountId)
+    {
+        var ext = Path.GetExtension(fileName).ToLowerInvariant();
         if (ext is ".ofx" or ".qfx")
-            return Ok(new { total = 0, duplicates = Array.Empty<object>(), newTransactions = 0, transferMatches = 0, error = "OFX import coming soon" });
+            return (Ok(new { total = 0, duplicates = Array.Empty<object>(), newTransactions = 0, transferMatches = 0, error = "OFX import coming soon" }), null, null);
 
         if (ext is not ".csv" and not ".xlsx" and not ".qif" and not ".json")
-            return BadRequest(new { message = "Unsupported file format." });
+            return (BadRequest(new { message = "Unsupported file format." }), null, null);
 
         var user = await userManager.FindByIdAsync(userId);
-        if (user is null) return Unauthorized();
+        if (user is null) return (Unauthorized(), null, null);
         var dek = user.EncryptedDataKey;
 
         var userAccounts = await db.Accounts
@@ -98,36 +124,21 @@ public class ImportController(
             .ToListAsync();
 
         if (accountId.HasValue && userAccounts.All(a => a.Id != accountId.Value))
-            return BadRequest(new { message = "Selected account not found." });
+            return (BadRequest(new { message = "Selected account not found." }), null, null);
 
         List<CsvRow> rows;
         List<string> parseWarnings;
         try
         {
-            if (ext == ".qif")
-            {
-                (rows, parseWarnings) = ParseQif(file);
-                if (rows.Count == 0)
-                    return BadRequest(new { message = "No transactions found in QIF file." });
-                if (!accountId.HasValue && rows.All(r => string.IsNullOrWhiteSpace(r.Account)))
-                    return BadRequest(new { message = "This QIF file doesn't specify an account. Please select an account to import into." });
-            }
-            else if (ext == ".json")
-            {
-                rows = ParseJson(file);
-                parseWarnings = [];
-                if (rows.Count == 0)
-                    return BadRequest(new { message = "No transactions found in JSON file." });
-            }
-            else
-            {
-                rows = ParseCsv(file);
-                parseWarnings = [];
-            }
+            (rows, parseWarnings) = ParseByExtension(ext, fileBytes, accountId);
+        }
+        catch (ImportParseException ex)
+        {
+            return (BadRequest(new { message = ex.Message }), null, null);
         }
         catch (Exception ex)
         {
-            return BadRequest(new { message = $"Failed to parse file: {ex.Message}" });
+            return (BadRequest(new { message = $"Failed to parse file: {ex.Message}" }), null, null);
         }
 
         var duplicates = new List<object>();
@@ -137,8 +148,15 @@ public class ImportController(
         var batchKeys = new HashSet<(int AccountId, DateOnly Date, decimal Amount)>();
         var duplicatesWithinFile = 0;
 
+        var allPayees = await db.Payees.Where(p => p.UserId == userId).ToListAsync();
+        var rules = await db.PayeeMappingRules.Where(r => r.UserId == userId).ToListAsync();
+        var unmatchedPayees = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+
         foreach (var row in rows)
         {
+            if (!string.IsNullOrWhiteSpace(row.Payee))
+                CollectUnmatchedPayee(row.Payee.Trim(), allPayees, rules, dek, unmatchedPayees);
+
             if (!TryParseRow(row, userAccounts, out var date, out var amount, out var rowAccountId, out _, accountId))
             {
                 newCount++;
@@ -198,32 +216,132 @@ public class ImportController(
         if (duplicatesWithinFile > 0)
             warnings.Add($"{duplicatesWithinFile} row{(duplicatesWithinFile == 1 ? "" : "s")} in this file exactly repeat an earlier row (same account, date, and amount) and will be skipped automatically.");
 
-        return Ok(new
+        var response = new PreviewResponse
         {
-            total = rows.Count,
-            duplicates,
-            newTransactions = newCount,
-            transferMatches = transferMatchCount,
-            warnings = warnings.Count > 0 ? warnings : null,
-        });
+            Total = rows.Count,
+            Duplicates = duplicates,
+            NewTransactions = newCount,
+            TransferMatches = transferMatchCount,
+            Warnings = warnings.Count > 0 ? warnings : null,
+            UnmatchedPayees = unmatchedPayees.Values,
+        };
+
+        return (null, response, rows);
+    }
+
+    // A concrete (not anonymous) type so DraftId can be attached after the
+    // draft is saved, once its id is known.
+    private class PreviewResponse
+    {
+        public int Total { get; set; }
+        public object Duplicates { get; set; } = null!;
+        public int NewTransactions { get; set; }
+        public int TransferMatches { get; set; }
+        public List<string>? Warnings { get; set; }
+        public object UnmatchedPayees { get; set; } = null!;
+        public int? DraftId { get; set; }
+    }
+
+    // Raw payee strings with no exact existing-payee match and no mapping rule
+    // match — these would create a brand-new payee at commit time unless the
+    // caller resolves them first. Suggests existing payees that share a
+    // substring or a significant word, so e.g. "AMZN F98797" can be pointed at
+    // an existing "Amazon.com" payee instead of creating a near-duplicate.
+    private void CollectUnmatchedPayee(
+        string rawPayee, List<Payee> allPayees, List<PayeeMappingRule> rules, string dek,
+        Dictionary<string, object> unmatchedPayees)
+    {
+        if (unmatchedPayees.ContainsKey(rawPayee)) return;
+
+        var decryptedNames = allPayees.Select(p => (p.Id, Name: encryption.Decrypt(p.NameEncrypted, dek) ?? "")).ToList();
+
+        var exact = decryptedNames.Any(p => string.Equals(p.Name, rawPayee, StringComparison.OrdinalIgnoreCase));
+        if (exact) return;
+
+        var ruleMatch = PayeePatternMatcher.FindMatch(rules, rawPayee,
+            r => encryption.Decrypt(r.PatternEncrypted, dek) ?? "", r => r.IsRegex);
+        if (ruleMatch is not null) return;
+
+        var suggestions = decryptedNames
+            .Where(p => p.Name.Length > 0 && SharesSubstringOrWord(rawPayee, p.Name))
+            .Take(5)
+            .Select(p => new { id = p.Id, name = p.Name })
+            .ToList();
+
+        unmatchedPayees[rawPayee] = new { rawText = rawPayee, suggestions };
+    }
+
+    private static bool SharesSubstringOrWord(string a, string b)
+    {
+        if (a.Contains(b, StringComparison.OrdinalIgnoreCase) || b.Contains(a, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        var separators = new[] { ' ', '-', '_', '.', '*' };
+        var wordsA = a.Split(separators, StringSplitOptions.RemoveEmptyEntries);
+        var wordsB = b.Split(separators, StringSplitOptions.RemoveEmptyEntries);
+        return wordsA.Any(wa => wa.Length >= 3 && wordsB.Any(wb => string.Equals(wa, wb, StringComparison.OrdinalIgnoreCase)));
     }
 
     // ── Import ──
 
     [HttpPost]
     public async Task<IActionResult> Import(
-        [FromForm] IFormFile file,
+        [FromForm] IFormFile? file,
         [FromForm] string? includeDuplicateIds,
-        [FromForm] int? accountId)
+        [FromForm] int? accountId,
+        [FromForm] int? draftId,
+        [FromForm] string? payeeOverrides,
+        [FromForm] string? rememberPayeeMappings)
     {
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
+
+        string fileName;
+        byte[] fileBytes;
+
+        if (draftId.HasValue)
+        {
+            var user = await userManager.FindByIdAsync(userId);
+            if (user is null) return Unauthorized();
+
+            var draft = await db.ImportDrafts.FirstOrDefaultAsync(d => d.Id == draftId.Value && d.UserId == userId);
+            if (draft is null) return NotFound(new { message = "That import draft no longer exists." });
+
+            fileName = draft.FileName;
+            fileBytes = Convert.FromBase64String(encryption.Decrypt(draft.FileContentEncrypted, user.EncryptedDataKey)!);
+            accountId ??= draft.AccountId;
+        }
+        else if (file is not null)
+        {
+            using var ms = new MemoryStream();
+            await file.CopyToAsync(ms);
+            fileBytes = ms.ToArray();
+            fileName = file.FileName;
+        }
+        else
+        {
+            return BadRequest(new { message = "No file or draft provided." });
+        }
 
         if (!ImportsInProgress.TryAdd(userId, 0))
             return Conflict(new { message = "An import is already in progress for your account. Please wait for it to finish before starting another." });
         try
         {
-            return await RunImportAsync(file, includeDuplicateIds, accountId, userId);
+            var result = await RunImportAsync(fileName, fileBytes, includeDuplicateIds, accountId, userId, payeeOverrides, rememberPayeeMappings);
+
+            // A completed import (whichever path it came from) supersedes any
+            // staged draft for this account — nothing left to resume.
+            if (accountId.HasValue)
+            {
+                var staleDraft = await db.ImportDrafts.FirstOrDefaultAsync(d => d.UserId == userId && d.AccountId == accountId.Value);
+                if (staleDraft is not null)
+                {
+                    db.ImportDrafts.Remove(staleDraft);
+                    await db.SaveChangesAsync();
+                }
+            }
+
+            return result;
         }
         finally
         {
@@ -231,9 +349,11 @@ public class ImportController(
         }
     }
 
-    private async Task<IActionResult> RunImportAsync(IFormFile file, string? includeDuplicateIds, int? accountId, string userId)
+    private async Task<IActionResult> RunImportAsync(
+        string fileName, byte[] fileBytes, string? includeDuplicateIds, int? accountId, string userId,
+        string? payeeOverridesJson, string? rememberPayeeMappingsJson)
     {
-        var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+        var ext = Path.GetExtension(fileName).ToLowerInvariant();
         if (ext is ".ofx" or ".qfx")
             return Ok(new { imported = 0, errors = new[] { "OFX import coming soon" } });
 
@@ -263,30 +383,42 @@ public class ImportController(
             catch { /* ignore parse errors */ }
         }
 
+        // Raw payee text -> the specific existing payee the user chose during
+        // review, instead of creating a new payee for it (see BuildPreviewAsync's
+        // unmatchedPayees). Keys are trimmed raw text, matched case-insensitively.
+        var payeeOverrides = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        if (!string.IsNullOrWhiteSpace(payeeOverridesJson))
+        {
+            try
+            {
+                var parsed = JsonSerializer.Deserialize<Dictionary<string, int>>(payeeOverridesJson);
+                if (parsed is not null)
+                    foreach (var kv in parsed) payeeOverrides[kv.Key] = kv.Value;
+            }
+            catch { /* ignore parse errors */ }
+        }
+
+        var rememberMappings = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (!string.IsNullOrWhiteSpace(rememberPayeeMappingsJson))
+        {
+            try
+            {
+                var parsed = JsonSerializer.Deserialize<string[]>(rememberPayeeMappingsJson);
+                if (parsed is not null)
+                    foreach (var raw in parsed) rememberMappings.Add(raw);
+            }
+            catch { /* ignore parse errors */ }
+        }
+
         List<CsvRow> rows;
         List<string> parseWarnings;
         try
         {
-            if (ext == ".qif")
-            {
-                (rows, parseWarnings) = ParseQif(file);
-                if (rows.Count == 0)
-                    return BadRequest(new { message = "No transactions found in QIF file." });
-                if (!accountId.HasValue && rows.All(r => string.IsNullOrWhiteSpace(r.Account)))
-                    return BadRequest(new { message = "This QIF file doesn't specify an account. Please select an account to import into." });
-            }
-            else if (ext == ".json")
-            {
-                rows = ParseJson(file);
-                parseWarnings = [];
-                if (rows.Count == 0)
-                    return BadRequest(new { message = "No transactions found in JSON file." });
-            }
-            else
-            {
-                rows = ParseCsv(file);
-                parseWarnings = [];
-            }
+            (rows, parseWarnings) = ParseByExtension(ext, fileBytes, accountId);
+        }
+        catch (ImportParseException ex)
+        {
+            return BadRequest(new { message = ex.Message });
         }
         catch (Exception ex)
         {
@@ -295,6 +427,7 @@ public class ImportController(
 
         var imported = 0;
         var errors = new List<string>(parseWarnings);
+        var newPayeesCreated = new List<object>();
 
         // Newly-created rows from this same import call that haven't been claimed as
         // a transfer match yet — lets both legs of a transfer land together when a
@@ -345,6 +478,38 @@ public class ImportController(
         // both be inserted as "new" since neither exists in the DB yet when checked.
         var batchKeys = new HashSet<(int AccountId, DateOnly Date, decimal Amount)>();
 
+        var allPayeesCache = await db.Payees.Where(p => p.UserId == userId).ToListAsync();
+        var mappingRulesCache = await db.PayeeMappingRules.Where(r => r.UserId == userId).ToListAsync();
+
+        // Find-or-create a payee, in this priority order: exact existing match,
+        // then the user's chosen override for this raw text (from reviewing
+        // BuildPreviewAsync's unmatchedPayees), then a saved mapping rule,
+        // finally creating a brand-new payee (logged so the caller can offer to
+        // remember a mapping for it next time).
+        async Task<int?> ResolvePayeeIdAsync(string rawPayee)
+        {
+            var trimmed = rawPayee.Trim();
+            if (trimmed.Length == 0) return null;
+
+            var exact = allPayeesCache.FirstOrDefault(p =>
+                string.Equals(encryption.Decrypt(p.NameEncrypted, dek), trimmed, StringComparison.OrdinalIgnoreCase));
+            if (exact is not null) return exact.Id;
+
+            if (payeeOverrides.TryGetValue(trimmed, out var overrideId))
+                return overrideId;
+
+            var rule = PayeePatternMatcher.FindMatch(mappingRulesCache, trimmed,
+                r => encryption.Decrypt(r.PatternEncrypted, dek) ?? "", r => r.IsRegex);
+            if (rule is not null) return rule.TargetPayeeId;
+
+            var payee = new Payee { UserId = userId, NameEncrypted = encryption.Encrypt(trimmed, dek)! };
+            db.Payees.Add(payee);
+            await db.SaveChangesAsync();
+            allPayeesCache.Add(payee);
+            newPayeesCreated.Add(new { id = payee.Id, name = trimmed, rawText = trimmed });
+            return payee.Id;
+        }
+
         await using (var dbTx = await db.Database.BeginTransactionAsync())
         {
             foreach (var row in rows)
@@ -373,27 +538,7 @@ public class ImportController(
                         continue; // skip duplicate not selected for inclusion
 
                     // Resolve payee
-                    int? payeeId = null;
-                    if (!string.IsNullOrWhiteSpace(row.Payee))
-                    {
-                        var payeeName = row.Payee.Trim();
-                        var allPayees = await db.Payees.Where(p => p.UserId == userId).ToListAsync();
-                        var payee = allPayees.FirstOrDefault(p =>
-                            string.Equals(encryption.Decrypt(p.NameEncrypted, dek), payeeName, StringComparison.OrdinalIgnoreCase));
-
-                        if (payee is null)
-                        {
-                            payee = new Payee
-                            {
-                                UserId = userId,
-                                // payeeName is non-null here (guarded above), so Encrypt never returns null
-                                NameEncrypted = encryption.Encrypt(payeeName, dek)!,
-                            };
-                            db.Payees.Add(payee);
-                            await db.SaveChangesAsync();
-                        }
-                        payeeId = payee.Id;
-                    }
+                    int? payeeId = !string.IsNullOrWhiteSpace(row.Payee) ? await ResolvePayeeIdAsync(row.Payee) : null;
 
                     // Resolve split categories first (QIF only) — if the split amounts
                     // don't add up to the transaction total, fall back to a plain
@@ -495,13 +640,207 @@ public class ImportController(
             if (pendingLinks.Count > 0 || pendingSplits.Count > 0)
                 await db.SaveChangesAsync();
 
+            // Persist any mapping rules the user asked to remember while resolving
+            // unmatched payees — an exact-match rule pointing the raw text at
+            // whichever payee it was resolved to (existing pick or override).
+            foreach (var raw in rememberMappings)
+            {
+                var trimmed = raw.Trim();
+                if (trimmed.Length == 0) continue;
+                if (!payeeOverrides.TryGetValue(trimmed, out var targetPayeeId)) continue;
+
+                var alreadyExists = mappingRulesCache.Any(r =>
+                    !r.IsRegex && string.Equals(encryption.Decrypt(r.PatternEncrypted, dek), trimmed, StringComparison.OrdinalIgnoreCase));
+                if (alreadyExists) continue;
+
+                db.PayeeMappingRules.Add(new PayeeMappingRule
+                {
+                    UserId = userId,
+                    PatternEncrypted = encryption.Encrypt(trimmed, dek)!,
+                    IsRegex = false,
+                    TargetPayeeId = targetPayeeId,
+                });
+            }
+            if (rememberMappings.Count > 0)
+                await db.SaveChangesAsync();
+
             await dbTx.CommitAsync();
         }
 
-        return Ok(new { imported, transfersLinked = pendingLinks.Count, errors = errors.Count > 0 ? errors : null });
+        return Ok(new
+        {
+            imported,
+            transfersLinked = pendingLinks.Count,
+            errors = errors.Count > 0 ? errors : null,
+            newPayeesCreated = newPayeesCreated.Count > 0 ? newPayeesCreated : null,
+        });
+    }
+
+    // ── Import drafts (staged, not-yet-committed imports) ──
+
+    [HttpGet("drafts")]
+    public async Task<IActionResult> GetDrafts()
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+
+        var drafts = await db.ImportDrafts
+            .Where(d => d.UserId == userId)
+            .Include(d => d.Account)
+            .OrderByDescending(d => d.UpdatedAt)
+            .Select(d => new
+            {
+                id = d.Id,
+                accountId = d.AccountId,
+                accountName = d.Account.Name,
+                fileName = d.FileName,
+                rowCount = d.RowCount,
+                createdAt = d.CreatedAt,
+                updatedAt = d.UpdatedAt,
+            })
+            .ToListAsync();
+
+        return Ok(drafts);
+    }
+
+    // Re-parses the draft's stored file (fresh — duplicate detection has to
+    // reflect the DB as it is now, not as it was when staged) and returns the
+    // same shape as /preview, plus the review decisions already made so the
+    // frontend can restore exactly where the user left off.
+    [HttpGet("drafts/{id}/resume")]
+    public async Task<IActionResult> ResumeDraft(int id)
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+
+        var user = await userManager.FindByIdAsync(userId);
+        if (user is null) return Unauthorized();
+
+        var draft = await db.ImportDrafts.FirstOrDefaultAsync(d => d.Id == id && d.UserId == userId);
+        if (draft is null) return NotFound();
+
+        var fileBytes = Convert.FromBase64String(encryption.Decrypt(draft.FileContentEncrypted, user.EncryptedDataKey)!);
+        var result = await BuildPreviewAsync(userId, draft.FileName, fileBytes, draft.AccountId);
+        if (result.Error is not null) return result.Error;
+
+        return Ok(new
+        {
+            draftId = draft.Id,
+            accountId = draft.AccountId,
+            fileName = draft.FileName,
+            includeDuplicateIds = string.IsNullOrWhiteSpace(draft.IncludeDuplicateIdsJson)
+                ? Array.Empty<int>()
+                : JsonSerializer.Deserialize<int[]>(draft.IncludeDuplicateIdsJson),
+            payeeOverrides = string.IsNullOrWhiteSpace(draft.PayeeOverridesJson)
+                ? new Dictionary<string, int>()
+                : JsonSerializer.Deserialize<Dictionary<string, int>>(draft.PayeeOverridesJson),
+            preview = result.Response,
+        });
+    }
+
+    public record DraftReviewDto(int[]? IncludeDuplicateIds, Dictionary<string, int>? PayeeOverrides);
+
+    // Saves in-progress review choices (which duplicates to include, payee
+    // resolutions picked so far) without committing — called as the user works
+    // through the review screen, so an interruption loses at most the last
+    // unsaved tweak, not the whole review.
+    [HttpPut("drafts/{id}")]
+    public async Task<IActionResult> UpdateDraft(int id, DraftReviewDto dto)
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+
+        var draft = await db.ImportDrafts.FirstOrDefaultAsync(d => d.Id == id && d.UserId == userId);
+        if (draft is null) return NotFound();
+
+        if (dto.IncludeDuplicateIds is not null)
+            draft.IncludeDuplicateIdsJson = JsonSerializer.Serialize(dto.IncludeDuplicateIds);
+        if (dto.PayeeOverrides is not null)
+            draft.PayeeOverridesJson = JsonSerializer.Serialize(dto.PayeeOverrides);
+        draft.UpdatedAt = DateTime.UtcNow;
+
+        await db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    [HttpDelete("drafts/{id}")]
+    public async Task<IActionResult> DeleteDraft(int id)
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+
+        var draft = await db.ImportDrafts.FirstOrDefaultAsync(d => d.Id == id && d.UserId == userId);
+        if (draft is null) return NotFound();
+
+        db.ImportDrafts.Remove(draft);
+        await db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    private async Task<int?> SaveDraftAsync(string userId, int accountId, string fileName, byte[] fileBytes, int rowCount)
+    {
+        var user = await userManager.FindByIdAsync(userId);
+        if (user is null) return null;
+
+        var draft = await db.ImportDrafts.FirstOrDefaultAsync(d => d.UserId == userId && d.AccountId == accountId);
+        var encryptedContent = encryption.Encrypt(Convert.ToBase64String(fileBytes), user.EncryptedDataKey)!;
+
+        if (draft is null)
+        {
+            draft = new ImportDraft
+            {
+                UserId = userId,
+                AccountId = accountId,
+                FileName = fileName,
+                FileContentEncrypted = encryptedContent,
+                RowCount = rowCount,
+            };
+            db.ImportDrafts.Add(draft);
+        }
+        else
+        {
+            // A fresh upload for this account supersedes any prior review —
+            // reset the saved choices rather than reapplying them to different rows.
+            draft.FileName = fileName;
+            draft.FileContentEncrypted = encryptedContent;
+            draft.RowCount = rowCount;
+            draft.IncludeDuplicateIdsJson = null;
+            draft.PayeeOverridesJson = null;
+            draft.UpdatedAt = DateTime.UtcNow;
+        }
+
+        await db.SaveChangesAsync();
+        return draft.Id;
     }
 
     // ── Helpers ──
+
+    private class ImportParseException(string message) : Exception(message);
+
+    private static (List<CsvRow> Rows, List<string> Warnings) ParseByExtension(string ext, byte[] fileBytes, int? accountId)
+    {
+        using var stream = new MemoryStream(fileBytes);
+
+        if (ext == ".qif")
+        {
+            var (rows, warnings) = ParseQif(stream);
+            if (rows.Count == 0)
+                throw new ImportParseException("No transactions found in QIF file.");
+            if (!accountId.HasValue && rows.All(r => string.IsNullOrWhiteSpace(r.Account)))
+                throw new ImportParseException("This QIF file doesn't specify an account. Please select an account to import into.");
+            return (rows, warnings);
+        }
+
+        if (ext == ".json")
+        {
+            var rows = ParseJson(stream);
+            if (rows.Count == 0)
+                throw new ImportParseException("No transactions found in JSON file.");
+            return (rows, []);
+        }
+
+        return (ParseCsv(stream), []);
+    }
 
     private static string? NormalizeMemo(string? memo) =>
         string.IsNullOrWhiteSpace(memo) ? null : memo.Trim();
@@ -542,9 +881,8 @@ public class ImportController(
         return candidates.Count == 1 ? candidates[0] : null;
     }
 
-    private static List<CsvRow> ParseCsv(IFormFile file)
+    private static List<CsvRow> ParseCsv(Stream stream)
     {
-        using var stream = file.OpenReadStream();
         using var reader = new StreamReader(stream);
         var config = new CsvConfiguration(CultureInfo.InvariantCulture)
         {
@@ -605,9 +943,8 @@ public class ImportController(
     // embedded per group, so (like multi-account QIF) no accountId fallback
     // is needed.
 
-    private static List<CsvRow> ParseJson(IFormFile file)
+    private static List<CsvRow> ParseJson(Stream stream)
     {
-        using var stream = file.OpenReadStream();
         using var doc = JsonDocument.Parse(stream);
 
         if (doc.RootElement.ValueKind != JsonValueKind.Array)
@@ -680,9 +1017,8 @@ public class ImportController(
     // exports using !Account blocks. !Type:Invst (investment) sections are
     // skipped with a warning since this app has no security/quantity model.
 
-    private static (List<CsvRow> Rows, List<string> Warnings) ParseQif(IFormFile file)
+    private static (List<CsvRow> Rows, List<string> Warnings) ParseQif(Stream stream)
     {
-        using var stream = file.OpenReadStream();
         using var reader = new StreamReader(stream);
         var text = reader.ReadToEnd();
         var lines = text.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');

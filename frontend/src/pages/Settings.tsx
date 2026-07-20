@@ -1,5 +1,5 @@
 import { useState, useEffect, type FormEvent } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { useAuth } from '../contexts/AuthContext';
@@ -7,7 +7,16 @@ import api from '../api/client';
 import { resetTotpSetup, resetTotpEnroll, getMfaStatus } from '../api/auth';
 import { getDemoInfo, resetDemo } from '../api/demo';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
-import { getTemplate, previewImport, importWithDuplicates, type PreviewResult } from '../api/import';
+import {
+  getTemplate, previewImport, importWithDuplicates,
+  resumeImportDraft, updateImportDraft, deleteImportDraft,
+  type PreviewResult,
+} from '../api/import';
+import {
+  getPayeeMappingRules, createPayeeMappingRule, deletePayeeMappingRule,
+  type PayeeMappingRule,
+} from '../api/payeeMappingRules';
+import { getPayees } from '../api/payees';
 import { getAuditLog, type AuditEntry, type GetAuditParams } from '../api/audit';
 import { getAccounts } from '../api/accounts';
 import { listAccountBackups, downloadAccountBackup, type AccountBackupSummary } from '../api/accountBackups';
@@ -15,12 +24,12 @@ import { getDuplicates, ignoreDuplicateGroup, unignoreDuplicateGroup, type Dupli
 import { deleteTransaction } from '../api/transactions';
 import { getInstitutions, updateInstitution, deleteInstitution } from '../api/institutions';
 import { getPreferences, updatePreferences } from '../api/preferences';
-import type { Account, Institution } from '../types';
+import type { Account, Institution, Payee } from '../types';
 import ExportModal from '../components/ExportModal';
 import ReauthModal from '../components/ReauthModal';
 import styles from './Settings.module.css';
 
-type Tab = 'preferences' | 'security' | 'export' | 'import' | 'backups' | 'duplicates' | 'institutions' | 'audit' | 'password';
+type Tab = 'preferences' | 'security' | 'export' | 'import' | 'payeeMappingRules' | 'backups' | 'duplicates' | 'institutions' | 'audit' | 'password';
 
 // ── Change Password ──
 
@@ -515,7 +524,15 @@ function ExportTab() {
 
 // ── Import Data ──
 
+interface PayeeChoice {
+  payeeId?: number; // set => use this existing payee instead of creating one
+  remember: boolean;
+}
+
 function ImportTab() {
+  const location = useLocation();
+  const navigate = useNavigate();
+
   const [dragging, setDragging] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [step, setStep] = useState<'select' | 'review' | 'done'>('select');
@@ -524,16 +541,57 @@ function ImportTab() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState<{ imported: number; transfersLinked: number; errors?: string[] } | null>(null);
+  const [draftId, setDraftId] = useState<number | null>(null);
+  const [payeeChoices, setPayeeChoices] = useState<Record<string, PayeeChoice>>({});
 
   // QIF files often don't embed an account name (Money Sunset exports one
   // account at a time) — the user picks the destination account up front.
+  // Also required for a resumed draft, since there's no local File to re-derive it from.
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [qifAccountId, setQifAccountId] = useState<number | ''>('');
   const isQif = !!file?.name.toLowerCase().endsWith('.qif');
+  const effectiveAccountId = draftId != null ? (qifAccountId || undefined) : (isQif && qifAccountId !== '' ? qifAccountId : undefined);
 
   useEffect(() => {
     getAccounts().then(setAccounts).catch(() => {});
   }, []);
+
+  // Arriving from the "unfinished import" banner's Resume action.
+  useEffect(() => {
+    const id = (location.state as { resumeDraftId?: number } | null)?.resumeDraftId;
+    if (!id) return;
+    navigate('.', { replace: true, state: null });
+    setLoading(true);
+    setError('');
+    resumeImportDraft(id)
+      .then(res => {
+        setDraftId(res.draftId);
+        setQifAccountId(res.accountId);
+        setFile(null);
+        setPreview(res.preview);
+        setCheckedDups(new Set(res.includeDuplicateIds));
+        const choices: Record<string, PayeeChoice> = {};
+        for (const [raw, payeeId] of Object.entries(res.payeeOverrides)) choices[raw] = { payeeId, remember: true };
+        setPayeeChoices(choices);
+        setStep('review');
+      })
+      .catch(() => setError('Failed to resume that import — it may have been discarded.'))
+      .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state]);
+
+  // Persist review progress (which duplicates are checked, payee resolutions)
+  // as the user works, so an interruption loses at most a moment's work.
+  useEffect(() => {
+    if (draftId == null || step !== 'review') return;
+    const t = setTimeout(() => {
+      const payeeOverrides = Object.fromEntries(
+        Object.entries(payeeChoices).filter(([, c]) => c.payeeId != null).map(([raw, c]) => [raw, c.payeeId!])
+      );
+      updateImportDraft(draftId, { includeDuplicateIds: Array.from(checkedDups), payeeOverrides }).catch(() => {});
+    }, 600);
+    return () => clearTimeout(t);
+  }, [draftId, step, checkedDups, payeeChoices]);
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -556,6 +614,8 @@ function ImportTab() {
       if (res.error) { setError(res.error); setLoading(false); return; }
       setPreview(res);
       setCheckedDups(new Set());
+      setPayeeChoices({});
+      setDraftId(res.draftId ?? null);
       setStep('review');
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
@@ -566,15 +626,28 @@ function ImportTab() {
   };
 
   const handleImport = async (includeChecked: boolean) => {
-    if (!file || !preview) return;
+    if ((!file && draftId == null) || !preview) return;
     setLoading(true);
     setError('');
     try {
-      const includeDuplicateIds = includeChecked
-        ? Array.from(checkedDups)
-        : [];
-      const res = await importWithDuplicates(file, includeDuplicateIds, isQif && qifAccountId !== '' ? qifAccountId : undefined);
+      const includeDuplicateIds = includeChecked ? Array.from(checkedDups) : [];
+      const payeeOverrides = Object.fromEntries(
+        Object.entries(payeeChoices).filter(([, c]) => c.payeeId != null).map(([raw, c]) => [raw, c.payeeId!])
+      );
+      const rememberPayeeMappings = Object.entries(payeeChoices)
+        .filter(([, c]) => c.payeeId != null && c.remember)
+        .map(([raw]) => raw);
+
+      const res = await importWithDuplicates({
+        file: file ?? undefined,
+        draftId: draftId ?? undefined,
+        accountId: effectiveAccountId,
+        includeDuplicateIds,
+        payeeOverrides,
+        rememberPayeeMappings,
+      });
       setResult(res);
+      setDraftId(null);
       setStep('done');
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
@@ -582,6 +655,18 @@ function ImportTab() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDiscardDraft = async () => {
+    if (draftId == null) { setStep('select'); setPreview(null); return; }
+    if (!confirm('Discard this staged import? The upload and your review choices will be permanently deleted.')) return;
+    try {
+      await deleteImportDraft(draftId);
+    } catch { /* best-effort */ }
+    setDraftId(null);
+    setStep('select');
+    setPreview(null);
+    setFile(null);
   };
 
   const handleDownloadTemplate = async (format: 'csv' | 'xlsx') => {
@@ -605,6 +690,14 @@ function ImportTab() {
       if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
+  };
+
+  const setPayeeChoice = (rawText: string, payeeId: number | undefined) => {
+    setPayeeChoices(prev => ({ ...prev, [rawText]: { payeeId, remember: prev[rawText]?.remember ?? true } }));
+  };
+
+  const setPayeeRemember = (rawText: string, remember: boolean) => {
+    setPayeeChoices(prev => ({ ...prev, [rawText]: { payeeId: prev[rawText]?.payeeId, remember } }));
   };
 
   if (step === 'done' && result) {
@@ -638,6 +731,7 @@ function ImportTab() {
           {preview.transferMatches > 0 && (
             <> <strong>{preview.transferMatches}</strong> of the new transactions look like transfer{preview.transferMatches !== 1 ? 's' : ''} to existing accounts and will be linked automatically.</>
           )}
+          {draftId != null && <> This review is being saved automatically — it's safe to come back to later.</>}
         </p>
 
         {preview.warnings && preview.warnings.length > 0 && (
@@ -645,6 +739,51 @@ function ImportTab() {
             <div className={styles.resultErrorTitle}>Warnings:</div>
             <ul>{preview.warnings.map((w, i) => <li key={i}>{w}</li>)}</ul>
           </div>
+        )}
+
+        {preview.unmatchedPayees && preview.unmatchedPayees.length > 0 && (
+          <>
+            <p className={styles.hint}>
+              These payee names in the file don't match an existing payee. Point them at an existing payee, or leave
+              as "Create new" — and optionally remember the mapping for future imports.
+            </p>
+            <table className={styles.dupTable}>
+              <thead>
+                <tr>
+                  <th>Raw name (from file)</th>
+                  <th>Resolve to</th>
+                  <th>Remember</th>
+                </tr>
+              </thead>
+              <tbody>
+                {preview.unmatchedPayees.map(u => {
+                  const choice = payeeChoices[u.rawText];
+                  return (
+                    <tr key={u.rawText}>
+                      <td>{u.rawText}</td>
+                      <td>
+                        <select
+                          value={choice?.payeeId ?? ''}
+                          onChange={e => setPayeeChoice(u.rawText, e.target.value ? Number(e.target.value) : undefined)}
+                        >
+                          <option value="">Create new: "{u.rawText}"</option>
+                          {u.suggestions.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                        </select>
+                      </td>
+                      <td>
+                        <input
+                          type="checkbox"
+                          disabled={choice?.payeeId == null}
+                          checked={!!choice?.remember && choice.payeeId != null}
+                          onChange={e => setPayeeRemember(u.rawText, e.target.checked)}
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </>
         )}
 
         {preview.duplicates.length > 0 && (
@@ -700,8 +839,8 @@ function ImportTab() {
           >
             Import New Only
           </button>
-          <button className={styles.btnLink} onClick={() => setStep('select')}>
-            ← Back
+          <button className={styles.btnLink} onClick={handleDiscardDraft}>
+            {draftId != null ? 'Discard' : '← Back'}
           </button>
         </div>
       </div>
@@ -775,6 +914,133 @@ function ImportTab() {
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Payee Mapping Rules ──
+
+function PayeeMappingRulesTab() {
+  const [rules, setRules] = useState<PayeeMappingRule[]>([]);
+  const [payees, setPayees] = useState<Payee[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [pattern, setPattern] = useState('');
+  const [isRegex, setIsRegex] = useState(false);
+  const [targetPayeeId, setTargetPayeeId] = useState<number | ''>('');
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+
+  const load = () => {
+    setLoading(true);
+    setError('');
+    Promise.all([getPayeeMappingRules(), getPayees()])
+      .then(([r, p]) => { setRules(r); setPayees(p); })
+      .catch(() => setError('Failed to load payee mapping rules.'))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(load, []);
+
+  const handleCreate = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!pattern.trim() || targetPayeeId === '') return;
+    setSaving(true);
+    setError('');
+    try {
+      await createPayeeMappingRule({ pattern: pattern.trim(), isRegex, targetPayeeId });
+      setPattern('');
+      setIsRegex(false);
+      setTargetPayeeId('');
+      load();
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setError(msg ?? 'Failed to create rule.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (id: number) => {
+    if (!confirm('Delete this mapping rule?')) return;
+    setDeletingId(id);
+    try {
+      await deletePayeeMappingRule(id);
+      load();
+    } catch {
+      setError('Failed to delete rule.');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  return (
+    <div className={styles.tabSection}>
+      <p className={styles.hint}>
+        When importing, a raw payee name that matches one of these rules is automatically resolved to the payee you
+        choose here, instead of creating a new (often near-duplicate) payee. Patterns are case-insensitive: use{' '}
+        <code>*</code> as a wildcard (e.g. <code>Amazon*</code>, <code>*Amazon*</code>), or switch to regex for
+        anything more specific.
+      </p>
+
+      {error && <div className={styles.error}>{error}</div>}
+
+      <form onSubmit={handleCreate} style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: 16 }}>
+        <div>
+          <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 4 }}>Pattern</label>
+          <input
+            type="text"
+            value={pattern}
+            onChange={e => setPattern(e.target.value)}
+            placeholder={isRegex ? '^AMZN\\s?Mktp' : 'Amazon*'}
+            style={{ width: 220 }}
+          />
+        </div>
+        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <input type="checkbox" checked={isRegex} onChange={e => setIsRegex(e.target.checked)} />
+          Regex
+        </label>
+        <div>
+          <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 4 }}>Maps to payee</label>
+          <select value={targetPayeeId} onChange={e => setTargetPayeeId(e.target.value ? Number(e.target.value) : '')}>
+            <option value="">Select…</option>
+            {payees.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+          </select>
+        </div>
+        <button className={styles.btnPrimary} disabled={saving || !pattern.trim() || targetPayeeId === ''}>
+          {saving ? 'Adding…' : 'Add Rule'}
+        </button>
+      </form>
+
+      {loading && <p className={styles.hint}>Loading…</p>}
+      {!loading && rules.length === 0 && <p className={styles.hint}>No mapping rules yet.</p>}
+
+      {rules.length > 0 && (
+        <table className={styles.dupTable}>
+          <thead>
+            <tr>
+              <th>Pattern</th>
+              <th>Type</th>
+              <th>Maps to</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {rules.map(r => (
+              <tr key={r.id}>
+                <td>{r.pattern}</td>
+                <td>{r.isRegex ? 'Regex' : 'Wildcard/Exact'}</td>
+                <td>{r.targetPayeeName}</td>
+                <td>
+                  <button className={styles.btnDanger} onClick={() => handleDelete(r.id)} disabled={deletingId === r.id}>
+                    {deletingId === r.id ? 'Deleting…' : 'Delete'}
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }
@@ -1373,7 +1639,9 @@ function AuditLogTab() {
 
 export default function Settings() {
   usePageTitle('Settings');
-  const [tab, setTab] = useState<Tab>('preferences');
+  const location = useLocation();
+  const initialTab = (location.state as { tab?: Tab } | null)?.tab;
+  const [tab, setTab] = useState<Tab>(initialTab ?? 'preferences');
 
   return (
     <div className={styles.page}>
@@ -1404,6 +1672,12 @@ export default function Settings() {
           onClick={() => setTab('import')}
         >
           Import Data
+        </button>
+        <button
+          className={`${styles.tab} ${tab === 'payeeMappingRules' ? styles.tabActive : ''}`}
+          onClick={() => setTab('payeeMappingRules')}
+        >
+          Payee Mapping Rules
         </button>
         <button
           className={`${styles.tab} ${tab === 'backups' ? styles.tabActive : ''}`}
@@ -1441,6 +1715,7 @@ export default function Settings() {
         {tab === 'security' && <SecurityTab />}
         {tab === 'export' && <ExportTab />}
         {tab === 'import' && <ImportTab />}
+        {tab === 'payeeMappingRules' && <PayeeMappingRulesTab />}
         {tab === 'backups' && <BackupsTab />}
         {tab === 'duplicates' && <DuplicatesTab />}
         {tab === 'institutions' && <InstitutionsTab />}

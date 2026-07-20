@@ -146,7 +146,7 @@ export default function BillsReminders() {
   const [payeeSuggestions, setPayeeSuggestions] = useState<Payee[]>([]);
   const [categorySuggestions, setCategorySuggestions] = useState<{ id: number; label: string }[]>([]);
   const [showCatSugg, setShowCatSugg] = useState(false);
-  const [sortBy, setSortBy] = useState<SortColumn>('nextDueDate');
+  const [sortBy, setSortBy] = useState<SortColumn>('name');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
   // Dirty = form differs from its snapshot at open time (an untouched form,

@@ -2,7 +2,6 @@ using System.Linq;
 using System.Reflection;
 using System.Text;
 using FluentAssertions;
-using Microsoft.AspNetCore.Http;
 using Xunit;
 
 namespace MoneyTracker.Tests.Unit;
@@ -12,17 +11,12 @@ namespace MoneyTracker.Tests.Unit;
 // transactions: [...] } groups, including splits and subcategories.
 public class JsonImportParserTests
 {
-    private static IFormFile MakeFile(string content, string name = "test.json")
-    {
-        var bytes = Encoding.UTF8.GetBytes(content);
-        return new FormFile(new MemoryStream(bytes), 0, bytes.Length, "file", name);
-    }
-
     private static List<object> ParseJson(string content)
     {
         var method = typeof(MoneyTracker.Controllers.ImportController)
             .GetMethod("ParseJson", BindingFlags.NonPublic | BindingFlags.Static)!;
-        var result = method.Invoke(null, [MakeFile(content)])!;
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(content));
+        var result = method.Invoke(null, [stream])!;
         return ((System.Collections.IEnumerable)result).Cast<object>().ToList();
     }
 

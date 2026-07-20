@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import ImportDraftBanner from './ImportDraftBanner';
 import styles from './Layout.module.css';
 
 interface Props {
@@ -66,6 +67,7 @@ export default function Layout({ onLogout }: Props) {
       </nav>
 
       <main className={styles.content}>
+        <ImportDraftBanner />
         <Outlet />
       </main>
     </div>
