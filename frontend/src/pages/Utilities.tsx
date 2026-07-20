@@ -63,12 +63,17 @@ function DuplicatesTab() {
 
   const groupKeyOf = (g: DuplicateGroup) => `${g.accountId}-${g.date}-${g.amount}`;
 
+  // Mark the group ignored/unignored in place rather than re-fetching — a
+  // full reload would drop a newly-ignored group out of the list right away
+  // (when "show ignored" is off), shifting everything else on the screen.
+  // Dimming it in place and only actually hiding it on the next real reload
+  // (page refresh, toggling a filter) keeps the layout stable.
   const handleIgnore = async (g: DuplicateGroup) => {
     const key = groupKeyOf(g);
     setTogglingKey(key);
     try {
       await ignoreDuplicateGroup({ accountId: g.accountId, date: g.date, amount: g.amount });
-      load();
+      setGroups(prev => prev.map(x => groupKeyOf(x) === key ? { ...x, ignored: true } : x));
     } catch {
       setError('Failed to ignore this group.');
     } finally {
@@ -81,7 +86,7 @@ function DuplicatesTab() {
     setTogglingKey(key);
     try {
       await unignoreDuplicateGroup({ accountId: g.accountId, date: g.date, amount: g.amount });
-      load();
+      setGroups(prev => prev.map(x => groupKeyOf(x) === key ? { ...x, ignored: false } : x));
     } catch {
       setError('Failed to un-ignore this group.');
     } finally {
