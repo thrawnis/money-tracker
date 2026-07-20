@@ -1,15 +1,16 @@
 import { useState, useEffect, type FormEvent } from 'react';
-import { Link } from 'react-router-dom';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { getDuplicates, ignoreDuplicateGroup, unignoreDuplicateGroup, type DuplicateGroup, type DuplicateTransaction } from '../api/duplicates';
 import { deleteTransaction } from '../api/transactions';
 import { getInstitutions, updateInstitution, deleteInstitution } from '../api/institutions';
+import { getAccounts } from '../api/accounts';
 import {
   getPayeeMappingRules, createPayeeMappingRule, deletePayeeMappingRule,
   type PayeeMappingRule,
 } from '../api/payeeMappingRules';
 import { getPayees } from '../api/payees';
-import type { Institution, Payee } from '../types';
+import type { Account, Institution, Payee } from '../types';
+import TransactionDetailPanel from '../components/TransactionDetailPanel';
 // Reuses Settings' styling for visual consistency between the two tabbed
 // utility-page shells rather than duplicating the same CSS.
 import styles from './Settings.module.css';
@@ -33,6 +34,8 @@ function DuplicatesTab() {
   const [includeCategory, setIncludeCategory] = useState(false);
   const [showIgnored, setShowIgnored] = useState(false);
   const [togglingKey, setTogglingKey] = useState('');
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [selectedTx, setSelectedTx] = useState<{ accountId: number; id: number; accountName: string } | null>(null);
 
   const load = () => {
     setLoading(true);
@@ -44,6 +47,7 @@ function DuplicatesTab() {
   };
 
   useEffect(load, [includeMemo, includeCategory, showIgnored]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { getAccounts().then(setAccounts).catch(() => {}); }, []);
 
   const handleDelete = async (accountId: number, id: number) => {
     if (!confirm('Delete this transaction? This cannot be undone.')) return;
@@ -190,9 +194,12 @@ function DuplicatesTab() {
                   <td className={varies.checkNumber ? styles.dupDiffCell : undefined}>{t.checkNumber ?? ''}</td>
                   <td className={varies.status ? styles.dupDiffCell : undefined}>{t.status}</td>
                   <td style={{ display: 'flex', gap: 8 }}>
-                    <Link className={styles.btnSecondary} to={`/accounts/${g.accountId}?tx=${t.id}`}>
-                      View
-                    </Link>
+                    <button
+                      className={styles.btnSecondary}
+                      onClick={() => setSelectedTx({ accountId: g.accountId, id: t.id, accountName: g.accountName })}
+                    >
+                      Details
+                    </button>
                     <button
                       className={styles.btnDanger}
                       onClick={() => handleDelete(g.accountId, t.id)}
@@ -207,6 +214,17 @@ function DuplicatesTab() {
           </table>
         );
       })}
+
+      {selectedTx && (
+        <TransactionDetailPanel
+          accountId={selectedTx.accountId}
+          transactionId={selectedTx.id}
+          accountName={selectedTx.accountName}
+          accounts={accounts}
+          onClose={() => setSelectedTx(null)}
+          onChanged={load}
+        />
+      )}
     </div>
   );
 }
