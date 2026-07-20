@@ -53,6 +53,9 @@ export default function Layout({ onLogout }: Props) {
           <NavLink to="/reports" className={navItem} onClick={closeSidebar}>
             Reports
           </NavLink>
+          <NavLink to="/utilities" className={navItem} onClick={closeSidebar}>
+            Utilities
+          </NavLink>
           <NavLink to="/settings" className={navItem} onClick={closeSidebar}>
             Settings
           </NavLink>

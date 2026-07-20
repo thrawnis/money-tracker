@@ -8,6 +8,7 @@ import AccountForm from './pages/AccountForm';
 import BillsReminders from './pages/BillsReminders';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
+import Utilities from './pages/Utilities';
 import Categories from './pages/Categories';
 import Payees from './pages/Payees';
 import TransactionSearch from './pages/TransactionSearch';
@@ -43,6 +44,7 @@ const router = createBrowserRouter(
         <Route path="payees"                  element={<Payees />} />
         <Route path="transactions"            element={<TransactionSearch />} />
         <Route path="all-transactions"        element={<AllTransactions />} />
+        <Route path="utilities"               element={<Utilities />} />
         <Route path="settings"                element={<Settings />} />
         <Route path="*"                       element={<Navigate to="/" replace />} />
       </Route>
