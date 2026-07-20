@@ -33,6 +33,7 @@ function DuplicatesTab() {
   const [includeMemo, setIncludeMemo] = useState(false);
   const [includeCategory, setIncludeCategory] = useState(false);
   const [showIgnored, setShowIgnored] = useState(false);
+  const [accountFilter, setAccountFilter] = useState<number | ''>('');
   const [togglingKey, setTogglingKey] = useState('');
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [selectedTx, setSelectedTx] = useState<{ accountId: number; id: number; accountName: string } | null>(null);
@@ -44,13 +45,13 @@ function DuplicatesTab() {
   const load = () => {
     setLoading(true);
     setError('');
-    getDuplicates({ includeMemo, includeCategory, showIgnored })
+    getDuplicates({ accountId: accountFilter || undefined, includeMemo, includeCategory, showIgnored })
       .then(setGroups)
       .catch(() => setError('Failed to load duplicate transactions.'))
       .finally(() => setLoading(false));
   };
 
-  useEffect(load, [includeMemo, includeCategory, showIgnored]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(load, [accountFilter, includeMemo, includeCategory, showIgnored]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { getAccounts().then(setAccounts).catch(() => {}); }, []);
 
   const handleDelete = async (accountId: number, id: number) => {
@@ -133,7 +134,14 @@ function DuplicatesTab() {
         another transaction joins the group.
       </p>
 
-      <div style={{ display: 'flex', gap: 20, marginBottom: 14, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 20, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
+        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          Account
+          <select value={accountFilter} onChange={e => setAccountFilter(e.target.value ? Number(e.target.value) : '')}>
+            <option value="">All accounts</option>
+            {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </select>
+        </label>
         <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
           <input type="checkbox" checked={includeMemo} onChange={e => setIncludeMemo(e.target.checked)} />
           Also match memo
