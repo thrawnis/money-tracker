@@ -1,12 +1,29 @@
 #!/usr/bin/env bash
 # rebuild.sh — Pull latest dev branch and redeploy with Docker
-# Usage: ./rebuild.sh
+# Usage: ./rebuild.sh [--pull-base-images]
+#   --pull-base-images   Also re-pull the base images (postgres:16-alpine,
+#                         dotnet/sdk, node, nginx, etc.) from their registries
+#                         before building. Off by default: skipping this check
+#                         on every rebuild is the point of a fast redeploy
+#                         loop; opt in occasionally to pick up base image
+#                         security patches.
 # Run from the repository root on your server.
 
 set -euo pipefail
 
+PULL_BASE_IMAGES=0
+for arg in "$@"; do
+  case "$arg" in
+    --pull-base-images) PULL_BASE_IMAGES=1 ;;
+    *) echo "Unknown argument: $arg" >&2; exit 1 ;;
+  esac
+done
+
 REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
 BRANCH="dev"
+
+API_IMAGE="money-tracker-api:latest"
+FRONTEND_IMAGE="money-tracker-frontend:latest"
 
 echo "==> Pulling latest code from branch: $BRANCH"
 cd "$REPO_DIR"
@@ -46,24 +63,45 @@ else
 fi
 
 # -- Build and start containers -----------------------------------------------
+#
+# Built directly with `docker buildx build` rather than `docker compose
+# build`: Compose's detection of the buildx plugin is unreliable on this
+# host and can silently fall back to the legacy (non-BuildKit) builder,
+# which fails outright on the Dockerfiles' `# syntax=` directive and
+# `RUN --mount=type=cache` cache mounts. `--tag` is used in its long form —
+# `-t` has been seen to fail with a confusing "unknown shorthand flag" error
+# in this exact fallback scenario even though `docker buildx build` itself
+# works fine.
 
-echo "==> Building containers"
-docker compose build --pull
+BUILDX_PULL_FLAG=()
+if [ "$PULL_BASE_IMAGES" -eq 1 ]; then
+  echo "==> Will re-pull base images before building (--pull-base-images)"
+  BUILDX_PULL_FLAG=(--pull)
+fi
+
+echo "==> Building api image: $API_IMAGE"
+docker buildx build "${BUILDX_PULL_FLAG[@]}" --tag "$API_IMAGE" --load "$REPO_DIR/backend"
+
+echo "==> Building frontend image: $FRONTEND_IMAGE"
+docker buildx build "${BUILDX_PULL_FLAG[@]}" --tag "$FRONTEND_IMAGE" --load "$REPO_DIR/frontend"
+
+# --no-build everywhere below: the images above are already built, and
+# Compose must never attempt (and fail) to build its own.
 
 # Bring up db without --force-recreate so existing connections are preserved.
 echo "==> Starting db"
 # shellcheck disable=SC2086
-docker compose $OLLAMA_PROFILE up -d db
+docker compose $OLLAMA_PROFILE up -d --no-build db
 
 if [ -n "$OLLAMA_PROFILE" ]; then
   echo "==> Starting ollama"
-  docker compose $OLLAMA_PROFILE up -d ollama
+  docker compose $OLLAMA_PROFILE up -d --no-build ollama
 fi
 
 # Only force-recreate the application containers that actually changed.
 echo "==> Deploying api and frontend"
 # shellcheck disable=SC2086
-docker compose $OLLAMA_PROFILE up -d --force-recreate --remove-orphans api frontend
+docker compose $OLLAMA_PROFILE up -d --no-build --force-recreate --remove-orphans api frontend
 
 # -- Pull Ollama model if running locally -------------------------------------
 

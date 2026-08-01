@@ -59,6 +59,13 @@ services:
     #           capabilities: [gpu]
 
   api:
+    # Built by rebuild.sh directly with `docker buildx build` (Compose's own
+    # `docker compose build` unreliably falls back to the legacy non-BuildKit
+    # builder on this host, which chokes on the syntax directive and cache
+    # mounts in backend/Dockerfile). Pinning this image name explicitly means
+    # `docker compose up --no-build` picks up that image instead of trying
+    # (and failing) to build its own, directory-derived one.
+    image: money-tracker-api:latest
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -94,6 +101,8 @@ services:
         condition: service_healthy
 
   frontend:
+    # See the api service's comment above — same reasoning applies here.
+    image: money-tracker-frontend:latest
     build:
       context: ./frontend
       dockerfile: Dockerfile
