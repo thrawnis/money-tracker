@@ -616,10 +616,11 @@ export default function AccountRegister() {
     // set too (the form seeds it from the linked leg), so the editingTx branch
     // must win or editing a transfer would create a duplicate pair instead of
     // updating in place (the backend Update syncs the linked leg itself).
+    let newTxId: number | null = null;
     if (editingTx) {
       await updateTransaction(accountId, editingTx.id, data);
     } else if (data.transferDestAccountId) {
-      await createTransfer({
+      const { debit } = await createTransfer({
         sourceAccountId:      accountId,
         destinationAccountId: data.transferDestAccountId,
         date:                 data.date,
@@ -628,16 +629,25 @@ export default function AccountRegister() {
         memo:                 data.memo,
       });
       lastUsedDate.current = data.date;
+      newTxId = debit.id;
     } else {
-      await createTransaction(accountId, data);
+      const created = await createTransaction(accountId, data);
       lastUsedDate.current = data.date;
+      newTxId = created.id;
     }
     setShowForm(false);
     setEditingTx(null);
     setReceiptPrefill(null);
     setReceiptPayeeName(undefined);
     setReceiptCategoryLabel(undefined);
-    await reload();
+    // For a brand-new transaction, jump to it (like the "Go to Other Account"
+    // link does) so it's visible and highlighted regardless of the active
+    // sort/filters — those could otherwise leave it off the loaded page.
+    if (newTxId != null) {
+      await jumpToTransaction(newTxId);
+    } else {
+      await reload();
+    }
   };
 
   const handleDelete = async (txId: number) => {
