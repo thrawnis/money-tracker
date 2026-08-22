@@ -71,6 +71,36 @@
   background: #e8f0f8;
 }
 
+.amountModeToggle {
+  display: flex;
+  gap: 3px;
+  margin-bottom: 3px;
+}
+
+.amountModeBtn {
+  flex: 1;
+  border: 1px solid #b0b0b0;
+  background: #fff;
+  color: #667;
+  border-radius: 2px;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 4px;
+  cursor: pointer;
+}
+
+.amountModeExpense {
+  background: #fbeaea;
+  border-color: #c0392b;
+  color: #c0392b;
+}
+
+.amountModeIncome {
+  background: #e6f5ea;
+  border-color: #1a7a40;
+  color: #1a7a40;
+}
+
 .amountFieldWrap {
   display: flex;
   flex-direction: column;

@@ -338,6 +338,13 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
   const [payeeId, setPayeeId] = useState<number | undefined>(initialPayeeName ? undefined : initial?.payeeId);
   const [memo, setMemo] = useState(initial?.memo ?? '');
   const [amount, setAmount] = useState(initial?.amount?.toString() ?? '');
+  // Expense/Income toggle: lets the user type plain positive numbers and
+  // have the correct sign applied automatically. Defaults to Expense for a
+  // brand-new transaction; an existing amount's sign decides which mode
+  // it opens in so re-editing doesn't silently flip it.
+  const [amountMode, setAmountMode] = useState<'expense' | 'income'>(
+    initial?.amount != null && initial.amount > 0 ? 'income' : 'expense'
+  );
   const [status] = useState<Transaction['status']>(initial?.status ?? 'Uncleared');
   const [postDate, setPostDate] = useState(initial?.postDate ?? '');
   const [showPostDate, setShowPostDate] = useState(!!initial?.postDate);
@@ -377,7 +384,7 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
   const [formBaseline, setFormBaseline] = useState<string | null>(null);
   const splitSnapshot = () => splitRows.map(r => ({ categoryInput: r.categoryInput, amount: r.amount, memo: r.memo }));
   const isDirty = formBaseline !== null && JSON.stringify({
-    date, payeeInput, payeeId, memo, amount, postDate,
+    date, payeeInput, payeeId, memo, amount, postDate, amountMode,
     categoryInput, isTransfer, transferDestAccountId, targetAccountId,
     isSplit, splits: splitSnapshot(),
   }) !== formBaseline;
@@ -413,7 +420,7 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
       if (resolvedSplitRows.length > 0) setSplitRows(resolvedSplitRows);
 
       setFormBaseline(JSON.stringify({
-        date, payeeInput, payeeId, memo, amount, postDate,
+        date, payeeInput, payeeId, memo, amount, postDate, amountMode,
         categoryInput: resolvedCategoryInput, isTransfer, transferDestAccountId, targetAccountId,
         isSplit, splits: resolvedSplitRows.map(r => ({ categoryInput: r.categoryInput, amount: r.amount, memo: r.memo })),
       }));
@@ -469,6 +476,21 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
   const splitTotal = splitRows.reduce((sum, r) => sum + (resolveAmountValue(r.amount) ?? 0), 0);
   const splitRemaining = (resolveAmountValue(amount) ?? 0) - splitTotal;
 
+  const applyAmountSign = (mode: 'expense' | 'income', val: number) =>
+    mode === 'expense' ? -Math.abs(val) : Math.abs(val);
+
+  // Re-signs the already-typed amount(s) immediately so switching modes gives
+  // instant feedback rather than waiting for submit to flip the sign.
+  const handleModeChange = (nextMode: 'expense' | 'income') => {
+    setAmountMode(nextMode);
+    const resolved = resolveAmountValue(amount);
+    if (resolved !== null) setAmount(String(applyAmountSign(nextMode, resolved)));
+    setSplitRows(prev => prev.map(r => {
+      const rVal = resolveAmountValue(r.amount);
+      return rVal !== null ? { ...r, amount: String(applyAmountSign(nextMode, rVal)) } : r;
+    }));
+  };
+
   const toggleSplit = () => {
     if (isSplit) {
       setIsSplit(false);
@@ -515,7 +537,8 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
     setSaveError('');
 
     const roundTo2 = (n: number) => Math.round(n * 100) / 100;
-    const finalAmount = roundTo2(resolveAmountValue(amount)!);
+    let finalAmount = roundTo2(resolveAmountValue(amount)!);
+    if (!isTransfer) finalAmount = applyAmountSign(amountMode, finalAmount);
     setAmount(finalAmount.toFixed(2));
 
     try {
@@ -541,7 +564,10 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
         // no category on transfers
       } else if (isSplit) {
         resolvedSplits = [];
-        const roundedSplitRows = splitRows.map(row => ({ ...row, amount: roundTo2(resolveAmountValue(row.amount)!).toFixed(2) }));
+        const roundedSplitRows = splitRows.map(row => ({
+          ...row,
+          amount: applyAmountSign(amountMode, roundTo2(resolveAmountValue(row.amount)!)).toFixed(2),
+        }));
         setSplitRows(roundedSplitRows);
         for (const row of roundedSplitRows) {
           const catId = await resolveCategory(row.categoryInput, categories, setCategories);
@@ -735,6 +761,24 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
 
         <div className={styles.field}>
           <label className={styles.label}>Amount</label>
+          {!isTransfer && (
+            <div className={styles.amountModeToggle}>
+              <button
+                type="button"
+                className={amountMode === 'expense' ? `${styles.amountModeBtn} ${styles.amountModeExpense}` : styles.amountModeBtn}
+                onClick={() => handleModeChange('expense')}
+              >
+                Expense
+              </button>
+              <button
+                type="button"
+                className={amountMode === 'income' ? `${styles.amountModeBtn} ${styles.amountModeIncome}` : styles.amountModeBtn}
+                onClick={() => handleModeChange('income')}
+              >
+                Income
+              </button>
+            </div>
+          )}
           <AmountField
             value={amount}
             onChange={setAmount}
