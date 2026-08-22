@@ -83,20 +83,29 @@ async function resolveCategory(
 
 const PLAIN_NUMBER_RE = /^-?\d*\.?\d+$/;
 
+type EvalResult = { ok: true; value: number } | { ok: false; position: number; message: string };
+
 // Safe arithmetic evaluator for the Amount field — supports + - * / ( ) and
 // unary +/-, hand-rolled rather than eval/Function since it runs on raw
-// keystrokes.
-function evaluateArithmetic(expr: string): number | null {
+// keystrokes. Reports the character position of the first problem so the UI
+// can point at exactly what's wrong with an invalid formula.
+function evaluateArithmeticDetailed(expr: string): EvalResult {
   const s = expr.trim();
-  if (!s || !/^[\d+\-*/().\s]+$/.test(s)) return null;
+  if (!s) return { ok: false, position: 0, message: 'Empty formula' };
+  const badChar = s.match(/[^\d+\-*/().\s]/);
+  if (badChar?.index !== undefined) {
+    return { ok: false, position: badChar.index, message: `Unexpected character "${badChar[0]}"` };
+  }
+
   let i = 0;
   const skipSpace = () => { while (s[i] === ' ') i++; };
   const parseNumber = (): number => {
     const start = i;
     while (i < s.length && /[\d.]/.test(s[i])) i++;
     const numStr = s.slice(start, i);
-    if (!numStr || isNaN(parseFloat(numStr))) throw new Error('bad number');
-    return parseFloat(numStr);
+    const val = numStr ? parseFloat(numStr) : NaN;
+    if (isNaN(val)) throw { position: start, message: 'Expected a number' };
+    return val;
   };
   const parseFactor = (): number => {
     skipSpace();
@@ -104,12 +113,13 @@ function evaluateArithmetic(expr: string): number | null {
       i++;
       const val = parseExpr();
       skipSpace();
-      if (s[i] !== ')') throw new Error('expected )');
+      if (s[i] !== ')') throw { position: i, message: 'Expected ")"' };
       i++;
       return val;
     }
     if (s[i] === '-') { i++; return -parseFactor(); }
     if (s[i] === '+') { i++; return parseFactor(); }
+    if (i >= s.length) throw { position: i, message: 'Expected a number' };
     return parseNumber();
   };
   const parseTerm = (): number => {
@@ -134,14 +144,22 @@ function evaluateArithmetic(expr: string): number | null {
     }
     return val;
   };
+
   try {
     const result = parseExpr();
     skipSpace();
-    if (i !== s.length || !isFinite(result)) return null;
-    return result;
-  } catch {
-    return null;
+    if (i !== s.length) return { ok: false, position: i, message: `Unexpected character "${s[i]}"` };
+    if (!isFinite(result)) return { ok: false, position: 0, message: 'Result is not a finite number' };
+    return { ok: true, value: result };
+  } catch (err) {
+    const e = err as { position?: number; message?: string };
+    return { ok: false, position: e.position ?? i, message: e.message ?? 'Invalid formula' };
   }
+}
+
+function evaluateArithmetic(expr: string): number | null {
+  const result = evaluateArithmeticDetailed(expr);
+  return result.ok ? result.value : null;
 }
 
 // Resolves the Amount field's raw text to a number, evaluating it as an
@@ -153,18 +171,64 @@ function resolveAmountValue(raw: string): number | null {
   return evaluateArithmetic(trimmed);
 }
 
-// Enter on a formula evaluates it in place (without submitting); Enter on an
-// already-plain number is left alone so the browser's native "Enter submits
-// the form" behavior fires, letting handleSubmit do the final 2-decimal round.
-function makeAmountKeyDownHandler(getValue: () => string, setValue: (val: string) => void) {
-  return (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key !== 'Enter') return;
-    const trimmed = getValue().trim();
-    if (!trimmed || PLAIN_NUMBER_RE.test(trimmed)) return;
+// Amount input that doubles as a calculator: typing a formula shows a live
+// "= result" preview (or a pointer at the first bad character); pressing
+// Enter on a formula evaluates it in place — without submitting the form —
+// and briefly flashes the field. Enter on an already-plain number is left
+// alone so the browser's native "Enter submits the form" behavior fires,
+// letting handleSubmit do the final 2-decimal round.
+function AmountField({
+  value, onChange, className, placeholder, tabIndex, inputRef, autoFocus,
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  className?: string;
+  placeholder?: string;
+  tabIndex?: number;
+  inputRef?: RefObject<HTMLInputElement | null>;
+  autoFocus?: boolean;
+}) {
+  const [flash, setFlash] = useState(false);
+  const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => { if (flashTimer.current) clearTimeout(flashTimer.current); }, []);
+
+  const trimmed = value.trim();
+  const isFormula = trimmed !== '' && !PLAIN_NUMBER_RE.test(trimmed);
+  const evalResult = isFormula ? evaluateArithmeticDetailed(trimmed) : null;
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== 'Enter' || !isFormula) return;
     e.preventDefault();
-    const result = evaluateArithmetic(trimmed);
-    if (result !== null) setValue(String(result));
+    if (evalResult?.ok) {
+      onChange(String(evalResult.value));
+      setFlash(true);
+      if (flashTimer.current) clearTimeout(flashTimer.current);
+      flashTimer.current = setTimeout(() => setFlash(false), 700);
+    }
   };
+
+  return (
+    <div className={styles.amountFieldWrap}>
+      <input
+        ref={inputRef}
+        type="text"
+        inputMode="decimal"
+        className={`${className ?? styles.input}${flash ? ` ${styles.amountFlash}` : ''}`}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        onKeyDown={handleKeyDown}
+        tabIndex={tabIndex}
+        placeholder={placeholder}
+        autoFocus={autoFocus}
+      />
+      {evalResult && (
+        evalResult.ok
+          ? <div className={styles.amountPreview}>= {evalResult.value.toFixed(2)}</div>
+          : <div className={styles.amountFormulaError}>{evalResult.message}</div>
+      )}
+    </div>
+  );
 }
 
 function CategoryAutocomplete({
@@ -671,13 +735,9 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
 
         <div className={styles.field}>
           <label className={styles.label}>Amount</label>
-          <input
-            type="text"
-            inputMode="decimal"
-            className={styles.input}
+          <AmountField
             value={amount}
-            onChange={e => setAmount(e.target.value)}
-            onKeyDown={makeAmountKeyDownHandler(() => amount, setAmount)}
+            onChange={setAmount}
             tabIndex={5}
             placeholder="e.g. 42.50 or (33.40*17)/14"
           />
@@ -708,14 +768,10 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
                 value={row.memo}
                 onChange={e => updateSplitRow(row.key, { memo: e.target.value })}
               />
-              <input
-                type="text"
-                inputMode="decimal"
-                className={styles.input}
-                placeholder="Amount"
+              <AmountField
                 value={row.amount}
-                onChange={e => updateSplitRow(row.key, { amount: e.target.value })}
-                onKeyDown={makeAmountKeyDownHandler(() => row.amount, val => updateSplitRow(row.key, { amount: val }))}
+                onChange={val => updateSplitRow(row.key, { amount: val })}
+                placeholder="Amount"
               />
               <button
                 type="button"

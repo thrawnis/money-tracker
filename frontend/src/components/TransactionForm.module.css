@@ -71,6 +71,39 @@
   background: #e8f0f8;
 }
 
+.amountFieldWrap {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.amountFlash {
+  animation: amountEvaluatedFlash 0.7s ease-out;
+}
+
+@keyframes amountEvaluatedFlash {
+  0%   { background: #d6f5df; }
+  100% { background: transparent; }
+}
+
+.amountPreview {
+  font-size: 11px;
+  color: #1a7a40;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.amountFormulaError {
+  font-size: 11px;
+  color: #cc0000;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .error {
   color: #cc0000;
   font-size: 11px;
