@@ -409,13 +409,13 @@ export default function AccountRegister() {
     setScrollToToday(false);
   }, [scrollToToday, pastTxs, futureBills]);
 
-  // Scroll the highlighted row into view once it's rendered; clear after a moment
+  // Scroll the highlighted row into view once it's rendered. The highlight
+  // itself persists (no auto-clear timer) until the row is clicked or the
+  // register reloads — see clearFilters/applyFilters/handleSort/handleEdit.
   useEffect(() => {
     if (highlightTxId == null) return;
     const el = rowRefs.current.get(highlightTxId);
     el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    const t = setTimeout(() => setHighlightTxId(null), 2500);
-    return () => clearTimeout(t);
   }, [highlightTxId, pastTxs]);
 
   // ── Load more past (scroll up) ──
@@ -582,6 +582,7 @@ export default function AccountRegister() {
   const applyFilters = () => {
     const filters = draftFilters();
     setAppliedFilters(filters);
+    setHighlightTxId(null);
     loadPage1(filters, sortBy, sortDir, false);
   };
 
@@ -589,6 +590,7 @@ export default function AccountRegister() {
     setFilterFrom(''); setFilterTo(''); setFilterMinAmount(''); setFilterMaxAmount('');
     setFilterPayee(''); setFilterCategoryId(''); setFilterMemo(''); setFilterUncategorized(false);
     setAppliedFilters({});
+    setHighlightTxId(null);
     // Pass {} explicitly — state updates above won't be visible to this call yet
     loadPage1({}, sortBy, sortDir, false);
   };
@@ -597,6 +599,7 @@ export default function AccountRegister() {
     const newDir = sortBy === field && sortDir === 'desc' ? 'asc' : 'desc';
     setSortBy(field);
     setSortDir(newDir);
+    setHighlightTxId(null);
     loadPage1(appliedFilters, field, newDir, false);
   };
 
@@ -666,6 +669,7 @@ export default function AccountRegister() {
     if (!confirmDiscardIfDirty()) return;
     setEditingTx(tx);
     setShowForm(true);
+    setHighlightTxId(null);
   };
 
   useEffect(() => {
