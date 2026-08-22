@@ -151,6 +151,7 @@ export default function AccountRegister() {
   // Jump-to-transaction (from a transfer's "Go to Other Account" link)
   const [highlightTxId, setHighlightTxId] = useState<number | null>(null);
   const rowRefs = useRef<Map<number, HTMLTableRowElement>>(new Map());
+  const scrolledForHighlightRef = useRef<number | null>(null);
 
   // Open the register positioned at the Today divider on first load of an account
   const todayRowRef = useRef<HTMLTableRowElement>(null);
@@ -409,13 +410,19 @@ export default function AccountRegister() {
     setScrollToToday(false);
   }, [scrollToToday, pastTxs, futureBills]);
 
-  // Scroll the highlighted row into view once it's rendered. The highlight
-  // itself persists (no auto-clear timer) until the row is clicked or the
-  // register reloads — see clearFilters/applyFilters/handleSort/handleEdit.
+  // Scroll the highlighted row into view once it's rendered — but only once
+  // per highlight, not on every pastTxs change. pastTxs is also a dep here
+  // (the row may not exist yet on the render where highlightTxId is set),
+  // but loading more past transactions afterward mutates pastTxs too, and
+  // without the "already scrolled" guard that re-triggers scrollIntoView and
+  // yanks the view back down to the highlight mid-scroll-up.
   useEffect(() => {
-    if (highlightTxId == null) return;
+    if (highlightTxId == null) { scrolledForHighlightRef.current = null; return; }
+    if (scrolledForHighlightRef.current === highlightTxId) return;
     const el = rowRefs.current.get(highlightTxId);
-    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    scrolledForHighlightRef.current = highlightTxId;
   }, [highlightTxId, pastTxs]);
 
   // ── Load more past (scroll up) ──
