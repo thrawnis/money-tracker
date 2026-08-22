@@ -81,6 +81,92 @@ async function resolveCategory(
   }
 }
 
+const PLAIN_NUMBER_RE = /^-?\d*\.?\d+$/;
+
+// Safe arithmetic evaluator for the Amount field — supports + - * / ( ) and
+// unary +/-, hand-rolled rather than eval/Function since it runs on raw
+// keystrokes.
+function evaluateArithmetic(expr: string): number | null {
+  const s = expr.trim();
+  if (!s || !/^[\d+\-*/().\s]+$/.test(s)) return null;
+  let i = 0;
+  const skipSpace = () => { while (s[i] === ' ') i++; };
+  const parseNumber = (): number => {
+    const start = i;
+    while (i < s.length && /[\d.]/.test(s[i])) i++;
+    const numStr = s.slice(start, i);
+    if (!numStr || isNaN(parseFloat(numStr))) throw new Error('bad number');
+    return parseFloat(numStr);
+  };
+  const parseFactor = (): number => {
+    skipSpace();
+    if (s[i] === '(') {
+      i++;
+      const val = parseExpr();
+      skipSpace();
+      if (s[i] !== ')') throw new Error('expected )');
+      i++;
+      return val;
+    }
+    if (s[i] === '-') { i++; return -parseFactor(); }
+    if (s[i] === '+') { i++; return parseFactor(); }
+    return parseNumber();
+  };
+  const parseTerm = (): number => {
+    let val = parseFactor();
+    skipSpace();
+    while (s[i] === '*' || s[i] === '/') {
+      const op = s[i]; i++;
+      const rhs = parseFactor();
+      val = op === '*' ? val * rhs : val / rhs;
+      skipSpace();
+    }
+    return val;
+  };
+  const parseExpr = (): number => {
+    let val = parseTerm();
+    skipSpace();
+    while (s[i] === '+' || s[i] === '-') {
+      const op = s[i]; i++;
+      const rhs = parseTerm();
+      val = op === '+' ? val + rhs : val - rhs;
+      skipSpace();
+    }
+    return val;
+  };
+  try {
+    const result = parseExpr();
+    skipSpace();
+    if (i !== s.length || !isFinite(result)) return null;
+    return result;
+  } catch {
+    return null;
+  }
+}
+
+// Resolves the Amount field's raw text to a number, evaluating it as an
+// arithmetic expression when it isn't already a plain number.
+function resolveAmountValue(raw: string): number | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  if (PLAIN_NUMBER_RE.test(trimmed)) return parseFloat(trimmed);
+  return evaluateArithmetic(trimmed);
+}
+
+// Enter on a formula evaluates it in place (without submitting); Enter on an
+// already-plain number is left alone so the browser's native "Enter submits
+// the form" behavior fires, letting handleSubmit do the final 2-decimal round.
+function makeAmountKeyDownHandler(getValue: () => string, setValue: (val: string) => void) {
+  return (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== 'Enter') return;
+    const trimmed = getValue().trim();
+    if (!trimmed || PLAIN_NUMBER_RE.test(trimmed)) return;
+    e.preventDefault();
+    const result = evaluateArithmetic(trimmed);
+    if (result !== null) setValue(String(result));
+  };
+}
+
 function CategoryAutocomplete({
   value, onChange, categories, className, placeholder, tabIndex, autoFocus, inputRef,
 }: {
@@ -316,8 +402,8 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
   };
 
   // ── Splits ─────────────────────────────────────────────────────────────
-  const splitTotal = splitRows.reduce((sum, r) => sum + (parseFloat(r.amount) || 0), 0);
-  const splitRemaining = (parseFloat(amount) || 0) - splitTotal;
+  const splitTotal = splitRows.reduce((sum, r) => sum + (resolveAmountValue(r.amount) ?? 0), 0);
+  const splitRemaining = (resolveAmountValue(amount) ?? 0) - splitTotal;
 
   const toggleSplit = () => {
     if (isSplit) {
@@ -341,13 +427,13 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
   const validate = () => {
     const e: Record<string, string> = {};
     if (!date) e.date = 'Date required';
-    if (!amount || isNaN(Number(amount))) e.amount = 'Valid amount required';
+    if (resolveAmountValue(amount) === null) e.amount = 'Valid amount or formula required';
     if (isTransfer && !transferDestAccountId) e.transferDest = 'Destination account required';
     if (isTransfer && transferDestAccountId === _accountId) e.transferDest = 'Source and destination must differ';
     if (isSplit) {
       if (splitRows.length < 2) {
         e.splits = 'Add at least two splits, or turn off splitting.';
-      } else if (splitRows.some(r => !r.amount || isNaN(Number(r.amount)))) {
+      } else if (splitRows.some(r => resolveAmountValue(r.amount) === null)) {
         e.splits = 'Every split needs a valid amount.';
       } else if (Math.abs(splitRemaining) > 0.004) {
         e.splits = `Splits must add up to the total (${splitRemaining > 0 ? 'short' : 'over'} by ${Math.abs(splitRemaining).toFixed(2)}).`;
@@ -363,6 +449,10 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
     if (!validate()) return;
     setSubmitting(true);
     setSaveError('');
+
+    const roundTo2 = (n: number) => Math.round(n * 100) / 100;
+    const finalAmount = roundTo2(resolveAmountValue(amount)!);
+    setAmount(finalAmount.toFixed(2));
 
     try {
       let resolvedPayeeId = payeeId;
@@ -387,7 +477,9 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
         // no category on transfers
       } else if (isSplit) {
         resolvedSplits = [];
-        for (const row of splitRows) {
+        const roundedSplitRows = splitRows.map(row => ({ ...row, amount: roundTo2(resolveAmountValue(row.amount)!).toFixed(2) }));
+        setSplitRows(roundedSplitRows);
+        for (const row of roundedSplitRows) {
           const catId = await resolveCategory(row.categoryInput, categories, setCategories);
           resolvedSplits.push({ categoryId: catId, amount: Number(row.amount), memo: row.memo || undefined });
         }
@@ -401,7 +493,7 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
         payeeId: isTransfer ? undefined : resolvedPayeeId,
         categoryId: isTransfer ? undefined : resolvedCategoryId,
         memo: memo || undefined,
-        amount: Number(amount),
+        amount: finalAmount,
         status,
         targetAccountId,
         transferDestAccountId: isTransfer ? transferDestAccountId : undefined,
@@ -580,12 +672,14 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
         <div className={styles.field}>
           <label className={styles.label}>Amount</label>
           <input
-            type="number"
-            step="0.01"
+            type="text"
+            inputMode="decimal"
             className={styles.input}
             value={amount}
             onChange={e => setAmount(e.target.value)}
+            onKeyDown={makeAmountKeyDownHandler(() => amount, setAmount)}
             tabIndex={5}
+            placeholder="e.g. 42.50 or (33.40*17)/14"
           />
           {errors.amount && <span className={styles.error}>{errors.amount}</span>}
         </div>
@@ -615,12 +709,13 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
                 onChange={e => updateSplitRow(row.key, { memo: e.target.value })}
               />
               <input
-                type="number"
-                step="0.01"
+                type="text"
+                inputMode="decimal"
                 className={styles.input}
                 placeholder="Amount"
                 value={row.amount}
                 onChange={e => updateSplitRow(row.key, { amount: e.target.value })}
+                onKeyDown={makeAmountKeyDownHandler(() => row.amount, val => updateSplitRow(row.key, { amount: val }))}
               />
               <button
                 type="button"
