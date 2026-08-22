@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, type FormEvent } from 'react';
+import { useState, useEffect, useRef, type FormEvent, type RefObject, type KeyboardEvent } from 'react';
 import type { Transaction, Category, Payee, Account } from '../types';
 import { getCategories, createCategory } from '../api/categories';
 import { getPayees, createPayee } from '../api/payees';
@@ -81,6 +81,98 @@ async function resolveCategory(
   }
 }
 
+function CategoryAutocomplete({
+  value, onChange, categories, className, placeholder, tabIndex, autoFocus, inputRef,
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  categories: Category[];
+  className?: string;
+  placeholder?: string;
+  tabIndex?: number;
+  autoFocus?: boolean;
+  inputRef?: RefObject<HTMLInputElement | null>;
+}) {
+  const [suggestions, setSuggestions] = useState<{ id: number; label: string }[]>([]);
+  const [show, setShow] = useState(false);
+  const [highlight, setHighlight] = useState(-1);
+
+  const updateSuggestions = (val: string) => {
+    if (val.length >= 1) {
+      const flat = flattenCategories(categories);
+      const filtered = flat.filter(c => c.label.toLowerCase().includes(val.toLowerCase()));
+      setSuggestions(filtered.slice(0, 10));
+      setShow(true);
+      setHighlight(-1);
+    } else {
+      setShow(false);
+      setHighlight(-1);
+    }
+  };
+
+  const handleChange = (val: string) => {
+    onChange(val);
+    updateSuggestions(val);
+  };
+
+  const select = (entry: { id: number; label: string }) => {
+    onChange(entry.label);
+    setShow(false);
+    setHighlight(-1);
+  };
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (!show || suggestions.length === 0) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlight(h => (h + 1) % suggestions.length);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlight(h => (h - 1 + suggestions.length) % suggestions.length);
+    } else if (e.key === 'Enter') {
+      if (highlight >= 0) {
+        e.preventDefault();
+        select(suggestions[highlight]);
+      }
+    } else if (e.key === 'Escape') {
+      setShow(false);
+      setHighlight(-1);
+    }
+  };
+
+  return (
+    <div className={styles.fieldRelative}>
+      <input
+        ref={inputRef}
+        type="text"
+        className={className ?? styles.input}
+        value={value}
+        onChange={e => handleChange(e.target.value)}
+        onKeyDown={handleKeyDown}
+        onFocus={() => updateSuggestions(value)}
+        onBlur={() => setTimeout(() => setShow(false), 150)}
+        tabIndex={tabIndex}
+        autoComplete="off"
+        placeholder={placeholder}
+        autoFocus={autoFocus}
+      />
+      {show && suggestions.length > 0 && (
+        <ul className={styles.suggestions}>
+          {suggestions.map((c, i) => (
+            <li
+              key={c.id}
+              onMouseDown={() => select(c)}
+              className={i === highlight ? `${styles.suggestion} ${styles.suggestionActive}` : styles.suggestion}
+            >
+              {c.label}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 let splitRowSeq = 0;
 interface SplitRow {
   key: number;
@@ -105,8 +197,6 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
 
   // Category autocomplete
   const [categoryInput, setCategoryInput] = useState('');
-  const [categorySuggestions, setCategorySuggestions] = useState<{ id: number; label: string }[]>([]);
-  const [showCatSuggestions, setShowCatSuggestions] = useState(false);
   const categoryRef = useRef<HTMLInputElement>(null);
 
   // Split across multiple categories — mutually exclusive with the single
@@ -118,6 +208,7 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
   // Payee autocomplete
   const [payeeSuggestions, setPayeeSuggestions] = useState<Payee[]>([]);
   const [showPayeeSuggestions, setShowPayeeSuggestions] = useState(false);
+  const [payeeHighlight, setPayeeHighlight] = useState(-1);
   const payeeRef = useRef<HTMLInputElement>(null);
 
   const [targetAccountId, setTargetAccountId] = useState<number | undefined>(undefined);
@@ -180,26 +271,10 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleCategoryInput = (val: string) => {
-    setCategoryInput(val);
-    if (val.length >= 1) {
-      const flat = flattenCategories(categories);
-      const filtered = flat.filter(c => c.label.toLowerCase().includes(val.toLowerCase()));
-      setCategorySuggestions(filtered.slice(0, 10));
-      setShowCatSuggestions(true);
-    } else {
-      setShowCatSuggestions(false);
-    }
-  };
-
-  const selectCategory = (entry: { id: number; label: string }) => {
-    setCategoryInput(entry.label);
-    setShowCatSuggestions(false);
-  };
-
   const handlePayeeInput = (val: string) => {
     setPayeeInput(val);
     setPayeeId(undefined);
+    setPayeeHighlight(-1);
     if (val.length >= 1) {
       const filtered = payees.filter(p => p.name.toLowerCase().includes(val.toLowerCase()));
       setPayeeSuggestions(filtered.slice(0, 8));
@@ -218,6 +293,26 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
       if (found) setCategoryInput(found.label);
     }
     setShowPayeeSuggestions(false);
+    setPayeeHighlight(-1);
+  };
+
+  const handlePayeeKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (!showPayeeSuggestions || payeeSuggestions.length === 0) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setPayeeHighlight(h => (h + 1) % payeeSuggestions.length);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setPayeeHighlight(h => (h - 1 + payeeSuggestions.length) % payeeSuggestions.length);
+    } else if (e.key === 'Enter') {
+      if (payeeHighlight >= 0) {
+        e.preventDefault();
+        selectPayee(payeeSuggestions[payeeHighlight]);
+      }
+    } else if (e.key === 'Escape') {
+      setShowPayeeSuggestions(false);
+      setPayeeHighlight(-1);
+    }
   };
 
   // ── Splits ─────────────────────────────────────────────────────────────
@@ -415,14 +510,25 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
                 className={styles.input}
                 value={payeeInput}
                 onChange={e => handlePayeeInput(e.target.value)}
+                onKeyDown={handlePayeeKeyDown}
+                onFocus={() => {
+                  if (payeeInput.length < 1) return;
+                  const filtered = payees.filter(p => p.name.toLowerCase().includes(payeeInput.toLowerCase()));
+                  setPayeeSuggestions(filtered.slice(0, 8));
+                  setShowPayeeSuggestions(true);
+                }}
                 onBlur={() => setTimeout(() => setShowPayeeSuggestions(false), 150)}
                 tabIndex={2}
                 autoComplete="off"
               />
               {showPayeeSuggestions && payeeSuggestions.length > 0 && (
                 <ul className={styles.suggestions}>
-                  {payeeSuggestions.map(p => (
-                    <li key={p.id} onMouseDown={() => selectPayee(p)} className={styles.suggestion}>
+                  {payeeSuggestions.map((p, i) => (
+                    <li
+                      key={p.id}
+                      onMouseDown={() => selectPayee(p)}
+                      className={i === payeeHighlight ? `${styles.suggestion} ${styles.suggestionActive}` : styles.suggestion}
+                    >
                       {p.name}
                     </li>
                   ))}
@@ -447,28 +553,14 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
                   Split across {splitRows.length} categories
                 </div>
               ) : (
-                <>
-                  <input
-                    ref={categoryRef}
-                    type="text"
-                    className={styles.input}
-                    value={categoryInput}
-                    onChange={e => handleCategoryInput(e.target.value)}
-                    onBlur={() => setTimeout(() => setShowCatSuggestions(false), 150)}
-                    tabIndex={3}
-                    autoComplete="off"
-                    placeholder="e.g. Food or Food: Groceries"
-                  />
-                  {showCatSuggestions && categorySuggestions.length > 0 && (
-                    <ul className={styles.suggestions}>
-                      {categorySuggestions.map(c => (
-                        <li key={c.id} onMouseDown={() => selectCategory(c)} className={styles.suggestion}>
-                          {c.label}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </>
+                <CategoryAutocomplete
+                  inputRef={categoryRef}
+                  value={categoryInput}
+                  onChange={setCategoryInput}
+                  categories={categories}
+                  tabIndex={3}
+                  placeholder="e.g. Food or Food: Groceries"
+                />
               )}
             </div>
           </>
@@ -509,13 +601,11 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
           </div>
           {splitRows.map(row => (
             <div key={row.key} className={styles.splitRow}>
-              <input
-                type="text"
-                className={styles.input}
-                placeholder="Category"
+              <CategoryAutocomplete
                 value={row.categoryInput}
-                onChange={e => updateSplitRow(row.key, { categoryInput: e.target.value })}
-                autoComplete="off"
+                onChange={val => updateSplitRow(row.key, { categoryInput: val })}
+                categories={categories}
+                placeholder="Category"
               />
               <input
                 type="text"

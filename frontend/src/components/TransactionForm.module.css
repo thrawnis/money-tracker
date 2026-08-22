@@ -66,7 +66,8 @@
   cursor: pointer;
 }
 
-.suggestion:hover {
+.suggestion:hover,
+.suggestionActive {
   background: #e8f0f8;
 }
 
