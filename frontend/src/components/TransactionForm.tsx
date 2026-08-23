@@ -378,7 +378,11 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
   const [payeeHighlight, setPayeeHighlight] = useState(-1);
   const payeeRef = useRef<HTMLInputElement>(null);
 
-  const [targetAccountId, setTargetAccountId] = useState<number | undefined>(undefined);
+  // Which account this transaction belongs to. Defaults to the register you
+  // opened the form from, so the common case needs no interaction — it just
+  // lets you redirect an entry to another account without leaving the page.
+  // On an edit this doubles as the old "Move to Account" control.
+  const [entryAccountId, setEntryAccountId] = useState<number>(_accountId);
   const isExistingTransfer = !!(initial?.transferTransactionId);
   const [isTransfer, setIsTransfer] = useState(isExistingTransfer);
   const [transferDestAccountId, setTransferDestAccountId] = useState<number | undefined>(
@@ -395,7 +399,7 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
   const splitSnapshot = () => splitRows.map(r => ({ categoryInput: r.categoryInput, amount: r.amount, memo: r.memo }));
   const isDirty = formBaseline !== null && JSON.stringify({
     date, payeeInput, payeeId, memo, amount, postDate, amountMode,
-    categoryInput, isTransfer, transferDestAccountId, targetAccountId,
+    categoryInput, isTransfer, transferDestAccountId, entryAccountId,
     isSplit, splits: splitSnapshot(),
   }) !== formBaseline;
   useUnsavedChanges(isDirty);
@@ -431,7 +435,7 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
 
       setFormBaseline(JSON.stringify({
         date, payeeInput, payeeId, memo, amount, postDate, amountMode,
-        categoryInput: resolvedCategoryInput, isTransfer, transferDestAccountId, targetAccountId,
+        categoryInput: resolvedCategoryInput, isTransfer, transferDestAccountId, entryAccountId,
         isSplit, splits: resolvedSplitRows.map(r => ({ categoryInput: r.categoryInput, amount: r.amount, memo: r.memo })),
       }));
     }).catch(console.error);
@@ -525,7 +529,7 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
     if (!date) e.date = 'Date required';
     if (resolveAmountValue(amount) === null) e.amount = 'Valid amount or formula required';
     if (isTransfer && !transferDestAccountId) e.transferDest = 'Destination account required';
-    if (isTransfer && transferDestAccountId === _accountId) e.transferDest = 'Source and destination must differ';
+    if (isTransfer && transferDestAccountId === entryAccountId) e.transferDest = 'Source and destination must differ';
     if (isSplit) {
       if (splitRows.length < 2) {
         e.splits = 'Add at least two splits, or turn off splitting.';
@@ -632,7 +636,10 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
         memo: memo || undefined,
         amount: finalAmount,
         status,
-        targetAccountId,
+        // Only sent when it actually differs — the parent treats undefined as
+        // "the register's own account", which keeps the create path unchanged
+        // for the overwhelmingly common case.
+        targetAccountId: entryAccountId !== _accountId ? entryAccountId : undefined,
         transferDestAccountId: isTransfer ? transferDestAccountId : undefined,
         splits: resolvedSplits,
       });
@@ -647,7 +654,15 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
   // For transfer mode: active accounts only for new transfers, all accounts for editing
   const transferAccounts = accounts
     ? (isExistingTransfer ? accounts : accounts.filter(a => a.isActive))
-        .filter(a => a.id !== _accountId)
+        .filter(a => a.id !== entryAccountId)
+        .sort((a, b) => a.name.localeCompare(b.name))
+    : [];
+
+  // The account this entry is filed under. An inactive account stays listed
+  // while editing something already in it, but can't be picked for new entries.
+  const entryAccounts = accounts
+    ? accounts
+        .filter(a => a.isActive || a.id === _accountId || a.id === entryAccountId)
         .sort((a, b) => a.name.localeCompare(b.name))
     : [];
 
@@ -880,28 +895,48 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
         </div>
       )}
 
-      {initial?.id && accounts && accounts.filter(a => a.id !== _accountId).length > 0 && (
+      {entryAccounts.length > 1 && (
         <div className={styles.moveRow}>
-          <label className={styles.label}>Move to Account</label>
+          {/* "Source" only while composing a NEW transfer — when editing an
+              existing one this leg may well be the credit side. */}
+          <label className={styles.label}>
+            {isTransfer && !isExistingTransfer ? 'Source Account' : 'Account'}
+          </label>
           <select
             className={styles.select}
-            value={targetAccountId ?? ''}
-            onChange={e => setTargetAccountId(e.target.value ? Number(e.target.value) : undefined)}
+            value={entryAccountId}
+            onChange={e => {
+              const next = Number(e.target.value);
+              setEntryAccountId(next);
+              // A transfer can't have the same account on both sides. Only
+              // reset the destination while composing a new transfer — on an
+              // existing one it's fixed to the linked leg, so clearing it
+              // would blank a field the user can't refill. validate() reports
+              // the collision there instead.
+              if (!isExistingTransfer && transferDestAccountId === next) {
+                setTransferDestAccountId(undefined);
+              }
+            }}
+            tabIndex={6}
           >
-            <option value="">— Keep in current account —</option>
-            {accounts.filter(a => a.id !== _accountId).map(a => (
+            {entryAccounts.map(a => (
               <option key={a.id} value={a.id}>{a.name}</option>
             ))}
           </select>
+          {entryAccountId !== _accountId && (
+            <span className={styles.moveHint}>
+              {initial?.id ? 'Will be moved out of this register.' : 'Will be saved to this account, not the one you\'re viewing.'}
+            </span>
+          )}
         </div>
       )}
 
       {saveError && <div className={styles.error}>{saveError}</div>}
       <div className={styles.actions}>
-        <button type="submit" className={styles.btnSave} disabled={submitting} tabIndex={6}>
+        <button type="submit" className={styles.btnSave} disabled={submitting} tabIndex={7}>
           {submitting ? 'Saving…' : 'Save'}
         </button>
-        <button type="button" className={styles.btnCancel} onClick={onCancel} tabIndex={7}>
+        <button type="button" className={styles.btnCancel} onClick={onCancel} tabIndex={8}>
           Cancel
         </button>
       </div>

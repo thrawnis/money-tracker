@@ -163,6 +163,14 @@
 .moveRow .label { white-space: nowrap; }
 .moveRow .select { flex: 1; max-width: 260px; }
 
+/* Only shown when the chosen account isn't the register you're looking at —
+   saving somewhere else is easy to do by accident otherwise. */
+.moveHint {
+  font-size: 11px;
+  color: var(--ms-gold, #b8860b);
+  font-weight: 600;
+}
+
 .actions {
   display: flex;
   gap: 8px;

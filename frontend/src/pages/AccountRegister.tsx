@@ -687,11 +687,15 @@ export default function AccountRegister() {
     // must win or editing a transfer would create a duplicate pair instead of
     // updating in place (the backend Update syncs the linked leg itself).
     let newTxId: number | null = null;
+    // The form's Account field defaults to this register but can redirect the
+    // entry elsewhere. Edits keep going through this account's route — the
+    // backend's TargetAccountId handles the move.
+    const entryAccountId = data.targetAccountId ?? accountId;
     if (editingTx) {
       await updateTransaction(accountId, editingTx.id, data);
     } else if (data.transferDestAccountId) {
       const { debit } = await createTransfer({
-        sourceAccountId:      accountId,
+        sourceAccountId:      entryAccountId,
         destinationAccountId: data.transferDestAccountId,
         date:                 data.date,
         postDate:             data.postDate,
@@ -702,7 +706,7 @@ export default function AccountRegister() {
       setLastUsedDate(data.date);
       newTxId = debit.id;
     } else {
-      const created = await createTransaction(accountId, data);
+      const created = await createTransaction(entryAccountId, data);
       lastUsedDateRef.current = data.date;
       setLastUsedDate(data.date);
       newTxId = created.id;
@@ -716,6 +720,14 @@ export default function AccountRegister() {
     // link does) so it's visible and highlighted regardless of the active
     // sort/filters — those could otherwise leave it off the loaded page.
     if (newTxId != null) {
+      if (entryAccountId !== accountId) {
+        // Filed to a different account — follow it there rather than leaving
+        // the user staring at a register the row isn't in. ?tx= makes that
+        // register open on the new row, highlighted, same as a transfer's
+        // "Go to Other Account" link.
+        navigate(`/accounts/${entryAccountId}?tx=${newTxId}`);
+        return;
+      }
       await jumpToTransaction(newTxId);
     } else {
       // Edit of an existing row: refetch in place so the user stays exactly
