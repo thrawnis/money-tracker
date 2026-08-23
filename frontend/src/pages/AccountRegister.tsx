@@ -138,7 +138,13 @@ export default function AccountRegister() {
   // edits in the open form would otherwise silently discard them.
   const confirmDiscardIfDirty = () =>
     !formDirty || confirm('You have unsaved changes to this transaction. Discard them?');
-  const lastUsedDate = useRef<string>(new Date().toISOString().slice(0, 10));
+  // State, not a ref: this is read during render to seed the new-transaction
+  // form's date, and reading a ref while rendering is exactly the tearing
+  // hazard the React Compiler flags. It also genuinely IS render-affecting
+  // input, so state is the honest model. lastUsedDateRef mirrors it for the
+  // callback paths that need the current value without re-subscribing.
+  const [lastUsedDate, setLastUsedDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const lastUsedDateRef = useRef(lastUsedDate);
 
   // Actions menu
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
@@ -692,11 +698,13 @@ export default function AccountRegister() {
         amount:               Math.abs(data.amount),
         memo:                 data.memo,
       });
-      lastUsedDate.current = data.date;
+      lastUsedDateRef.current = data.date;
+      setLastUsedDate(data.date);
       newTxId = debit.id;
     } else {
       const created = await createTransaction(accountId, data);
-      lastUsedDate.current = data.date;
+      lastUsedDateRef.current = data.date;
+      setLastUsedDate(data.date);
       newTxId = created.id;
     }
     setShowForm(false);
@@ -807,7 +815,7 @@ export default function AccountRegister() {
     setFormNonce(n => n + 1);
     setEditingTx(null);
     setReceiptPrefill({
-      date: data.date ?? lastUsedDate.current,
+      date: data.date ?? lastUsedDateRef.current,
       amount: data.amount ?? undefined,
       memo: data.memo ?? undefined,
     });
@@ -1336,7 +1344,7 @@ export default function AccountRegister() {
           key={editingTx?.id ?? `new-${formNonce}`}
           accountId={accountId}
           accounts={allAccounts}
-          initial={editingTx ?? receiptPrefill ?? { date: lastUsedDate.current }}
+          initial={editingTx ?? receiptPrefill ?? { date: lastUsedDate }}
           initialPayeeName={editingTx ? undefined : receiptPayeeName}
           initialCategoryLabel={editingTx ? undefined : receiptCategoryLabel}
           onSave={handleSaveTx}

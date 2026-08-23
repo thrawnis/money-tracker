@@ -1,5 +1,4 @@
 using System.Security.Claims;
-using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -24,6 +23,37 @@ public class TransactionsController(
 
     private async Task<bool> AccountBelongsToUser(int accountId, string userId) =>
         await db.Accounts.AnyAsync(a => a.Id == accountId && a.UserId == userId);
+
+    /// <summary>
+    /// Removes a payee that no longer has anything pointing at it, so renaming
+    /// the payee on a one-off transaction doesn't leave a dead entry behind.
+    ///
+    /// Deliberately conservative: a payee carrying user-authored configuration
+    /// is KEPT even when no transaction references it. A default category is a
+    /// deliberate setting, and PayeeMappingRule.TargetPayeeId cascades — so
+    /// auto-deleting here would silently destroy import rules the user built.
+    /// Genuinely unwanted payees are removed explicitly from the Payees page.
+    /// </summary>
+    private async Task CleanUpOrphanedPayeeAsync(int? payeeId)
+    {
+        if (!payeeId.HasValue) return;
+
+        // "In use" includes scheduled transactions — their Payee FK is SetNull
+        // on delete, so removing the payee would silently strip it from every
+        // future auto-posted occurrence.
+        bool stillInUse = await db.Transactions.AnyAsync(t => t.PayeeId == payeeId)
+            || await db.ScheduledTransactions.AnyAsync(s => s.PayeeId == payeeId);
+        if (stillInUse) return;
+
+        var payee = await db.Payees.FindAsync(payeeId.Value);
+        if (payee is null) return;
+
+        if (payee.DefaultCategoryId.HasValue) return;
+        if (await db.PayeeMappingRules.AnyAsync(r => r.TargetPayeeId == payeeId)) return;
+
+        db.Payees.Remove(payee);
+        await db.SaveChangesAsync();
+    }
 
     /// <summary>
     /// Verifies that all FK references in the DTO belong to the calling user,
@@ -156,58 +186,102 @@ public class TransactionsController(
             t.Splits.Any(s => s.CategoryId == categoryId.Value || s.Category!.ParentId == categoryId.Value));
         if (uncategorized == true) query = query.Where(t => t.CategoryId == null && !t.Splits.Any());
 
-        // Fetch into memory — needed for encrypted-field filtering and flexible sort
-        var loaded = await query.ToListAsync();
+        // ── Paging strategy ───────────────────────────────────────────────────
+        // Filtering or sorting on an encrypted column can only happen after
+        // decryption, which forces the whole account history into memory. When
+        // the request touches none of those — the overwhelmingly common case,
+        // including the plain unfiltered register — sort and page in SQL
+        // instead, so opening an account with 50k transactions transfers one
+        // page rather than every row.
+        bool needsDecryptedFilter = !string.IsNullOrWhiteSpace(payeeName)
+            || !string.IsNullOrWhiteSpace(memo)
+            || !string.IsNullOrWhiteSpace(checkNumber);
 
-        // ── In-memory filters (encrypted columns) ─────────────────────────────
-        if (!string.IsNullOrWhiteSpace(payeeName))
-        {
-            var rx = BuildPattern(payeeName);
-            loaded = loaded.Where(t =>
-                t.Payee is not null &&
-                rx.IsMatch(encryption.Decrypt(t.Payee.NameEncrypted, dek) ?? "")).ToList();
-        }
-
-        if (!string.IsNullOrWhiteSpace(memo))
-        {
-            var rx = BuildPattern(memo);
-            loaded = loaded.Where(t =>
-                rx.IsMatch(encryption.Decrypt(t.MemoEncrypted, dek) ?? "")).ToList();
-        }
-
-        if (!string.IsNullOrWhiteSpace(checkNumber))
-        {
-            var rx = BuildPattern(checkNumber);
-            loaded = loaded.Where(t =>
-                rx.IsMatch(encryption.Decrypt(t.CheckNumberEncrypted, dek) ?? "")).ToList();
-        }
-
-        // ── Sort ──────────────────────────────────────────────────────────────
+        var sortKey = sortBy.ToLowerInvariant();
+        bool needsDecryptedSort = sortKey is "payee" or "category" or "memo";
         bool asc = sortDir.Equals("asc", StringComparison.OrdinalIgnoreCase);
-        loaded = sortBy.ToLowerInvariant() switch
+
+        List<Transaction> loaded;
+        int total;
+
+        if (!needsDecryptedFilter && !needsDecryptedSort)
         {
-            "payee"    => asc
-                ? loaded.OrderBy(t => encryption.Decrypt(t.Payee?.NameEncrypted, dek)).ThenBy(t => t.CreatedAt).ToList()
-                : loaded.OrderByDescending(t => encryption.Decrypt(t.Payee?.NameEncrypted, dek)).ThenByDescending(t => t.CreatedAt).ToList(),
-            "category" => asc
-                ? loaded.OrderBy(t => encryption.Decrypt(t.Category?.NameEncrypted, dek)).ThenBy(t => t.CreatedAt).ToList()
-                : loaded.OrderByDescending(t => encryption.Decrypt(t.Category?.NameEncrypted, dek)).ThenByDescending(t => t.CreatedAt).ToList(),
-            "memo"     => asc
-                ? loaded.OrderBy(t => encryption.Decrypt(t.MemoEncrypted, dek)).ThenBy(t => t.CreatedAt).ToList()
-                : loaded.OrderByDescending(t => encryption.Decrypt(t.MemoEncrypted, dek)).ThenByDescending(t => t.CreatedAt).ToList(),
-            "amount"   => asc
-                ? loaded.OrderBy(t => t.Amount).ThenBy(t => t.CreatedAt).ToList()
-                : loaded.OrderByDescending(t => t.Amount).ThenByDescending(t => t.CreatedAt).ToList(),
-            "status"   => asc
-                ? loaded.OrderBy(t => t.Status).ThenBy(t => t.CreatedAt).ToList()
-                : loaded.OrderByDescending(t => t.Status).ThenByDescending(t => t.CreatedAt).ToList(),
-            _          => asc  // "date" (default)
-                // Id tie-break matches the running-balance window function's
-                // ORDER BY exactly, so the Balance column reads monotonically
-                // even when rows share both effective date and CreatedAt.
-                ? loaded.OrderBy(t => t.PostDate ?? t.Date).ThenBy(t => t.CreatedAt).ThenBy(t => t.Id).ToList()
-                : loaded.OrderByDescending(t => t.PostDate ?? t.Date).ThenByDescending(t => t.CreatedAt).ThenByDescending(t => t.Id).ToList(),
-        };
+            total = await query.CountAsync();
+
+            // Id tie-break matches the running-balance window function's
+            // ORDER BY exactly, so the Balance column reads monotonically even
+            // when rows share both effective date and CreatedAt.
+            IOrderedQueryable<Transaction> ordered = sortKey switch
+            {
+                "amount" => asc
+                    ? query.OrderBy(t => t.Amount).ThenBy(t => t.CreatedAt).ThenBy(t => t.Id)
+                    : query.OrderByDescending(t => t.Amount).ThenByDescending(t => t.CreatedAt).ThenByDescending(t => t.Id),
+                "status" => asc
+                    ? query.OrderBy(t => t.Status).ThenBy(t => t.CreatedAt).ThenBy(t => t.Id)
+                    : query.OrderByDescending(t => t.Status).ThenByDescending(t => t.CreatedAt).ThenByDescending(t => t.Id),
+                _ => asc // "date" (default)
+                    ? query.OrderBy(t => t.PostDate ?? t.Date).ThenBy(t => t.CreatedAt).ThenBy(t => t.Id)
+                    : query.OrderByDescending(t => t.PostDate ?? t.Date).ThenByDescending(t => t.CreatedAt).ThenByDescending(t => t.Id),
+            };
+
+            loaded = await ordered.Skip((page - 1) * pageSize).Take(pageSize).ToListAsync();
+        }
+        else
+        {
+            loaded = await query.ToListAsync();
+
+            // ── In-memory filters (encrypted columns) ─────────────────────────────
+            if (!string.IsNullOrWhiteSpace(payeeName))
+            {
+                var rx = WildcardPattern.Build(payeeName);
+                loaded = loaded.Where(t =>
+                    t.Payee is not null &&
+                    WildcardPattern.Matches(rx, encryption.Decrypt(t.Payee.NameEncrypted, dek))).ToList();
+            }
+
+            if (!string.IsNullOrWhiteSpace(memo))
+            {
+                var rx = WildcardPattern.Build(memo);
+                loaded = loaded.Where(t =>
+                    WildcardPattern.Matches(rx, encryption.Decrypt(t.MemoEncrypted, dek))).ToList();
+            }
+
+            if (!string.IsNullOrWhiteSpace(checkNumber))
+            {
+                var rx = WildcardPattern.Build(checkNumber);
+                loaded = loaded.Where(t =>
+                    WildcardPattern.Matches(rx, encryption.Decrypt(t.CheckNumberEncrypted, dek))).ToList();
+            }
+
+            // ── Sort ──────────────────────────────────────────────────────────────
+            loaded = sortKey switch
+            {
+                "payee"    => asc
+                    ? loaded.OrderBy(t => encryption.Decrypt(t.Payee?.NameEncrypted, dek)).ThenBy(t => t.CreatedAt).ToList()
+                    : loaded.OrderByDescending(t => encryption.Decrypt(t.Payee?.NameEncrypted, dek)).ThenByDescending(t => t.CreatedAt).ToList(),
+                "category" => asc
+                    ? loaded.OrderBy(t => encryption.Decrypt(t.Category?.NameEncrypted, dek)).ThenBy(t => t.CreatedAt).ToList()
+                    : loaded.OrderByDescending(t => encryption.Decrypt(t.Category?.NameEncrypted, dek)).ThenByDescending(t => t.CreatedAt).ToList(),
+                "memo"     => asc
+                    ? loaded.OrderBy(t => encryption.Decrypt(t.MemoEncrypted, dek)).ThenBy(t => t.CreatedAt).ToList()
+                    : loaded.OrderByDescending(t => encryption.Decrypt(t.MemoEncrypted, dek)).ThenByDescending(t => t.CreatedAt).ToList(),
+                "amount"   => asc
+                    ? loaded.OrderBy(t => t.Amount).ThenBy(t => t.CreatedAt).ToList()
+                    : loaded.OrderByDescending(t => t.Amount).ThenByDescending(t => t.CreatedAt).ToList(),
+                "status"   => asc
+                    ? loaded.OrderBy(t => t.Status).ThenBy(t => t.CreatedAt).ToList()
+                    : loaded.OrderByDescending(t => t.Status).ThenByDescending(t => t.CreatedAt).ToList(),
+                _          => asc  // "date" (default)
+                    // Id tie-break matches the running-balance window function's
+                    // ORDER BY exactly, so the Balance column reads monotonically
+                    // even when rows share both effective date and CreatedAt.
+                    ? loaded.OrderBy(t => t.PostDate ?? t.Date).ThenBy(t => t.CreatedAt).ThenBy(t => t.Id).ToList()
+                    : loaded.OrderByDescending(t => t.PostDate ?? t.Date).ThenByDescending(t => t.CreatedAt).ThenByDescending(t => t.Id).ToList(),
+            };
+
+            total = loaded.Count;
+            loaded = loaded.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+        }
 
         // ── Running balances ──────────────────────────────────────────────────
         // Always computed over the FULL account history in effective-date order,
@@ -249,16 +323,13 @@ public class TransactionsController(
         // get running balances (their projected value), they just don't count
         // toward the headline number. balanceRows is already ordered ascending,
         // so the last row on or before today is the correct "as of today" value.
-        var balanceToday = DateOnly.FromDateTime(DateTime.UtcNow);
+        var balanceToday = UserClock.Today(user);
         var currentBalance = balanceRows
             .Where(r => r.EffectiveDate <= balanceToday)
             .Select(r => (decimal?)r.RunningBalance)
             .LastOrDefault() ?? openingBalance;
 
-        var total = loaded.Count;
         var items = loaded
-            .Skip((page - 1) * pageSize)
-            .Take(pageSize)
             .Select(t => MapTransaction(t, dek, balances.GetValueOrDefault(t.Id)))
             .ToList();
 
@@ -402,16 +473,20 @@ public class TransactionsController(
         // cleanup atomically
         await using (var dbTx = await db.Database.BeginTransactionAsync())
         {
-            // Sync linked transfer transaction (amount, date, and memo mirror;
-            // PostDate stays on the credit side only, and Status deliberately
-            // does NOT mirror — cleared/reconciled is per-account state, each
-            // account reconciles against its own statement). If this leg moved
-            // to a different account, the linked leg's TransferAccountId must
-            // follow so the pair still points at each other's current accounts.
+            // Sync linked transfer transaction (amount, date, post date, and
+            // memo mirror; Status deliberately does NOT — cleared/reconciled is
+            // per-account state, each account reconciles against its own
+            // statement). PostDate mirrors because running balances order by
+            // COALESCE(PostDate, Date): letting the legs diverge would put the
+            // two halves of one transfer on different effective dates. If this
+            // leg moved to a different account, the linked leg's
+            // TransferAccountId must follow so the pair still points at each
+            // other's current accounts.
             if (linked is not null)
             {
                 linked.Amount        = -tx.Amount;
                 linked.Date          = tx.Date;
+                linked.PostDate      = tx.PostDate;
                 linked.MemoEncrypted = tx.MemoEncrypted;
                 linked.UpdatedAt     = DateTime.UtcNow;
                 if (accountChanged) linked.TransferAccountId = tx.AccountId;
@@ -437,19 +512,7 @@ public class TransactionsController(
 
             await db.SaveChangesAsync();
 
-            if (previousPayeeId.HasValue)
-            {
-                // "In use" includes scheduled transactions — their Payee FK is
-                // SetNull on delete, so removing the payee would silently strip
-                // it from every future auto-posted occurrence.
-                bool payeeStillInUse = await db.Transactions.AnyAsync(t => t.PayeeId == previousPayeeId)
-                    || await db.ScheduledTransactions.AnyAsync(s => s.PayeeId == previousPayeeId);
-                if (!payeeStillInUse)
-                {
-                    var payee = await db.Payees.FindAsync(previousPayeeId.Value);
-                    if (payee is not null) { db.Payees.Remove(payee); await db.SaveChangesAsync(); }
-                }
-            }
+            await CleanUpOrphanedPayeeAsync(previousPayeeId);
 
             await dbTx.CommitAsync();
         }
@@ -550,17 +613,7 @@ public class TransactionsController(
 
             await db.SaveChangesAsync();
 
-            if (payeeId.HasValue)
-            {
-                // Same scheduled-transaction guard as in Update above.
-                bool payeeStillInUse = await db.Transactions.AnyAsync(t => t.PayeeId == payeeId)
-                    || await db.ScheduledTransactions.AnyAsync(s => s.PayeeId == payeeId);
-                if (!payeeStillInUse)
-                {
-                    var payee = await db.Payees.FindAsync(payeeId.Value);
-                    if (payee is not null) { db.Payees.Remove(payee); await db.SaveChangesAsync(); }
-                }
-            }
+            await CleanUpOrphanedPayeeAsync(payeeId);
 
             await dbTx.CommitAsync();
         }
@@ -569,22 +622,6 @@ public class TransactionsController(
         return NoContent();
     }
 
-    // ── Helpers ───────────────────────────────────────────────────────────────
-
-    /// <summary>
-    /// Builds a case-insensitive regex from a user pattern.
-    /// * matches any sequence of characters; ? matches exactly one character.
-    /// Plain text with no wildcards is treated as a substring (contains) search.
-    /// </summary>
-    private static Regex BuildPattern(string pattern)
-    {
-        bool hasWildcard = pattern.Contains('*') || pattern.Contains('?');
-        string regexStr = hasWildcard
-            ? "^" + Regex.Escape(pattern).Replace(@"\*", ".*").Replace(@"\?", ".") + "$"
-            : Regex.Escape(pattern); // substring match — IsMatch finds it anywhere
-
-        return new Regex(regexStr, RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    }
 }
 
 public record TransactionDto(

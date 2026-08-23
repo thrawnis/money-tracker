@@ -22,7 +22,10 @@ namespace MoneyTracker.Services;
 /// EncryptedDataKey is encrypted with the server's master key, not the
 /// user's password, so it's decryptable any time the user record is loaded.
 /// </summary>
-public class VoidCategoryMigrationService(AppDbContext db, IEncryptionService encryption)
+public class VoidCategoryMigrationService(
+    AppDbContext db,
+    IEncryptionService encryption,
+    ILogger<VoidCategoryMigrationService> logger)
 {
     private static readonly Regex VoidNamePattern =
         new(@"^VOID\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
@@ -94,10 +97,14 @@ public class VoidCategoryMigrationService(AppDbContext db, IEncryptionService en
             user.VoidCategoriesMigrated = true;
             await db.SaveChangesAsync();
         }
-        catch
+        catch (Exception ex)
         {
             // Never block login/refresh over this cleanup — VoidCategoriesMigrated
-            // is left false on failure, so it simply retries next time.
+            // is left false on failure, so it simply retries next time. Logged
+            // rather than swallowed silently: a persistent failure otherwise
+            // re-runs a full category scan and decrypt on every single login,
+            // forever, with nothing to explain why.
+            logger.LogError(ex, "VOID-category migration failed for user {UserId}; will retry on next login", user.Id);
         }
     }
 }

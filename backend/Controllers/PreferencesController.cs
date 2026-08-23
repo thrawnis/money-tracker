@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using MoneyTracker.Data;
 using MoneyTracker.Models;
+using MoneyTracker.Services;
 
 namespace MoneyTracker.Controllers;
 
@@ -35,8 +36,16 @@ public class PreferencesController(
             defaultFutureDays           = user.DefaultFutureDays,
             autoCreateFutureTransactions = user.AutoCreateFutureTransactions,
             autoCreateFutureDays         = user.AutoCreateFutureDays,
+            timeZoneId                   = user.TimeZoneId,
         });
     }
+
+    /// <summary>Every IANA zone this host can resolve, for the Settings picker.</summary>
+    [HttpGet("timezones")]
+    public IActionResult GetTimeZones() =>
+        Ok(TimeZoneInfo.GetSystemTimeZones()
+            .Select(tz => new { id = tz.Id, displayName = tz.DisplayName })
+            .OrderBy(tz => tz.id));
 
     [HttpPut]
     public async Task<IActionResult> Update(PreferencesDto dto)
@@ -55,12 +64,15 @@ public class PreferencesController(
             return BadRequest(new { message = "Days ahead must be between 1 and 3650." });
         if (dto.AutoCreateFutureDays is int autoDays && (autoDays < 1 || autoDays > 3650))
             return BadRequest(new { message = "Auto-create days ahead must be between 1 and 3650." });
+        if (!string.IsNullOrWhiteSpace(dto.TimeZoneId) && !UserClock.IsValidTimeZone(dto.TimeZoneId))
+            return BadRequest(new { message = "Unknown timezone." });
 
         user.DefaultRegisterSortBy        = dto.DefaultRegisterSortBy;
         user.DefaultRegisterSortDir       = dto.DefaultRegisterSortDir;
         user.DefaultFutureDays            = dto.DefaultFutureDays;
         user.AutoCreateFutureTransactions = dto.AutoCreateFutureTransactions;
         user.AutoCreateFutureDays         = dto.AutoCreateFutureDays;
+        user.TimeZoneId                   = string.IsNullOrWhiteSpace(dto.TimeZoneId) ? null : dto.TimeZoneId;
         await db.SaveChangesAsync();
 
         return Ok(new
@@ -70,6 +82,7 @@ public class PreferencesController(
             defaultFutureDays           = user.DefaultFutureDays,
             autoCreateFutureTransactions = user.AutoCreateFutureTransactions,
             autoCreateFutureDays         = user.AutoCreateFutureDays,
+            timeZoneId                   = user.TimeZoneId,
         });
     }
 }
@@ -81,4 +94,6 @@ public record PreferencesDto(
     string? DefaultRegisterSortDir,
     int? DefaultFutureDays,
     bool AutoCreateFutureTransactions = false,
-    int? AutoCreateFutureDays = null);
+    int? AutoCreateFutureDays = null,
+    // IANA id ("America/Chicago"). Null/empty means UTC — see UserClock.
+    string? TimeZoneId = null);

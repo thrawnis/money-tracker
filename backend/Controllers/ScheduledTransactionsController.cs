@@ -124,7 +124,7 @@ public class ScheduledTransactionsController(
         var user = await userManager.FindByIdAsync(userId);
         if (user is null) return Unauthorized();
 
-        var from   = DateOnly.FromDateTime(DateTime.UtcNow);
+        var from   = UserClock.Today(user);
         var cutoff = from.AddDays(days);
 
         // NextDueDate is always each schedule's EARLIEST occurrence (the posting
@@ -253,6 +253,13 @@ public class ScheduledTransactionsController(
 
         await db.SaveChangesAsync();
 
+        // Occurrences this schedule pre-created but that aren't due yet still
+        // carry the OLD amount/payee/category — the posting passes below only
+        // ever add missing rows, they never revise existing ones. Clear the
+        // untouched future ones out first so the re-run lays down fresh
+        // versions; anything the user has edited, cleared, or voided is kept.
+        await ScheduledTransactionPostingService.RemoveStaleFutureAsync(db, id, HttpContext.RequestAborted);
+
         // Same reasoning as Create: an edited NextDueDate/amount/etc. should
         // be reflected in materialized transactions immediately, not after
         // up to 6 hours.
@@ -274,6 +281,12 @@ public class ScheduledTransactionsController(
 
         scheduled.IsActive = false;
         await db.SaveChangesAsync();
+
+        // Stopping a bill should also withdraw the not-yet-due transactions it
+        // already pre-created — leaving them would keep a cancelled bill
+        // showing up in the register and in projected balances.
+        await ScheduledTransactionPostingService.RemoveStaleFutureAsync(db, id, HttpContext.RequestAborted);
+
         return NoContent();
     }
 }

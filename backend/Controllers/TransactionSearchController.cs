@@ -1,5 +1,4 @@
 using System.Security.Claims;
-using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -7,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using MoneyTracker.Auth.Services;
 using MoneyTracker.Data;
 using MoneyTracker.Models;
+using MoneyTracker.Services;
 
 namespace MoneyTracker.Controllers;
 
@@ -19,12 +19,6 @@ public class TransactionSearchController(
     UserManager<ApplicationUser> userManager) : ControllerBase
 {
     private string? GetUserId() => User.FindFirstValue(ClaimTypes.NameIdentifier);
-
-    private static Regex BuildPattern(string pattern)
-    {
-        var escaped = Regex.Escape(pattern).Replace(@"\*", ".*").Replace(@"\?", ".");
-        return new Regex(escaped, RegexOptions.IgnoreCase);
-    }
 
     [HttpGet]
     public async Task<IActionResult> Search(
@@ -71,17 +65,17 @@ public class TransactionSearchController(
 
         if (!string.IsNullOrWhiteSpace(payeeName))
         {
-            var rx = BuildPattern(payeeName);
+            var rx = WildcardPattern.Build(payeeName);
             loaded = loaded.Where(t =>
                 t.Payee is not null &&
-                rx.IsMatch(encryption.Decrypt(t.Payee.NameEncrypted, dek) ?? "")).ToList();
+                WildcardPattern.Matches(rx, encryption.Decrypt(t.Payee.NameEncrypted, dek))).ToList();
         }
 
         if (!string.IsNullOrWhiteSpace(memo))
         {
-            var rx = BuildPattern(memo);
+            var rx = WildcardPattern.Build(memo);
             loaded = loaded.Where(t =>
-                rx.IsMatch(encryption.Decrypt(t.MemoEncrypted, dek) ?? "")).ToList();
+                WildcardPattern.Matches(rx, encryption.Decrypt(t.MemoEncrypted, dek))).ToList();
         }
 
         var total = loaded.Count;

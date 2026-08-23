@@ -51,7 +51,7 @@ function DuplicatesTab() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(load, [accountFilter, includeMemo, includeCategory, showIgnored]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(load, [accountFilter, includeMemo, includeCategory, showIgnored]);
   useEffect(() => { getAccounts().then(setAccounts).catch(() => {}); }, []);
 
   const handleDelete = async (accountId: number, id: number) => {

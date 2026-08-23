@@ -198,6 +198,15 @@ public class CategoriesController(
         if (inUse)
             return Conflict(new { message = "Cannot delete a category that is in use." });
 
+        // Payee.DefaultCategoryId has no ON DELETE rule (NO ACTION), so a
+        // category still set as some payee's default would fail at the FK with
+        // an unhandled DbUpdateException (500) instead of a clean 409.
+        var defaultForPayees = await db.Payees.CountAsync(p => p.UserId == userId && p.DefaultCategoryId == id);
+        if (defaultForPayees > 0)
+            return Conflict(new { message = defaultForPayees == 1
+                ? "Cannot delete a category that is set as a payee's default category."
+                : $"Cannot delete a category that is set as the default category for {defaultForPayees} payees." });
+
         db.Categories.Remove(category);
         await db.SaveChangesAsync();
 

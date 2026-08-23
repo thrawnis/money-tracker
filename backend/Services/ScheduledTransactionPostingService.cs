@@ -56,14 +56,19 @@ public class ScheduledTransactionPostingService(
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var audit = scope.ServiceProvider.GetRequiredService<IAuditService>();
 
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        // Widest possible "today" across all timezones (UTC+14) as a cheap SQL
+        // prefilter; each schedule is then re-checked against its own owner's
+        // local date below, so a bill never posts early for a user west of UTC.
+        var maxToday = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(14));
 
         var due = await db.ScheduledTransactions
-            .Where(s => s.IsActive && s.NextDueDate <= today)
+            .Include(s => s.User)
+            .Where(s => s.IsActive && s.NextDueDate <= maxToday)
             .ToListAsync(ct);
 
         foreach (var s in due)
         {
+            var today = UserClock.Today(s.User);
             // Post every missed occurrence (e.g., app was down for a month).
             // The guard caps runaway loops from bad data (interval <= 0 dates).
             int guard = 0;
@@ -124,8 +129,6 @@ public class ScheduledTransactionPostingService(
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var audit = scope.ServiceProvider.GetRequiredService<IAuditService>();
 
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
-
         var schedules = await db.ScheduledTransactions
             .Include(s => s.User)
             .Where(s => s.IsActive && s.User.AutoCreateFutureTransactions)
@@ -133,6 +136,7 @@ public class ScheduledTransactionPostingService(
 
         foreach (var s in schedules)
         {
+            var today  = UserClock.Today(s.User);
             var cutoff = today.AddDays(s.User.AutoCreateFutureDays ?? DefaultAutoCreateFutureDays);
             var date = s.NextDueDate;
             var guard = 0;
@@ -182,19 +186,69 @@ public class ScheduledTransactionPostingService(
         credit.TransferTransactionId = debit.Id;
     }
 
-    private static Transaction NewTransaction(ScheduledTransaction s, int accountId, decimal amount, DateOnly date) => new()
+    private static Transaction NewTransaction(ScheduledTransaction s, int accountId, decimal amount, DateOnly date)
     {
-        AccountId     = accountId,
-        Date          = date,
-        PayeeId       = s.PayeeId,
-        CategoryId    = s.CategoryId,
-        MemoEncrypted = s.MemoEncrypted, // same user → same DEK → ciphertext is reusable
-        Amount        = amount,
-        Status        = TransactionStatus.Uncleared,
-        ScheduledTransactionId = s.Id,
-        CreatedAt     = DateTime.UtcNow,
-        UpdatedAt     = DateTime.UtcNow,
-    };
+        // One timestamp for both fields, deliberately: CreatedAt == UpdatedAt is
+        // how RemoveStaleFutureAsync recognizes a row the user has never
+        // touched. Two separate DateTime.UtcNow reads could differ by a tick
+        // and make an untouched row look edited.
+        var now = DateTime.UtcNow;
+        return new Transaction
+        {
+            AccountId     = accountId,
+            Date          = date,
+            PayeeId       = s.PayeeId,
+            CategoryId    = s.CategoryId,
+            MemoEncrypted = s.MemoEncrypted, // same user → same DEK → ciphertext is reusable
+            Amount        = amount,
+            Status        = TransactionStatus.Uncleared,
+            ScheduledTransactionId = s.Id,
+            CreatedAt     = now,
+            UpdatedAt     = now,
+        };
+    }
+
+    /// <summary>
+    /// Discards not-yet-due transactions this schedule pre-created, so an edit
+    /// to the bill (or deactivating it) doesn't leave rows carrying the old
+    /// amount/payee/category sitting in the register. The caller re-runs
+    /// CreateFutureAsync afterwards to lay down fresh ones.
+    ///
+    /// Only removes rows that are genuinely still the job's to own:
+    ///   • dated in the future — anything due today or earlier has already
+    ///     happened as far as the register is concerned,
+    ///   • still Uncleared — a cleared/reconciled row has been matched against
+    ///     a real statement,
+    ///   • not voided — voiding is a deliberate user act worth preserving,
+    ///   • untouched since creation (UpdatedAt == CreatedAt) — the user editing
+    ///     a pre-created occurrence makes it theirs, not the schedule's.
+    /// Transfer legs are covered automatically: both halves carry the same
+    /// ScheduledTransactionId, so a pair is always removed together.
+    /// </summary>
+    public static async Task<int> RemoveStaleFutureAsync(AppDbContext db, int scheduleId, CancellationToken ct)
+    {
+        // "Future" has to mean future to the schedule's owner — using UTC here
+        // could discard an occurrence they still consider today's.
+        var owner = await db.ScheduledTransactions
+            .Where(s => s.Id == scheduleId)
+            .Select(s => s.User)
+            .FirstOrDefaultAsync(ct);
+        var today = UserClock.Today(owner?.TimeZoneId);
+
+        var stale = await db.Transactions
+            .Where(t => t.ScheduledTransactionId == scheduleId
+                     && t.Date > today
+                     && t.Status == TransactionStatus.Uncleared
+                     && !t.IsVoided
+                     && t.UpdatedAt == t.CreatedAt)
+            .ToListAsync(ct);
+
+        if (stale.Count == 0) return 0;
+
+        db.Transactions.RemoveRange(stale);
+        await db.SaveChangesAsync(ct);
+        return stale.Count;
+    }
 
     /// <summary>
     /// Computes the next occurrence date after <paramref name="date"/> for a

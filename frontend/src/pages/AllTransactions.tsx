@@ -65,6 +65,10 @@ export default function AllTransactions() {
   }, []);
 
   const effectiveIds = selectedIds ? Array.from(selectedIds) : accounts.map(a => a.id);
+  // Stable primitive for the dep list below — a fresh array every render would
+  // re-fire the loader constantly, and the React Compiler rejects a
+  // JSON.stringify() call written inline in the dependency array.
+  const effectiveIdsKey = effectiveIds.join(',');
 
   // Sequence guard instead of an `if (loading) return` early-out: the stale
   // `loading` closure used to silently skip reloads triggered mid-flight,
@@ -103,7 +107,7 @@ export default function AllTransactions() {
       if (seq === loadSeq.current) setLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(effectiveIds), appliedFrom, appliedTo, appliedPayee, appliedMemo, accounts.length]);
+  }, [effectiveIdsKey, appliedFrom, appliedTo, appliedPayee, appliedMemo, accounts.length]);
 
   // Reload from page 1 when accounts selection or applied filters change
   useEffect(() => {

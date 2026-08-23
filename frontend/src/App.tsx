@@ -1,5 +1,6 @@
 import { createBrowserRouter, createRoutesFromElements, RouterProvider, Route, Navigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { AuthProvider } from './contexts/AuthContext';
+import { useAuth } from './contexts/auth-context';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import AccountsList from './pages/AccountsList';

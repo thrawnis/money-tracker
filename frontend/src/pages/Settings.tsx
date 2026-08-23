@@ -2,7 +2,7 @@ import { useState, useEffect, type FormEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { usePageTitle } from '../hooks/usePageTitle';
-import { useAuth } from '../contexts/AuthContext';
+import { useAuth } from '../contexts/auth-context';
 import api from '../api/client';
 import { resetTotpSetup, resetTotpEnroll, getMfaStatus } from '../api/auth';
 import { getDemoInfo, resetDemo } from '../api/demo';
@@ -15,7 +15,7 @@ import {
 import { getAuditLog, type AuditEntry, type GetAuditParams } from '../api/audit';
 import { getAccounts } from '../api/accounts';
 import { listAccountBackups, downloadAccountBackup, type AccountBackupSummary } from '../api/accountBackups';
-import { getPreferences, updatePreferences } from '../api/preferences';
+import { getPreferences, updatePreferences, getTimeZones, type TimeZoneOption } from '../api/preferences';
 import type { Account } from '../types';
 import ExportModal from '../components/ExportModal';
 import ReauthModal from '../components/ReauthModal';
@@ -196,6 +196,8 @@ function PreferencesTab() {
   const [futureDays, setFutureDays] = useState(String(DEFAULT_FUTURE_DAYS));
   const [autoCreate, setAutoCreate] = useState(false);
   const [autoCreateDays, setAutoCreateDays] = useState(String(DEFAULT_FUTURE_DAYS));
+  const [timeZoneId, setTimeZoneId] = useState('');
+  const [timeZones, setTimeZones] = useState<TimeZoneOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -209,9 +211,14 @@ function PreferencesTab() {
         setFutureDays(String(p.defaultFutureDays ?? DEFAULT_FUTURE_DAYS));
         setAutoCreate(!!p.autoCreateFutureTransactions);
         setAutoCreateDays(String(p.autoCreateFutureDays ?? DEFAULT_FUTURE_DAYS));
+        setTimeZoneId(p.timeZoneId ?? '');
       })
       .catch(() => setError('Failed to load preferences.'))
       .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    getTimeZones().then(setTimeZones).catch(() => { /* falls back to UTC-only */ });
   }, []);
 
   const handleSave = async () => {
@@ -227,6 +234,7 @@ function PreferencesTab() {
         defaultFutureDays: days,
         autoCreateFutureTransactions: autoCreate,
         autoCreateFutureDays: autoDays,
+        timeZoneId: timeZoneId || null,
       });
       setFutureDays(String(days));
       setAutoCreateDays(String(autoDays));
@@ -249,12 +257,14 @@ function PreferencesTab() {
         defaultFutureDays: null,
         autoCreateFutureTransactions: false,
         autoCreateFutureDays: null,
+        timeZoneId: null,
       });
       setSortBy('date');
       setSortDir('desc');
       setFutureDays(String(DEFAULT_FUTURE_DAYS));
       setAutoCreate(false);
       setAutoCreateDays(String(DEFAULT_FUTURE_DAYS));
+      setTimeZoneId('');
       setSaved(true);
     } catch {
       setError('Failed to reset preferences.');
@@ -294,6 +304,26 @@ function PreferencesTab() {
               <option value="asc">Ascending (oldest / lowest first)</option>
             </select>
           </div>
+        </div>
+      </div>
+
+      <div className={styles.prefGroup}>
+        <p className={styles.prefGroupTitle}>Time zone</p>
+        <p className={styles.hint}>
+          Decides what counts as "today" — the as-of-today balance on the Accounts page, Dashboard and register
+          header, the report period shortcuts, and the moment a scheduled bill posts. Leave on UTC and those
+          roll over at UTC midnight rather than yours.
+        </p>
+        <div>
+          <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 4 }}>Time zone</label>
+          <select
+            value={timeZoneId}
+            onChange={e => { setTimeZoneId(e.target.value); setSaved(false); }}
+            style={{ maxWidth: 380 }}
+          >
+            <option value="">UTC (default)</option>
+            {timeZones.map(tz => <option key={tz.id} value={tz.id}>{tz.id} — {tz.displayName}</option>)}
+          </select>
         </div>
       </div>
 

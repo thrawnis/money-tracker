@@ -51,7 +51,7 @@ public class AccountsController(
             .OrderBy(a => a.Name)
             .ToListAsync();
 
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = UserClock.Today(user);
         var accountIds = accounts.Select(a => a.Id).ToList();
 
         // Effective date (PostDate ?? Date) <= today — same as-of-today rule the
@@ -62,23 +62,19 @@ public class AccountsController(
             .Select(g => new { AccountId = g.Key, Sum = g.Sum(t => t.Amount) })
             .ToDictionaryAsync(x => x.AccountId, x => x.Sum);
 
-        var lastTxDates = await db.Transactions
+        // First date, last date, and count in a single aggregate — these were
+        // three separate round trips doing the same GroupBy over the same rows.
+        var txStats = await db.Transactions
             .Where(t => accountIds.Contains(t.AccountId))
             .GroupBy(t => t.AccountId)
-            .Select(g => new { AccountId = g.Key, Last = g.Max(t => t.Date) })
-            .ToDictionaryAsync(x => x.AccountId, x => x.Last);
-
-        var firstTxDates = await db.Transactions
-            .Where(t => accountIds.Contains(t.AccountId))
-            .GroupBy(t => t.AccountId)
-            .Select(g => new { AccountId = g.Key, First = g.Min(t => t.Date) })
-            .ToDictionaryAsync(x => x.AccountId, x => x.First);
-
-        var txCounts = await db.Transactions
-            .Where(t => accountIds.Contains(t.AccountId))
-            .GroupBy(t => t.AccountId)
-            .Select(g => new { AccountId = g.Key, Count = g.Count() })
-            .ToDictionaryAsync(x => x.AccountId, x => x.Count);
+            .Select(g => new
+            {
+                AccountId = g.Key,
+                First = g.Min(t => t.Date),
+                Last  = g.Max(t => t.Date),
+                Count = g.Count(),
+            })
+            .ToDictionaryAsync(x => x.AccountId, x => x);
 
         return Ok(accounts.Select(a =>
         {
@@ -91,9 +87,9 @@ public class AccountsController(
                 type          = a.Type,
                 openingBalance = a.OpeningBalance,
                 currentBalance,
-                lastTransactionDate = lastTxDates.TryGetValue(a.Id, out var d) ? d : (DateOnly?)null,
-                firstTransactionDate = firstTxDates.TryGetValue(a.Id, out var fd) ? fd : (DateOnly?)null,
-                transactionCount = txCounts.TryGetValue(a.Id, out var c) ? c : 0,
+                lastTransactionDate = txStats.TryGetValue(a.Id, out var st) ? st.Last : (DateOnly?)null,
+                firstTransactionDate = txStats.TryGetValue(a.Id, out var st2) ? st2.First : (DateOnly?)null,
+                transactionCount = txStats.TryGetValue(a.Id, out var st3) ? st3.Count : 0,
                 institutionId = a.InstitutionId,
                 institution   = a.Institution is null ? null : new { a.Institution.Id, a.Institution.Name },
                 accountNumber = encryption.Decrypt(a.AccountNumberEncrypted, user.EncryptedDataKey),

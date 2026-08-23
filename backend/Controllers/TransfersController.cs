@@ -46,10 +46,15 @@ public class TransfersController(
         var dek = user.EncryptedDataKey;
         var memoEnc = encryption.Encrypt(dto.Memo, dek);
 
+        // PostDate goes on BOTH legs. Running balances order by
+        // COALESCE(PostDate, Date), so setting it on only one side used to
+        // land the two halves of the same transfer on different effective
+        // dates.
         var debit = new Transaction
         {
             AccountId         = dto.SourceAccountId,
             Date              = dto.Date,
+            PostDate          = dto.PostDate,
             Amount            = -amount,
             Status            = TransactionStatus.Uncleared,
             TransferAccountId = dto.DestinationAccountId,
@@ -114,6 +119,7 @@ public class TransfersController(
         memo                  = encryption.Decrypt(tx.MemoEncrypted, dek),
         amount                = tx.Amount,
         status                = tx.Status,
+        isVoided              = tx.IsVoided,
         transferTransactionId = tx.TransferTransactionId,
         transferAccountId     = tx.TransferAccountId,
         createdAt             = tx.CreatedAt,

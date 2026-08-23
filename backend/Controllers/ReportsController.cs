@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using MoneyTracker.Auth.Services;
 using MoneyTracker.Data;
 using MoneyTracker.Models;
+using MoneyTracker.Services;
 
 namespace MoneyTracker.Controllers;
 
@@ -39,7 +40,7 @@ public class ReportsController(
         var dek = user.EncryptedDataKey;
 
         // Default: last 6 months
-        var today   = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today   = UserClock.Today(user);
         var dateTo  = new DateOnly(toYear   ?? today.Year, toMonth   ?? today.Month, 1).AddMonths(1).AddDays(-1);
         var dateFrom = new DateOnly(fromYear ?? today.AddMonths(-5).Year, fromMonth ?? today.AddMonths(-5).Month, 1);
 
@@ -129,7 +130,7 @@ public class ReportsController(
         if (user is null) return Unauthorized();
         var dek = user.EncryptedDataKey;
 
-        var today   = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today   = UserClock.Today(user);
         var dateFrom = from ?? new DateOnly(today.Year, 1, 1);
         var dateTo   = to   ?? today;
 

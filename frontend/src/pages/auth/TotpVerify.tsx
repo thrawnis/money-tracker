@@ -1,13 +1,12 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as authApi from '../../api/auth';
-import { setAccessToken } from '../../api/client';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../../contexts/auth-context';
 import styles from './Login.module.css';
 
 export default function TotpVerify() {
   const navigate = useNavigate();
-  const { setTokenAndUser } = useAuth();
+  const { signIn } = useAuth();
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -29,8 +28,7 @@ export default function TotpVerify() {
     try {
       const res = await authApi.verifyTotp(userId, code);
       sessionStorage.removeItem('mfa_login_user_id');
-      setAccessToken(res.accessToken);
-      setTokenAndUser(res.accessToken, { id: userId, email: '', role: res.role });
+      signIn(res.accessToken);
       navigate('/');
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;

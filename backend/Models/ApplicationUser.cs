@@ -11,6 +11,11 @@ public class ApplicationUser : IdentityUser
     // AES-256-GCM encrypted DEK, encrypted with the application master key
     public string EncryptedDataKey { get; set; } = string.Empty;
 
+    // IANA timezone id ("America/Chicago") used to resolve "today" for
+    // balances, report period shortcuts, and scheduled-bill posting. Null =
+    // UTC, the historical behavior. See UserClock.
+    public string? TimeZoneId { get; set; }
+
     // Default sort applied to the account register on load; null means the
     // built-in default (date, newest first). Not sensitive — stored plaintext.
     public string? DefaultRegisterSortBy { get; set; }

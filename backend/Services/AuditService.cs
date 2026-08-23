@@ -74,13 +74,12 @@ public class AuditService(AppDbContext db, IHttpContextAccessor httpContextAcces
 
     private static string? GetIpAddress(HttpContext? context)
     {
-        if (context is null) return null;
-
-        // Check X-Forwarded-For for Cloudflare / reverse proxy
-        var forwarded = context.Request.Headers["X-Forwarded-For"].FirstOrDefault();
-        if (!string.IsNullOrEmpty(forwarded))
-            return forwarded.Split(',')[0].Trim();
-
-        return context.Connection.RemoteIpAddress?.ToString();
+        // RemoteIpAddress only — deliberately NOT the raw X-Forwarded-For
+        // header. UseForwardedHeaders (see Program.cs) has already rewritten
+        // RemoteIpAddress from X-Forwarded-For when the request actually came
+        // through a trusted RFC1918 proxy. Reading the header directly here
+        // bypassed that trust check entirely, so any client could forge the IP
+        // recorded against its own audit entries just by sending the header.
+        return context?.Connection.RemoteIpAddress?.ToString();
     }
 }

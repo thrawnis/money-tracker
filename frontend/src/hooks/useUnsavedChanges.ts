@@ -8,14 +8,13 @@ export function useUnsavedChanges(isDirty: boolean) {
   const blocker = useBlocker(isDirty);
 
   useEffect(() => {
-    if (blocker.state === 'blocked') {
-      if (confirm(MSG)) {
-        blocker.proceed();
-      } else {
-        blocker.reset();
-      }
+    if (blocker.state !== 'blocked') return;
+    if (confirm(MSG)) {
+      blocker.proceed?.();
+    } else {
+      blocker.reset?.();
     }
-  }, [blocker.state]);
+  }, [blocker]);
 
   // Block browser refresh / tab close
   useEffect(() => {

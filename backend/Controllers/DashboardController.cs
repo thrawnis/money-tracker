@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using MoneyTracker.Auth.Services;
 using MoneyTracker.Data;
 using MoneyTracker.Models;
+using MoneyTracker.Services;
 
 namespace MoneyTracker.Controllers;
 
@@ -38,7 +39,7 @@ public class DashboardController(
 
         // "As of today" by effective date (PostDate ?? Date) — exclude future-dated
         // transactions, matching AccountsController and the register header
-        var balanceCutoff = DateOnly.FromDateTime(DateTime.UtcNow);
+        var balanceCutoff = UserClock.Today(user);
         var transactionSums = await db.Transactions
             .Where(t => t.Account.UserId == userId && (t.PostDate ?? t.Date) <= balanceCutoff && !t.IsVoided)
             .GroupBy(t => t.AccountId)
@@ -62,8 +63,8 @@ public class DashboardController(
 
         // ── Upcoming bills (next 14 days) ─────────────────────────────────────
 
-        var cutoff = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(14));
-        var today  = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today  = UserClock.Today(user);
+        var cutoff = today.AddDays(14);
 
         var upcomingBills = await db.ScheduledTransactions
             .Where(s => s.UserId == userId && s.IsActive && s.NextDueDate <= cutoff)
@@ -85,10 +86,10 @@ public class DashboardController(
         // ── Uncategorized transactions ─────────────────────────────────────────
 
         var uncategorizedCount = await db.Transactions
-            .CountAsync(t => t.Account.UserId == userId && t.CategoryId == null && t.TransferTransactionId == null && !t.Splits.Any());
+            .CountAsync(t => t.Account.UserId == userId && t.CategoryId == null && t.TransferTransactionId == null && !t.IsVoided && !t.Splits.Any());
 
         var recentUncategorized = await db.Transactions
-            .Where(t => t.Account.UserId == userId && t.CategoryId == null && t.TransferTransactionId == null && !t.Splits.Any())
+            .Where(t => t.Account.UserId == userId && t.CategoryId == null && t.TransferTransactionId == null && !t.IsVoided && !t.Splits.Any())
             .Include(t => t.Payee)
             .OrderByDescending(t => t.Date)
             .Take(5)

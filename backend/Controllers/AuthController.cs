@@ -31,6 +31,10 @@ public class AuthController(
     IConfiguration                  config) : ControllerBase
 {
     private bool IsDemoMode => config["DEMO_MODE"] == "true";
+
+    // How long a just-rotated refresh token stays acceptable, so two tabs
+    // refreshing concurrently don't sign each other out. See Refresh().
+    private static readonly TimeSpan RefreshReuseGrace = TimeSpan.FromSeconds(60);
     // ── Registration ────────────────────────────────────────────────────────
 
     [HttpPost("register")]
@@ -373,12 +377,46 @@ public class AuthController(
 
         var stored = await db.RefreshTokens
             .Include(r => r.User)
-            .FirstOrDefaultAsync(r => r.Token == tokenValue && !r.IsRevoked);
+            .FirstOrDefaultAsync(r => r.Token == tokenValue);
 
         if (stored is null || stored.ExpiresAt < DateTime.UtcNow)
             return Unauthorized("Refresh token is invalid or expired.");
 
-        stored.IsRevoked = true;
+        if (stored.IsRevoked)
+        {
+            // Tokens rotate on every use, and the app refreshes whenever a tab
+            // becomes visible. Two tabs waking together legitimately present
+            // the same cookie, so the loser of that race is not an attacker —
+            // honour a just-rotated token briefly instead of signing them out.
+            var revokedAgo = DateTime.UtcNow - (stored.RevokedAt ?? DateTime.MinValue);
+            if (revokedAgo > RefreshReuseGrace)
+            {
+                // Outside the grace window this is a replay of a token that was
+                // already spent — the classic signal that a refresh token
+                // leaked. Drop the entire family so the real user and the
+                // holder of the stolen copy both have to sign in again.
+                var family = db.RefreshTokens.Where(r => r.UserId == stored.UserId && !r.IsRevoked);
+                await family.ForEachAsync(t => { t.IsRevoked = true; t.RevokedAt = DateTime.UtcNow; });
+                await db.SaveChangesAsync();
+
+                await audit.LogAsync("REFRESH_TOKEN_REUSE", "User", null,
+                    new { userId = stored.UserId, message = "Revoked token replayed; all sessions signed out." });
+
+                Response.Cookies.Delete("refreshToken");
+                return Unauthorized("Refresh token is invalid or expired.");
+            }
+        }
+        else
+        {
+            stored.IsRevoked = true;
+            stored.RevokedAt = DateTime.UtcNow;
+        }
+
+        // Same one-time cleanup IssueTokensAsync runs. Refresh builds its
+        // tokens inline rather than going through that method, so without this
+        // the migration only ever fired on a full sign-in — not on the silent
+        // refresh that the service's own docs claim covers it.
+        await voidCategoryMigration.RunIfNeededAsync(stored.User);
 
         var roles = await userManager.GetRolesAsync(stored.User);
         var role  = roles.Contains(Roles.Admin) ? Roles.Admin : Roles.Standard;
@@ -396,6 +434,13 @@ public class AuthController(
             Token     = newRefresh,
             ExpiresAt = newExpiry,
         });
+
+        // Rotation adds a row every time a tab regains focus, and nothing else
+        // ever removed them. Drop this user's long-dead tokens as we go —
+        // they're useless past expiry and the table grew without bound.
+        var staleCutoff = DateTime.UtcNow.AddDays(-30);
+        var stale = db.RefreshTokens.Where(r => r.UserId == stored.UserId && r.ExpiresAt < staleCutoff);
+        db.RefreshTokens.RemoveRange(stale);
 
         await db.SaveChangesAsync();
 
@@ -420,14 +465,18 @@ public class AuthController(
         if (!result.Succeeded)
             return BadRequest(new { message = string.Join(" ", result.Errors.Select(e => e.Description)) });
 
-        // Revoke all refresh tokens so every other session is signed out
+        // Revoke every refresh token, including this session's — a password
+        // change should not leave any pre-change session alive, and singling
+        // out the current one would mean trusting a cookie that was issued
+        // under the old credentials.
         var tokens = db.RefreshTokens.Where(r => r.UserId == userId && !r.IsRevoked);
-        await tokens.ForEachAsync(t => t.IsRevoked = true);
+        await tokens.ForEachAsync(t => { t.IsRevoked = true; t.RevokedAt = DateTime.UtcNow; });
         await db.SaveChangesAsync();
 
         await audit.LogAsync("PASSWORD_CHANGE");
 
-        return Ok(new { message = "Password changed successfully. All other sessions have been signed out." });
+        Response.Cookies.Delete("refreshToken");
+        return Ok(new { message = "Password changed successfully. You have been signed out everywhere and will need to sign in again." });
     }
 
     // ── Logout all sessions ───────────────────────────────────────────────────
@@ -440,7 +489,7 @@ public class AuthController(
         if (userId is not null)
         {
             var tokens = db.RefreshTokens.Where(r => r.UserId == userId && !r.IsRevoked);
-            await tokens.ForEachAsync(t => t.IsRevoked = true);
+            await tokens.ForEachAsync(t => { t.IsRevoked = true; t.RevokedAt = DateTime.UtcNow; });
             await db.SaveChangesAsync();
         }
 
@@ -451,16 +500,28 @@ public class AuthController(
 
     // ── Logout ────────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Signs out THIS session only — revokes the refresh token presented by
+    /// this browser's cookie and leaves other devices alone. It previously
+    /// revoked every token the user had, which made it identical to
+    /// logout-all: signing out on a laptop also killed the phone.
+    /// </summary>
     [HttpPost("logout")]
     [Authorize]
     public async Task<IActionResult> Logout()
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (userId is not null)
+        var tokenValue = Request.Cookies["refreshToken"];
+        if (userId is not null && !string.IsNullOrEmpty(tokenValue))
         {
-            var tokens = db.RefreshTokens.Where(r => r.UserId == userId && !r.IsRevoked);
-            await tokens.ForEachAsync(t => t.IsRevoked = true);
-            await db.SaveChangesAsync();
+            var current = await db.RefreshTokens
+                .FirstOrDefaultAsync(r => r.Token == tokenValue && r.UserId == userId && !r.IsRevoked);
+            if (current is not null)
+            {
+                current.IsRevoked = true;
+                current.RevokedAt = DateTime.UtcNow;
+                await db.SaveChangesAsync();
+            }
         }
 
         await audit.LogAsync("LOGOUT");

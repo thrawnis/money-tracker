@@ -1,14 +1,13 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '../../contexts/auth-context';
 import * as authApi from '../../api/auth';
-import { setAccessToken } from '../../api/client';
 import { getDemoInfo } from '../../api/demo';
 import styles from './Login.module.css';
 
 export default function Login() {
   const navigate = useNavigate();
-  const { setTokenAndUser } = useAuth();
+  const { signIn } = useAuth();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -30,10 +29,11 @@ export default function Login() {
     setGlobalError('');
     setSubmitting(true);
     try {
-      await authApi.login(demoEmail, 'Demo123456!!', false);
-      const token = await authApi.refreshTokens();
-      setAccessToken(token.accessToken);
-      setTokenAndUser(token.accessToken, { id: '', email: demoEmail, role: token.role });
+      // Demo login skips MFA, so /auth/login already returns the tokens —
+      // no need for the extra refresh round trip that used to immediately
+      // rotate the just-issued refresh token.
+      const res = await authApi.login(demoEmail, 'Demo123456!!', false);
+      signIn(res.accessToken ?? (await authApi.refreshTokens()).accessToken);
       navigate('/');
     } catch {
       setGlobalError('Failed to start demo. Please try again.');
@@ -64,15 +64,14 @@ export default function Login() {
       } else if (res.requiresMfaSetup && res.userId) {
         sessionStorage.setItem('mfa_setup_user_id', res.userId);
         navigate('/auth/setup-totp');
+      } else if (res.accessToken) {
+        signIn(res.accessToken);
+        navigate('/');
       } else {
-        try {
-          const token = await authApi.refreshTokens();
-          setAccessToken(token.accessToken);
-          setTokenAndUser(token.accessToken, { id: '', email, role: token.role });
-          navigate('/');
-        } catch {
-          navigate('/');
-        }
+        // No MFA step and no token: nothing to sign in with. Say so instead of
+        // navigating to a protected route, which just bounced straight back
+        // here with no explanation.
+        setGlobalError('Sign-in did not complete. Please try again.');
       }
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;

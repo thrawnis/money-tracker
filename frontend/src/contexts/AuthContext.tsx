@@ -1,18 +1,9 @@
-import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react';
+import { useEffect, useRef, useState, useCallback, type ReactNode } from 'react';
 import { setAccessToken } from '../api/client';
 import * as authApi from '../api/auth';
+import { AuthContext } from './auth-context';
 import type { AuthUser } from '../types/auth';
 
-interface AuthContextValue {
-  user: AuthUser | null;
-  loading: boolean;
-  login: (email: string, password: string) => Promise<{ mfaRequired?: boolean; mfaSetupRequired?: boolean }>;
-  logout: () => Promise<void>;
-  refreshToken: () => Promise<void>;
-  setTokenAndUser: (token: string, user: AuthUser) => void;
-}
-
-const AuthContext = createContext<AuthContextValue | null>(null);
 
 function parseJwt(token: string): { sub: string; email: string; role: string } | null {
   try {
@@ -23,10 +14,17 @@ function parseJwt(token: string): { sub: string; email: string; role: string } |
   }
 }
 
+const VISIBILITY_REFRESH_THROTTLE_MS = 60_000;
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const lastRefreshAtRef = useRef(0);
 
+  // Single place a session is established. id/email/role all come from the
+  // token's own claims — callers used to hand-build an AuthUser and fill the
+  // fields they didn't have with '' (Login passed an empty id, the MFA pages
+  // an empty email), leaving user.id silently blank app-wide.
   const applyToken = useCallback((token: string) => {
     setAccessToken(token);
     const payload = parseJwt(token);
@@ -37,11 +35,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         role: payload.role as 'Admin' | 'Standard',
       });
     }
-  }, []);
-
-  const setTokenAndUser = useCallback((token: string, _user: AuthUser) => {
-    setAccessToken(token);
-    setUser(_user);
   }, []);
 
   const refreshToken = useCallback(async () => {
@@ -62,32 +55,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Silent refresh on mount
   useEffect(() => {
+    lastRefreshAtRef.current = Date.now();
     refreshToken().finally(() => setLoading(false));
   }, [refreshToken]);
 
   // Re-authenticate when the tab becomes visible again after being hidden
-  // (access token is in-memory only; this restores it after long idle or tab switch)
+  // (access token is in-memory only; this restores it after long idle or tab
+  // switch). Throttled: refresh tokens rotate server-side on every use, so
+  // firing on every single focus churned a new DB row per tab switch and made
+  // two tabs waking together race each other. The access token lives 15
+  // minutes, so re-checking at most once a minute is plenty.
   useEffect(() => {
     const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        refreshToken();
-      }
+      if (document.visibilityState !== 'visible') return;
+      const now = Date.now();
+      if (now - lastRefreshAtRef.current < VISIBILITY_REFRESH_THROTTLE_MS) return;
+      lastRefreshAtRef.current = now;
+      refreshToken();
     };
     document.addEventListener('visibilitychange', handleVisibility);
     return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, [refreshToken]);
-
-  const login = useCallback(async (email: string, password: string) => {
-    const res = await authApi.login(email, password);
-    if (res.requiresMfa) {
-      return { mfaRequired: true };
-    }
-    if (res.requiresMfaSetup) {
-      return { mfaSetupRequired: true };
-    }
-    // If backend returns token directly on login (no MFA)
-    return {};
-  }, []);
 
   const logout = useCallback(async () => {
     try { await authApi.logout(); } catch { /* ignore */ }
@@ -96,14 +84,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, refreshToken, setTokenAndUser }}>
+    <AuthContext.Provider value={{ user, loading, logout, signIn: applyToken }}>
       {children}
     </AuthContext.Provider>
   );
-}
-
-export function useAuth(): AuthContextValue {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
-  return ctx;
 }
