@@ -153,6 +153,10 @@ export default function AccountRegister() {
   const rowRefs = useRef<Map<number, HTMLTableRowElement>>(new Map());
   const scrolledForHighlightRef = useRef<number | null>(null);
 
+  // Pre-swap scroll height captured by reloadLoadedPages, consumed by the
+  // layout effect that keeps the user in place across an in-place refetch.
+  const pendingRestoreHeightRef = useRef<number | null>(null);
+
   // Open the register positioned at the Today divider on first load of an account
   const todayRowRef = useRef<HTMLTableRowElement>(null);
   const [scrollToToday, setScrollToToday] = useState(false);
@@ -279,6 +283,43 @@ export default function AccountRegister() {
     () => loadPage1(appliedFilters, sortBy, sortDir, false),
     [loadPage1, appliedFilters, sortBy, sortDir],
   );
+
+  // Refetch every page the user has scrolled into view, not just page 1, and
+  // hold the scroll position across the swap. Plain reload() replaces pastTxs
+  // with page 1 alone, so editing a transaction after scrolling back through
+  // history would collapse the list and dump the user somewhere else entirely.
+  const reloadLoadedPages = useCallback(async () => {
+    const pageCount = pastPage;
+    if (pageCount <= 1) return reload();
+
+    const seq = ++requestSeq.current;
+    // Captured synchronously, before any await: the browser preserves
+    // scrollTop across the row swap, so the layout effect only needs the
+    // pre-swap height to compensate for any net size change.
+    pendingRestoreHeightRef.current = tableWrapperRef.current?.scrollHeight ?? 0;
+    setError('');
+    try {
+      const results = await Promise.all(
+        Array.from({ length: pageCount }, (_, i) =>
+          getTransactions(accountId, {
+            ...appliedFilters,
+            sortBy, sortDir: fetchSortDir(sortBy, sortDir),
+            page: i + 1,
+            pageSize: PAST_PAGE_SIZE,
+          })
+        )
+      );
+      if (seq !== requestSeq.current) return;
+      setPastTxs(results.flatMap(r => r.items));
+      setPastTotal(results[0].total);
+      setAccountBalance(results[0].currentBalance);
+      setPastPage(pageCount);
+    } catch (err) {
+      if (seq !== requestSeq.current) return;
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setError(msg ?? 'Failed to load account data.');
+    }
+  }, [pastPage, reload, accountId, appliedFilters, sortBy, sortDir]);
 
   // Loads unfiltered pages (newest first) until the target transaction is found,
   // then flags it for scroll-into-view + highlight. Used when arriving via a
@@ -444,6 +485,7 @@ export default function AccountRegister() {
   // effect below can compensate scrollTop by exactly how much content grew.
   const pendingScrollAnchorRef = useRef<number | null>(null);
 
+
   const loadMorePast = useCallback(async () => {
     if (loadingPastRef.current || !hasMorePast) return;
     loadingPastRef.current = true;
@@ -483,6 +525,18 @@ export default function AccountRegister() {
     const el = tableWrapperRef.current;
     if (!el) return;
     el.scrollTop += el.scrollHeight - anchor;
+  }, [pastTxs]);
+
+  // Same idea, for the whole-list swap an in-place refetch performs: scrollTop
+  // survives the swap, so nudging it by the net height change keeps the rows
+  // the user was reading under the cursor instead of jumping to page 1.
+  useLayoutEffect(() => {
+    const before = pendingRestoreHeightRef.current;
+    if (before == null) return;
+    pendingRestoreHeightRef.current = null;
+    const el = tableWrapperRef.current;
+    if (!el) return;
+    el.scrollTop += el.scrollHeight - before;
   }, [pastTxs]);
 
   // ── Load future bills ──
@@ -656,7 +710,9 @@ export default function AccountRegister() {
     if (newTxId != null) {
       await jumpToTransaction(newTxId);
     } else {
-      await reload();
+      // Edit of an existing row: refetch in place so the user stays exactly
+      // where they were instead of being dropped back at page 1.
+      await reloadLoadedPages();
     }
   };
 
@@ -664,7 +720,7 @@ export default function AccountRegister() {
     if (!confirm('Delete this transaction?')) return;
     try {
       await deleteTransaction(accountId, txId);
-      await reload();
+      await reloadLoadedPages();
     } catch (err) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
       setError(msg ?? 'Failed to delete transaction.');
