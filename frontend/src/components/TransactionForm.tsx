@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, type FormEvent, type RefObject, type KeyboardEvent } from 'react';
 import type { Transaction, Category, Payee, Account } from '../types';
 import { getCategories, createCategory } from '../api/categories';
-import { getPayees, createPayee } from '../api/payees';
+import { getPayees, createPayee, updatePayee } from '../api/payees';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import styles from './TransactionForm.module.css';
 
@@ -578,6 +578,24 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
           setSaveError(msg ?? 'Failed to create payee.');
           setSubmitting(false);
           return;
+        }
+      }
+
+      // Backfill: an existing payee that has no default category yet gets one
+      // set from this transaction's category — same idea as seeding a
+      // brand-new payee's default above, just applied retroactively. Never
+      // overwrites a default that's already set, and a newly-created payee
+      // above already got its default via createPayee, so this is a no-op
+      // for it (its defaultCategoryId is already resolvedCategoryId, not null).
+      if (resolvedPayeeId && !isTransfer && !isSplit && resolvedCategoryId) {
+        const existingPayee = payees.find(p => p.id === resolvedPayeeId);
+        if (existingPayee && existingPayee.defaultCategoryId == null) {
+          try {
+            await updatePayee(resolvedPayeeId, { name: existingPayee.name, defaultCategoryId: resolvedCategoryId });
+            setPayees(prev => prev.map(p => p.id === resolvedPayeeId ? { ...p, defaultCategoryId: resolvedCategoryId } : p));
+          } catch {
+            // Non-critical — the transaction itself still saves fine either way.
+          }
         }
       }
 
