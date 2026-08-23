@@ -613,14 +613,19 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
       // Backfill: an existing payee that has no default category yet gets one
       // set from this transaction's category — same idea as seeding a
       // brand-new payee's default above, just applied retroactively. Never
-      // overwrites a default that's already set, and a newly-created payee
-      // above already got its default via createPayee, so this is a no-op
-      // for it (its defaultCategoryId is already resolvedCategoryId, not null).
+      // overwrites a default that's already set, skips payees with
+      // blockAutoDefaultCategory (e.g. "Amazon", "Cash" — payees that
+      // legitimately span many categories), and a newly-created payee above
+      // already got its default via createPayee, so this is a no-op for it
+      // (its defaultCategoryId is already resolvedCategoryId, not null).
       if (resolvedPayeeId && !isTransfer && !isSplit && resolvedCategoryId) {
         const existingPayee = payees.find(p => p.id === resolvedPayeeId);
-        if (existingPayee && existingPayee.defaultCategoryId == null) {
+        if (existingPayee && existingPayee.defaultCategoryId == null && !existingPayee.blockAutoDefaultCategory) {
           try {
-            await updatePayee(resolvedPayeeId, { name: existingPayee.name, defaultCategoryId: resolvedCategoryId });
+            // Full PUT — blockAutoDefaultCategory is always false here (the
+            // guard above just checked it), passed explicitly so this can't
+            // silently flip it if that guard's logic ever changes.
+            await updatePayee(resolvedPayeeId, { name: existingPayee.name, defaultCategoryId: resolvedCategoryId, blockAutoDefaultCategory: false });
             setPayees(prev => prev.map(p => p.id === resolvedPayeeId ? { ...p, defaultCategoryId: resolvedCategoryId } : p));
           } catch {
             // Non-critical — the transaction itself still saves fine either way.

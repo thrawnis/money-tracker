@@ -43,6 +43,7 @@ export default function Payees() {
   const [renameValue, setRenameValue] = useState('');
   const [editingCatFor, setEditingCatFor] = useState<number | null>(null);
   const [catValue, setCatValue] = useState<string>('');
+  const [catBlocked, setCatBlocked] = useState(false);
 
   const load = () =>
     Promise.all([getPayees(), getCategories()])
@@ -52,15 +53,24 @@ export default function Payees() {
 
   useEffect(() => { load(); }, []);
 
-  // The backend Update is a full PUT (name + defaultCategoryId together) —
-  // always send both, or the omitted field gets overwritten with null.
+  // The backend Update is a full PUT (name, defaultCategoryId, and
+  // blockAutoDefaultCategory together) — always send all three, or an
+  // omitted field gets overwritten (blockAutoDefaultCategory defaults to
+  // false server-side when absent, silently un-blocking the payee).
   const handleRename = async (id: number) => {
     if (!renameValue.trim()) return;
     const payee = payees.find(p => p.id === id);
     if (!payee) return;
     if (!confirm(`Rename "${payee.name}" to "${renameValue.trim()}"?`)) return;
     try {
-      await updatePayee(id, { name: renameValue.trim(), defaultCategoryId: payee.defaultCategoryId ?? null });
+      // Full PUT — must resend defaultCategoryId and blockAutoDefaultCategory
+      // as they are now, or the omitted fields get overwritten (the block
+      // flag defaults to false server-side when absent).
+      await updatePayee(id, {
+        name: renameValue.trim(),
+        defaultCategoryId: payee.defaultCategoryId ?? null,
+        blockAutoDefaultCategory: payee.blockAutoDefaultCategory,
+      });
       setPayees(prev => prev.map(p => p.id === id ? { ...p, name: renameValue.trim() } : p));
       setRenamingId(null);
     } catch (err) { setError(apiMsg(err, 'Failed to rename payee.')); }
@@ -69,13 +79,17 @@ export default function Payees() {
   const handleSetCategory = async (id: number) => {
     const payee = payees.find(p => p.id === id);
     if (!payee) return;
-    const targetId = catValue ? Number(catValue) : null;
+    const targetId = catBlocked ? null : (catValue ? Number(catValue) : null);
     const flat = flatCats(categories);
-    const catName = targetId ? flat.find(c => c.id === targetId)?.label : 'none';
-    if (!confirm(`Set default category for "${payee.name}" to ${catName ? `"${catName}"` : 'none'}?`)) return;
+    const confirmMsg = catBlocked
+      ? `Stop auto-suggesting a category for "${payee.name}"? Any existing default will be cleared, and it won't be auto-set again — you can still pick one manually any time.`
+      : `Set default category for "${payee.name}" to ${targetId ? `"${flat.find(c => c.id === targetId)?.label}"` : 'none'}?`;
+    if (!confirm(confirmMsg)) return;
     try {
-      await updatePayee(id, { name: payee.name, defaultCategoryId: targetId });
-      setPayees(prev => prev.map(p => p.id === id ? { ...p, defaultCategoryId: targetId ?? undefined } : p));
+      await updatePayee(id, { name: payee.name, defaultCategoryId: targetId, blockAutoDefaultCategory: catBlocked });
+      setPayees(prev => prev.map(p => p.id === id
+        ? { ...p, defaultCategoryId: targetId ?? undefined, blockAutoDefaultCategory: catBlocked }
+        : p));
       setEditingCatFor(null);
     } catch (err) { setError(apiMsg(err, 'Failed to update default category.')); }
   };
@@ -156,19 +170,36 @@ export default function Payees() {
                   <td>
                     {editingCatFor === payee.id ? (
                       <div className={styles.inlineEdit}>
-                        <select
-                          className={styles.select}
-                          value={catValue}
-                          onChange={e => setCatValue(e.target.value)}
-                        >
-                          <option value="">— None —</option>
-                          {flat.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
-                        </select>
+                        <div className={styles.catEditStack}>
+                          <select
+                            className={styles.select}
+                            value={catValue}
+                            onChange={e => setCatValue(e.target.value)}
+                            disabled={catBlocked}
+                          >
+                            <option value="">— None —</option>
+                            {flat.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                          </select>
+                          <label className={styles.blockCheckLabel}>
+                            <input
+                              type="checkbox"
+                              checked={catBlocked}
+                              onChange={e => setCatBlocked(e.target.checked)}
+                            />
+                            {' '}Never auto-suggest a category
+                          </label>
+                        </div>
                         <button className={styles.btnSm} onClick={() => handleSetCategory(payee.id)}>Save</button>
                         <button className={styles.btnSmSecondary} onClick={() => setEditingCatFor(null)}>Cancel</button>
                       </div>
                     ) : (
-                      <span className={styles.catLabel}>{defCatLabel}</span>
+                      <span className={styles.catLabel}>
+                        {payee.blockAutoDefaultCategory ? (
+                          <span className={styles.blockedBadge} title="This payee never gets an auto-suggested category">
+                            🚫 Blocked
+                          </span>
+                        ) : defCatLabel}
+                      </span>
                     )}
                   </td>
                   <td className={styles.lastUsed}>{fmt(payee.firstUsed) ?? '—'}</td>
@@ -177,7 +208,15 @@ export default function Payees() {
                   <td>
                     <div className={styles.rowActions}>
                       <button className={styles.btnSm} onClick={() => { setRenamingId(payee.id); setRenameValue(payee.name); setEditingCatFor(null); }}>Rename</button>
-                      <button className={styles.btnSm} onClick={() => { setEditingCatFor(payee.id); setCatValue(payee.defaultCategoryId ? String(payee.defaultCategoryId) : ''); setRenamingId(null); }}>Category</button>
+                      <button
+                        className={styles.btnSm}
+                        onClick={() => {
+                          setEditingCatFor(payee.id);
+                          setCatValue(payee.defaultCategoryId ? String(payee.defaultCategoryId) : '');
+                          setCatBlocked(!!payee.blockAutoDefaultCategory);
+                          setRenamingId(null);
+                        }}
+                      >Category</button>
                       <button className={styles.btnSmDelete} onClick={() => handleDelete(payee.id, payee.name)}>Delete</button>
                     </div>
                   </td>

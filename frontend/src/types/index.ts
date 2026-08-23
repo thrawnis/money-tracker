@@ -91,6 +91,11 @@ export interface Payee {
   id: number;
   name: string;
   defaultCategoryId?: number;
+  // When true, the app never auto-sets or auto-backfills defaultCategoryId
+  // for this payee (see TransactionForm) — for payees like "Amazon" or "Cash
+  // Withdrawal" that legitimately span many categories. Doesn't affect
+  // manually setting a default from the Payees page.
+  blockAutoDefaultCategory?: boolean;
   firstUsed?: string;
   lastUsed?: string;
   transactionCount?: number;

@@ -49,6 +49,7 @@ public class PayeesController(
                 id                = p.Id,
                 name              = encryption.Decrypt(p.NameEncrypted, user.EncryptedDataKey),
                 defaultCategoryId = p.DefaultCategoryId,
+                blockAutoDefaultCategory = p.BlockAutoDefaultCategory,
                 firstUsed         = stats.TryGetValue(p.Id, out var s) ? s.First : (DateOnly?)null,
                 lastUsed          = stats.TryGetValue(p.Id, out var s2) ? s2.Last : (DateOnly?)null,
                 transactionCount  = stats.TryGetValue(p.Id, out var s3) ? s3.Count : 0,
@@ -77,20 +78,23 @@ public class PayeesController(
             !await db.Categories.AnyAsync(c => c.Id == dto.DefaultCategoryId.Value && c.UserId == userId))
             return BadRequest(new { message = "Category not found." });
 
+        // A payee created with the block flag already set can't also arrive
+        // with a default — same rule Update enforces (see there for why).
         var payee = new Payee
         {
-            UserId            = userId,
-            NameEncrypted     = encryption.Encrypt(dto.Name, user.EncryptedDataKey)!,
-            DefaultCategoryId = dto.DefaultCategoryId,
+            UserId                   = userId,
+            NameEncrypted            = encryption.Encrypt(dto.Name, user.EncryptedDataKey)!,
+            DefaultCategoryId        = dto.BlockAutoDefaultCategory ? null : dto.DefaultCategoryId,
+            BlockAutoDefaultCategory = dto.BlockAutoDefaultCategory,
         };
 
         db.Payees.Add(payee);
         await db.SaveChangesAsync();
 
-        await audit.LogAsync("CREATE", "Payee", payee.Id, new { defaultCategoryId = dto.DefaultCategoryId });
+        await audit.LogAsync("CREATE", "Payee", payee.Id, new { defaultCategoryId = payee.DefaultCategoryId, blockAutoDefaultCategory = payee.BlockAutoDefaultCategory });
 
         return CreatedAtAction(nameof(GetAll), new { },
-            new { id = payee.Id, name = dto.Name, payee.DefaultCategoryId });
+            new { id = payee.Id, name = dto.Name, payee.DefaultCategoryId, payee.BlockAutoDefaultCategory });
     }
 
     [HttpPut("{id}")]
@@ -116,13 +120,19 @@ public class PayeesController(
             return BadRequest(new { message = "Category not found." });
 
         payee.NameEncrypted     = encryption.Encrypt(dto.Name, user.EncryptedDataKey)!;
-        payee.DefaultCategoryId = dto.DefaultCategoryId;
+        // Blocking and having a default at the same time is a contradiction a
+        // user would immediately want undone — turning the block on clears
+        // whatever default (auto-set or manual) was already there, rather than
+        // leaving a stale suggestion in place that the block is supposedly
+        // preventing.
+        payee.DefaultCategoryId        = dto.BlockAutoDefaultCategory ? null : dto.DefaultCategoryId;
+        payee.BlockAutoDefaultCategory = dto.BlockAutoDefaultCategory;
 
         await db.SaveChangesAsync();
 
-        await audit.LogAsync("UPDATE", "Payee", id, new { defaultCategoryId = dto.DefaultCategoryId });
+        await audit.LogAsync("UPDATE", "Payee", id, new { defaultCategoryId = payee.DefaultCategoryId, blockAutoDefaultCategory = payee.BlockAutoDefaultCategory });
 
-        return Ok(new { id = payee.Id, name = dto.Name, payee.DefaultCategoryId });
+        return Ok(new { id = payee.Id, name = dto.Name, payee.DefaultCategoryId, payee.BlockAutoDefaultCategory });
     }
 
     [HttpDelete("{id}")]
@@ -143,4 +153,4 @@ public class PayeesController(
     }
 }
 
-public record PayeeDto(string Name, int? DefaultCategoryId);
+public record PayeeDto(string Name, int? DefaultCategoryId, bool BlockAutoDefaultCategory = false);

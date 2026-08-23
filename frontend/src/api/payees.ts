@@ -10,8 +10,10 @@ export const getPayees = () =>
 export const createPayee = (name: string, defaultCategoryId?: number) =>
   api.post<Payee>('/payees', { name, defaultCategoryId }).then(r => r.data);
 
-// Full PUT — both fields are required by the backend and always overwritten.
-export const updatePayee = (id: number, data: { name: string; defaultCategoryId: number | null }) =>
+// Full PUT — all three fields are required by the backend and always
+// overwritten. Setting blockAutoDefaultCategory true also clears
+// defaultCategoryId server-side, regardless of what's passed here.
+export const updatePayee = (id: number, data: { name: string; defaultCategoryId: number | null; blockAutoDefaultCategory?: boolean }) =>
   api.put<Payee>(`/payees/${id}`, data).then(r => r.data);
 
 export const deletePayee = (id: number) =>
