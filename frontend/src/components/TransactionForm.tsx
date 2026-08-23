@@ -542,21 +542,6 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
     setAmount(finalAmount.toFixed(2));
 
     try {
-      let resolvedPayeeId = payeeId;
-      if (payeeInput.trim() && !resolvedPayeeId) {
-        try {
-          const newPayee = await createPayee(payeeInput.trim());
-          resolvedPayeeId = newPayee.id;
-          setPayees(prev => [...prev, newPayee]);
-          setPayeeId(newPayee.id);
-        } catch (err) {
-          const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
-          setSaveError(msg ?? 'Failed to create payee.');
-          setSubmitting(false);
-          return;
-        }
-      }
-
       let resolvedCategoryId: number | undefined;
       let resolvedSplits: { categoryId?: number; amount: number; memo?: string }[] | undefined;
 
@@ -575,6 +560,25 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
         }
       } else {
         resolvedCategoryId = await resolveCategory(categoryInput, categories, setCategories);
+      }
+
+      // Resolved after category/splits so a brand-new payee's default
+      // category can be seeded from this transaction's category — only for
+      // a single (non-split, non-transfer) category, since a split has no
+      // one category to default to.
+      let resolvedPayeeId = payeeId;
+      if (payeeInput.trim() && !resolvedPayeeId) {
+        try {
+          const newPayee = await createPayee(payeeInput.trim(), isTransfer || isSplit ? undefined : resolvedCategoryId);
+          resolvedPayeeId = newPayee.id;
+          setPayees(prev => [...prev, newPayee]);
+          setPayeeId(newPayee.id);
+        } catch (err) {
+          const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+          setSaveError(msg ?? 'Failed to create payee.');
+          setSubmitting(false);
+          return;
+        }
       }
 
       await onSave({
