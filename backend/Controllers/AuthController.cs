@@ -27,6 +27,7 @@ public class AuthController(
     AppDbContext                    db,
     UrlEncoder                      urlEncoder,
     IAuditService                   audit,
+    VoidCategoryMigrationService    voidCategoryMigration,
     IConfiguration                  config) : ControllerBase
 {
     private bool IsDemoMode => config["DEMO_MODE"] == "true";
@@ -479,6 +480,11 @@ public class AuthController(
 
     private async Task<IActionResult> IssueTokensAsync(ApplicationUser user)
     {
+        // Runs once per user (see VoidCategoriesMigrated) — this is the one
+        // chokepoint every login path and silent token refresh funnels
+        // through, so it fires "next time the app loads" for free.
+        await voidCategoryMigration.RunIfNeededAsync(user);
+
         var roles      = await userManager.GetRolesAsync(user);
         var role       = roles.Contains(Roles.Admin) ? Roles.Admin : Roles.Standard;
         var rememberMe = HttpContext.Session.GetString("rememberMe") == "1";

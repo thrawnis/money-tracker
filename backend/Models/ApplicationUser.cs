@@ -28,6 +28,13 @@ public class ApplicationUser : IdentityUser
     // (that one only controls the register's preview window).
     public int? AutoCreateFutureDays { get; set; }
 
+    // One-time cleanup, run on first login/refresh after the Void feature
+    // shipped: transactions whose category was literally named "VOID ..."
+    // (bank exports use that as a category placeholder for voided/reversed
+    // transactions) get converted to real voided transactions instead.
+    // See VoidCategoryMigrationService.
+    public bool VoidCategoriesMigrated { get; set; } = false;
+
     public ICollection<RefreshToken> RefreshTokens { get; set; } = [];
     public ICollection<UserPasskeyCredential> PasskeyCredentials { get; set; } = [];
 }

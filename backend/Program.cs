@@ -166,6 +166,7 @@ builder.Services.AddSingleton<IEncryptionService, EncryptionService>();
 builder.Services.AddSingleton(UrlEncoder.Default);
 builder.Services.AddScoped<ExportService>();
 builder.Services.AddScoped<DemoSeeder>();
+builder.Services.AddScoped<VoidCategoryMigrationService>();
 builder.Services.AddSingleton<IAccountBackupService, AccountBackupService>();
 // Registered as itself (not just IHostedService) so controllers can inject it
 // directly to trigger an immediate posting pass right after a schedule is
