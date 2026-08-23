@@ -5,7 +5,7 @@ import { AuthContext } from './auth-context';
 import type { AuthUser } from '../types/auth';
 
 
-function parseJwt(token: string): { sub: string; email: string; role: string } | null {
+function parseJwt(token: string): { sub: string; email: string; role: string; tz?: string } | null {
   try {
     const payload = token.split('.')[1];
     return JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')));
@@ -33,6 +33,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         id: payload.sub,
         email: payload.email,
         role: payload.role as 'Admin' | 'Standard',
+        timeZoneId: payload.tz,
       });
     }
   }, []);

@@ -3,6 +3,9 @@ export interface TokenResponse {
   accessTokenExpiry: string;
   role: 'Admin' | 'Standard';
   mfaEnrolled: boolean;
+  /** True for accounts predating the timezone requirement — the app holds them
+   *  at a mandatory picker, and the API refuses everything else meanwhile. */
+  requiresTimeZone?: boolean;
 }
 
 // /auth/login either asks for a second factor, or — when MFA is bypassed, as
@@ -15,6 +18,7 @@ export interface LoginStepOneResponse {
   accessTokenExpiry?: string;
   role?: 'Admin' | 'Standard';
   mfaEnrolled?: boolean;
+  requiresTimeZone?: boolean;
 }
 
 export interface TotpSetupResponse {
@@ -26,4 +30,7 @@ export interface AuthUser {
   id: string;
   email: string;
   role: 'Admin' | 'Standard';
+  /** IANA id from the token's "tz" claim. Absent on accounts that predate the
+   *  timezone requirement — those are held at the mandatory picker. */
+  timeZoneId?: string;
 }

@@ -275,15 +275,15 @@ namespace MoneyTracker.Migrations
                     b.Property<string>("SecurityStamp")
                         .HasColumnType("text");
 
+                    b.Property<string>("TimeZoneId")
+                        .HasColumnType("text");
+
                     b.Property<bool>("TwoFactorEnabled")
                         .HasColumnType("boolean");
 
                     b.Property<string>("UserName")
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
-
-                    b.Property<string>("TimeZoneId")
-                        .HasColumnType("text");
 
                     b.Property<bool>("VoidCategoriesMigrated")
                         .HasColumnType("boolean");

@@ -1,4 +1,5 @@
 import api from './client';
+import type { TokenResponse } from '../types/auth';
 
 export interface Preferences {
   defaultRegisterSortBy?: string | null;
@@ -22,6 +23,11 @@ export interface TimeZoneOption {
 
 export const getTimeZones = (): Promise<TimeZoneOption[]> =>
   api.get('/preferences/timezones').then(r => r.data);
+
+// Sets only the timezone and returns a fresh access token carrying the updated
+// "tz" claim — the one write allowed while the mandatory-timezone gate is up.
+export const setTimeZone = (timeZoneId: string): Promise<TokenResponse> =>
+  api.put('/preferences/timezone', { timeZoneId }).then(r => r.data);
 
 export const getPreferences = (): Promise<Preferences> =>
   api.get('/preferences').then(r => r.data);

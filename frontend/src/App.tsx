@@ -18,12 +18,18 @@ import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
 import SetupTotp from './pages/auth/SetupTotp';
 import TotpVerify from './pages/auth/TotpVerify';
+import RequireTimeZone from './pages/auth/RequireTimeZone';
 
 // Combined auth guard + layout — useAuth is available because AuthProvider wraps RouterProvider
 function AppShell() {
   const { user, loading, logout } = useAuth();
   if (loading) return <div style={{ padding: 40, textAlign: 'center' }}>Loading…</div>;
   if (!user) return <Navigate to="/auth/login" replace />;
+  // Accounts predating the timezone requirement are held here before anything
+  // else renders. Deliberately not a route — there'd be a URL around it — and
+  // deliberately not the only enforcement: the API returns 428 for these users
+  // regardless of what the client does (see RequireTimeZoneFilter).
+  if (!user.timeZoneId) return <RequireTimeZone />;
   return <Layout onLogout={logout} />;
 }
 

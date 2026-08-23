@@ -55,6 +55,10 @@ public class DemoSeeder(
             Email            = DemoEmail,
             EncryptedDataKey = encryption.GenerateEncryptedDek(),
             MfaEnrolled      = true,   // skip MFA setup redirect; login bypasses challenge
+            // Seeded so "Try Demo" lands straight in the app instead of on the
+            // mandatory timezone picker. The demo data is authored around US
+            // dates, so Eastern is the honest match.
+            TimeZoneId       = "America/New_York",
         };
         var result = await userManager.CreateAsync(user, DemoPassword);
         if (!result.Succeeded)

@@ -47,6 +47,17 @@ api.interceptors.response.use(undefined, async (error: AxiosError) => {
       }
     }
   }
+  // 428: the API is holding this user at the mandatory timezone picker. It
+  // normally can't happen — AppShell reads the same "tz" claim and shows the
+  // picker before any of this renders — but a tab left open across the deploy
+  // that introduced the requirement would otherwise sit there failing every
+  // call with an unexplained error. Reloading re-runs the silent refresh and
+  // lands on the picker (or straight into the app, if another tab already
+  // answered it).
+  if (error.response?.status === 428) {
+    window.location.reload();
+  }
+
   return Promise.reject(error);
 });
 

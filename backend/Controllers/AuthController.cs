@@ -17,6 +17,10 @@ namespace MoneyTracker.Controllers;
 [ApiController]
 [Route("api/auth")]
 [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("auth")]
+// Signing out, refreshing, and managing your second factor must keep working
+// even while the timezone gate is up — otherwise a user with no timezone set
+// couldn't even log out of the screen holding them there.
+[AllowWithoutTimeZone]
 public class AuthController(
     UserManager<ApplicationUser>    userManager,
     SignInManager<ApplicationUser>  signInManager,
@@ -43,11 +47,17 @@ public class AuthController(
         if (await userManager.FindByEmailAsync(request.Email) is not null)
             return Conflict("An account with this email already exists.");
 
+        // Required at sign-up so no account is ever created without one — the
+        // whole app's notion of "today" depends on it.
+        if (string.IsNullOrWhiteSpace(request.TimeZoneId) || !UserClock.IsValidTimeZone(request.TimeZoneId))
+            return BadRequest(new { message = "A valid time zone is required." });
+
         var user = new ApplicationUser
         {
             UserName         = request.Email,
             Email            = request.Email,
             EncryptedDataKey = encryption.GenerateEncryptedDek(),
+            TimeZoneId       = request.TimeZoneId,
         };
 
         var result = await userManager.CreateAsync(user, request.Password);
@@ -445,7 +455,8 @@ public class AuthController(
         await db.SaveChangesAsync();
 
         SetRefreshCookie(newRefresh, wasRememberMe ? newExpiry : null);
-        return Ok(new TokenResponse(accessToken, expiry, role, stored.User.MfaEnrolled));
+        return Ok(new TokenResponse(accessToken, expiry, role, stored.User.MfaEnrolled,
+            RequiresTimeZone: string.IsNullOrWhiteSpace(stored.User.TimeZoneId)));
     }
 
     // ── Change Password ───────────────────────────────────────────────────────
@@ -567,7 +578,8 @@ public class AuthController(
         SetRefreshCookie(refreshToken, rememberMe ? refreshExpiry : null);
         HttpContext.Session.Remove("mfaUserId");
         await audit.LogAsync("LOGIN", details: new { email = user.Email, method = "password" });
-        return Ok(new TokenResponse(accessToken, expiry, role, user.MfaEnrolled));
+        return Ok(new TokenResponse(accessToken, expiry, role, user.MfaEnrolled,
+            RequiresTimeZone: string.IsNullOrWhiteSpace(user.TimeZoneId)));
     }
 
     private void SetRefreshCookie(string token, DateTime? expires)

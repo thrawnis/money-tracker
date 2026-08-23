@@ -19,13 +19,19 @@ public class JwtService(IConfiguration config)
     {
         var expiry = DateTime.UtcNow.AddMinutes(_expiryMin);
 
-        var claims = new[]
+        // "tz" carries the user's IANA timezone id. RequireTimeZoneFilter reads
+        // it to gate every authenticated request without a DB round trip, and
+        // the client reads it to decide whether to show the mandatory picker.
+        // Absent for accounts predating the timezone requirement.
+        var claims = new List<Claim>
         {
-            new Claim(JwtRegisteredClaimNames.Sub,   user.Id),
-            new Claim(JwtRegisteredClaimNames.Email, user.Email!),
-            new Claim(JwtRegisteredClaimNames.Jti,   Guid.NewGuid().ToString()),
-            new Claim(ClaimTypes.Role, role),
+            new(JwtRegisteredClaimNames.Sub,   user.Id),
+            new(JwtRegisteredClaimNames.Email, user.Email!),
+            new(JwtRegisteredClaimNames.Jti,   Guid.NewGuid().ToString()),
+            new(ClaimTypes.Role, role),
         };
+        if (!string.IsNullOrWhiteSpace(user.TimeZoneId))
+            claims.Add(new Claim(MoneyTracker.Auth.RequireTimeZoneFilter.TimeZoneClaim, user.TimeZoneId));
 
         var key   = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_key));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);

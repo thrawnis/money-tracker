@@ -1,8 +1,8 @@
 import api from './client';
 import type { TokenResponse, LoginStepOneResponse } from '../types/auth';
 
-export const register = (email: string, password: string) =>
-  api.post<{ userId: string; requiresMfaSetup: true }>('/auth/register', { email, password }).then(r => r.data);
+export const register = (email: string, password: string, timeZoneId: string) =>
+  api.post<{ userId: string; requiresMfaSetup: true }>('/auth/register', { email, password, timeZoneId }).then(r => r.data);
 
 export const login = (email: string, password: string, rememberMe = false) =>
   api.post<LoginStepOneResponse>('/auth/login', { email, password, rememberMe }).then(r => r.data);

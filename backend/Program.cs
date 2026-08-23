@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using MoneyTracker.Auth;
 using MoneyTracker.Auth.Services;
 using MoneyTracker.Data;
 using MoneyTracker.Export;
@@ -178,7 +179,11 @@ builder.Services.AddHostedService(sp => sp.GetRequiredService<ScheduledTransacti
 
 builder.Services.AddHttpClient();
 
-builder.Services.AddControllers()
+builder.Services.AddControllers(o =>
+    {
+        // Fails closed for users with no timezone set — see RequireTimeZoneFilter.
+        o.Filters.Add<MoneyTracker.Auth.RequireTimeZoneFilter>();
+    })
     .AddJsonOptions(o =>
         o.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter()));
 builder.Services.AddEndpointsApiExplorer();

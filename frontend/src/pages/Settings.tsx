@@ -15,7 +15,8 @@ import {
 import { getAuditLog, type AuditEntry, type GetAuditParams } from '../api/audit';
 import { getAccounts } from '../api/accounts';
 import { listAccountBackups, downloadAccountBackup, type AccountBackupSummary } from '../api/accountBackups';
-import { getPreferences, updatePreferences, getTimeZones, type TimeZoneOption } from '../api/preferences';
+import { getPreferences, updatePreferences } from '../api/preferences';
+import TimeZoneSelect from '../components/TimeZoneSelect';
 import type { Account } from '../types';
 import ExportModal from '../components/ExportModal';
 import ReauthModal from '../components/ReauthModal';
@@ -197,7 +198,6 @@ function PreferencesTab() {
   const [autoCreate, setAutoCreate] = useState(false);
   const [autoCreateDays, setAutoCreateDays] = useState(String(DEFAULT_FUTURE_DAYS));
   const [timeZoneId, setTimeZoneId] = useState('');
-  const [timeZones, setTimeZones] = useState<TimeZoneOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -217,9 +217,6 @@ function PreferencesTab() {
       .finally(() => setLoading(false));
   }, []);
 
-  useEffect(() => {
-    getTimeZones().then(setTimeZones).catch(() => { /* falls back to UTC-only */ });
-  }, []);
 
   const handleSave = async () => {
     const days = Math.max(1, Math.min(3650, Number(futureDays) || DEFAULT_FUTURE_DAYS));
@@ -257,14 +254,15 @@ function PreferencesTab() {
         defaultFutureDays: null,
         autoCreateFutureTransactions: false,
         autoCreateFutureDays: null,
-        timeZoneId: null,
+        // Deliberately preserved: a timezone is required, so resetting it to
+        // null would drop the user back onto the mandatory picker.
+        timeZoneId: timeZoneId || null,
       });
       setSortBy('date');
       setSortDir('desc');
       setFutureDays(String(DEFAULT_FUTURE_DAYS));
       setAutoCreate(false);
       setAutoCreateDays(String(DEFAULT_FUTURE_DAYS));
-      setTimeZoneId('');
       setSaved(true);
     } catch {
       setError('Failed to reset preferences.');
@@ -316,14 +314,10 @@ function PreferencesTab() {
         </p>
         <div>
           <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 4 }}>Time zone</label>
-          <select
+          <TimeZoneSelect
             value={timeZoneId}
-            onChange={e => { setTimeZoneId(e.target.value); setSaved(false); }}
-            style={{ maxWidth: 380 }}
-          >
-            <option value="">UTC (default)</option>
-            {timeZones.map(tz => <option key={tz.id} value={tz.id}>{tz.id} — {tz.displayName}</option>)}
-          </select>
+            onChange={id => { setTimeZoneId(id); setSaved(false); }}
+          />
         </div>
       </div>
 

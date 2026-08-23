@@ -1,6 +1,8 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import * as authApi from '../../api/auth';
+import TimeZoneSelect from '../../components/TimeZoneSelect';
+import { detectTimeZone } from '../../utils/timezone';
 import styles from './Login.module.css';
 
 export default function Register() {
@@ -8,6 +10,8 @@ export default function Register() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
+  // Preselected from the browser so the common case is already correct.
+  const [timeZoneId, setTimeZoneId] = useState(detectTimeZone());
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [globalError, setGlobalError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -23,6 +27,7 @@ export default function Register() {
     else if (!/[^A-Za-z0-9]/.test(password)) e.password = 'Password must contain a special character';
     if (!confirm) e.confirm = 'Please confirm your password';
     else if (confirm !== password) e.confirm = 'Passwords do not match';
+    if (!timeZoneId) e.timeZoneId = 'Time zone is required';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -33,7 +38,7 @@ export default function Register() {
     setGlobalError('');
     setSubmitting(true);
     try {
-      const res = await authApi.register(email, password);
+      const res = await authApi.register(email, password, timeZoneId);
       // Store userId so the TOTP setup page can use it
       sessionStorage.setItem('mfa_setup_user_id', res.userId);
       navigate('/auth/setup-totp');
@@ -101,6 +106,19 @@ export default function Register() {
               autoComplete="new-password"
             />
             {errors.confirm && <div className={styles.error}>{errors.confirm}</div>}
+          </div>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="timeZoneId">Time zone</label>
+            <TimeZoneSelect
+              id="timeZoneId"
+              className={styles.input}
+              value={timeZoneId}
+              onChange={setTimeZoneId}
+            />
+            <div style={{ fontSize: 11, color: '#666', marginTop: 4 }}>
+              Sets what counts as "today" for balances, reports, and scheduled bills.
+            </div>
+            {errors.timeZoneId && <div className={styles.error}>{errors.timeZoneId}</div>}
           </div>
           <button type="submit" className={styles.btn} disabled={submitting}>
             {submitting ? 'Registering…' : 'Create Account'}
