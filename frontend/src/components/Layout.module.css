@@ -107,15 +107,6 @@
   background: rgba(0,0,0,0.1);
 }
 
-.userEmail {
-  font-size: 11px;
-  color: rgba(200,223,240,0.6);
-  margin-bottom: 8px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .logoutBtn {
   width: 100%;
   padding: 6px 0;

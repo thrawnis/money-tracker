@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
 import ImportDraftBanner from './ImportDraftBanner';
 import KeyboardShortcutsModal from './KeyboardShortcutsModal';
 import styles from './Layout.module.css';
@@ -10,7 +9,6 @@ interface Props {
 }
 
 export default function Layout({ onLogout }: Props) {
-  const { user } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
 
@@ -79,7 +77,6 @@ export default function Layout({ onLogout }: Props) {
         </section>
 
         <div className={styles.sidebarFooter}>
-          {user && <div className={styles.userEmail}>{user.email}</div>}
           <button
             className={styles.shortcutsBtn}
             onClick={() => { setShowShortcuts(true); closeSidebar(); }}
