@@ -81,6 +81,16 @@ async function resolveCategory(
   }
 }
 
+// Mirrors resolveCategory's exact-match check (without the create side
+// effects) so the submit handler can tell, before touching the API, whether
+// a typed category label would create something new and needs confirming.
+function categoryWouldCreateNew(input: string, categories: Category[]): boolean {
+  const trimmed = input.trim();
+  if (!trimmed) return false;
+  const flat = flattenCategories(categories);
+  return !flat.some(c => c.label.toLowerCase() === trimmed.toLowerCase());
+}
+
 const PLAIN_NUMBER_RE = /^-?\d*\.?\d+$/;
 
 type EvalResult = { ok: true; value: number } | { ok: false; position: number; message: string };
@@ -533,6 +543,21 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
+
+    // Confirm before silently creating any category implied by free-typed
+    // text — applies to both the single-category field and split rows.
+    if (!isTransfer) {
+      const typedLabels = isSplit ? splitRows.map(r => r.categoryInput) : [categoryInput];
+      const newLabels = [...new Set(
+        typedLabels.map(l => l.trim()).filter(l => l && categoryWouldCreateNew(l, categories))
+      )];
+      if (newLabels.length > 0) {
+        const noun = newLabels.length > 1 ? 'categories' : 'category';
+        const list = newLabels.map(l => `"${l}"`).join(', ');
+        if (!confirm(`Create new ${noun}: ${list}?`)) return;
+      }
+    }
+
     setSubmitting(true);
     setSaveError('');
 
