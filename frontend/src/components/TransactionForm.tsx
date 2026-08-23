@@ -17,7 +17,7 @@ interface Props {
   initial?: Partial<Transaction>;
   initialPayeeName?: string;
   initialCategoryLabel?: string;
-  onSave: (data: Omit<Transaction, 'id' | 'accountId' | 'createdAt' | 'updatedAt' | 'splits'> & { targetAccountId?: number; transferDestAccountId?: number; splits?: SplitInput[] }) => Promise<void>;
+  onSave: (data: Omit<Transaction, 'id' | 'accountId' | 'createdAt' | 'updatedAt' | 'splits' | 'isVoided'> & { targetAccountId?: number; transferDestAccountId?: number; splits?: SplitInput[] }) => Promise<void>;
   onCancel: () => void;
   onDirtyChange?: (dirty: boolean) => void;
 }

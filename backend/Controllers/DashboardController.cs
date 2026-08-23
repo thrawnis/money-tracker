@@ -40,7 +40,7 @@ public class DashboardController(
         // transactions, matching AccountsController and the register header
         var balanceCutoff = DateOnly.FromDateTime(DateTime.UtcNow);
         var transactionSums = await db.Transactions
-            .Where(t => t.Account.UserId == userId && (t.PostDate ?? t.Date) <= balanceCutoff)
+            .Where(t => t.Account.UserId == userId && (t.PostDate ?? t.Date) <= balanceCutoff && !t.IsVoided)
             .GroupBy(t => t.AccountId)
             .Select(g => new { AccountId = g.Key, Sum = g.Sum(t => t.Amount) })
             .ToListAsync();

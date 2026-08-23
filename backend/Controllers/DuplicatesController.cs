@@ -82,7 +82,7 @@ public class DuplicatesController(
             return NotFound();
 
         var candidates = await db.Transactions
-            .Where(t => accounts.Keys.Contains(t.AccountId) && t.TransferTransactionId == null)
+            .Where(t => accounts.Keys.Contains(t.AccountId) && t.TransferTransactionId == null && !t.IsVoided)
             .Include(t => t.Payee)
             .Include(t => t.Category)
             .ToListAsync();

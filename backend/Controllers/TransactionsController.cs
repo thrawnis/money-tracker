@@ -86,6 +86,7 @@ public class TransactionsController(
         memo                  = encryption.Decrypt(tx.MemoEncrypted, dek),
         amount                = tx.Amount,
         status                = tx.Status,
+        isVoided              = tx.IsVoided,
         transferTransactionId = tx.TransferTransactionId,
         transferAccountId     = tx.TransferAccountId,
         scheduledTransactionId = tx.ScheduledTransactionId,
@@ -224,10 +225,13 @@ public class TransactionsController(
             .Select(a => a.OpeningBalance)
             .FirstAsync();
 
+        // Voided rows still get a row here (and stay visible in the register)
+        // but contribute 0 to the running sum — they're excluded "as if they
+        // never happened" rather than being dropped from the query entirely.
         var balanceRows = await db.Database.SqlQuery<BalanceRow>($"""
             SELECT
                 t."Id" AS "Id",
-                a."OpeningBalance" + SUM(t."Amount") OVER (
+                a."OpeningBalance" + SUM(CASE WHEN t."IsVoided" THEN 0 ELSE t."Amount" END) OVER (
                     ORDER BY COALESCE(t."PostDate", t."Date"), t."CreatedAt", t."Id"
                     ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
                 ) AS "RunningBalance",
@@ -482,6 +486,44 @@ public class TransactionsController(
         return NoContent();
     }
 
+    /// <summary>
+    /// Void/un-void — keeps the row in the register but excludes it from the
+    /// running balance, Reports, duplicate detection, and search. Independent
+    /// of Status: un-voiding restores whatever Cleared/Reconciled state the
+    /// row already had. A transfer's other leg is toggled to match, the same
+    /// way Delete removes both sides — leaving one leg voided and the other
+    /// not would make money vanish from one account and appear from nowhere
+    /// in the other.
+    /// </summary>
+    [HttpPatch("{id}/void")]
+    public async Task<IActionResult> UpdateVoided(int accountId, int id, VoidDto dto)
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+        if (!await AccountBelongsToUser(accountId, userId)) return NotFound();
+
+        var tx = await db.Transactions.FirstOrDefaultAsync(t => t.Id == id && t.AccountId == accountId);
+        if (tx is null) return NotFound();
+
+        tx.IsVoided  = dto.IsVoided;
+        tx.UpdatedAt = DateTime.UtcNow;
+
+        if (tx.TransferTransactionId.HasValue)
+        {
+            var linked = await db.Transactions.FindAsync(tx.TransferTransactionId.Value);
+            if (linked is not null)
+            {
+                linked.IsVoided  = dto.IsVoided;
+                linked.UpdatedAt = DateTime.UtcNow;
+            }
+        }
+
+        await db.SaveChangesAsync();
+
+        await audit.LogAsync("UPDATE", "Transaction", id, new { accountId, isVoided = dto.IsVoided });
+        return NoContent();
+    }
+
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(int accountId, int id)
     {
@@ -560,6 +602,7 @@ public record TransactionDto(
 
 public record SplitDto(int? CategoryId, decimal Amount, string? Memo);
 public record StatusDto(TransactionStatus Status);
+public record VoidDto(bool IsVoided);
 
 // Keyless projection for the running-balance window-function query — has no
 // corresponding entity/table, only used with Database.SqlQuery<BalanceRow>.

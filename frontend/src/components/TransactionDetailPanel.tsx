@@ -64,7 +64,7 @@ export default function TransactionDetailPanel({ accountId, transactionId, accou
     return () => document.removeEventListener('keydown', onKey);
   }, [onClose, formDirty]);
 
-  const handleSave = async (data: Omit<Transaction, 'id' | 'accountId' | 'createdAt' | 'updatedAt' | 'splits'> & { targetAccountId?: number; transferDestAccountId?: number; splits?: SplitInput[] }) => {
+  const handleSave = async (data: Omit<Transaction, 'id' | 'accountId' | 'createdAt' | 'updatedAt' | 'splits' | 'isVoided'> & { targetAccountId?: number; transferDestAccountId?: number; splits?: SplitInput[] }) => {
     if (tx && (tx.status === 'Cleared' || tx.status === 'Reconciled')) {
       const proceed = confirm(
         `This transaction is marked ${tx.status}. Editing it may affect your reconciled balance. Save changes anyway?`
@@ -181,7 +181,7 @@ export default function TransactionDetailPanel({ accountId, transactionId, accou
 
               <div className={styles.field}>
                 <span className={styles.label}>Status</span>
-                <span>{tx.status}</span>
+                <span>{tx.status}{tx.isVoided ? ' (Voided)' : ''}</span>
               </div>
 
               <div className={styles.field}>

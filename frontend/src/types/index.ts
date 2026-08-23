@@ -52,6 +52,9 @@ export interface Transaction {
   memo?: string;
   amount: number;
   status: TransactionStatus;
+  // Voided: stays in the register (dimmed) but is excluded from the running
+  // balance, Reports, duplicate detection, and search.
+  isVoided: boolean;
   transferTransactionId?: number;
   transferAccountId?: number;
   // Set when this transaction was materialized from a recurring schedule

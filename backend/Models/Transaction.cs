@@ -41,6 +41,13 @@ public class Transaction
 
     public TransactionStatus Status { get; set; } = TransactionStatus.Uncleared;
 
+    // Void keeps the row in the register (dimmed, for audit trail) without
+    // deleting it, but excludes it from the running/current balance, Reports,
+    // duplicate detection, and search — as if it never happened financially.
+    // Independent of Status/reconciliation state so un-voiding restores
+    // whatever Cleared/Reconciled state it had before.
+    public bool IsVoided { get; set; } = false;
+
     // For transfer transactions, points to the matching transaction in another account
     public int? TransferTransactionId { get; set; }
     public int? TransferAccountId { get; set; }

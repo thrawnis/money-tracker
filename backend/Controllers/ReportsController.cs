@@ -44,7 +44,7 @@ public class ReportsController(
         var dateFrom = new DateOnly(fromYear ?? today.AddMonths(-5).Year, fromMonth ?? today.AddMonths(-5).Month, 1);
 
         var query = db.Transactions
-            .Where(t => t.Account.UserId == userId)
+            .Where(t => t.Account.UserId == userId && !t.IsVoided)
             .Where(t => t.Date >= dateFrom && t.Date <= dateTo)
             .Include(t => t.Category)
             .Include(t => t.Splits).ThenInclude(s => s.Category)
@@ -134,7 +134,7 @@ public class ReportsController(
         var dateTo   = to   ?? today;
 
         var query = db.Transactions
-            .Where(t => t.Account.UserId == userId)
+            .Where(t => t.Account.UserId == userId && !t.IsVoided)
             .Where(t => t.Date >= dateFrom && t.Date <= dateTo)
             .Include(t => t.Payee)
             .Include(t => t.Account)

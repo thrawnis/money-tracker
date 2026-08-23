@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { getAccount, getAccounts } from '../api/accounts';
 import { useDeleteAccountFlow } from '../hooks/useDeleteAccountFlow';
-import { getTransactions, createTransaction, updateTransaction, updateTransactionStatus, deleteTransaction, createTransfer } from '../api/transactions';
+import { getTransactions, createTransaction, updateTransaction, updateTransactionStatus, updateTransactionVoided, deleteTransaction, createTransfer } from '../api/transactions';
 import { getUpcoming } from '../api/scheduledTransactions';
 import { getPreferences } from '../api/preferences';
 import { getCategories } from '../api/categories';
@@ -669,7 +669,7 @@ export default function AccountRegister() {
   // server-side over the full history, so in-place list edits would show
   // stale balances on every other row.
 
-  const handleSaveTx = async (data: Omit<Transaction, 'id' | 'accountId' | 'createdAt' | 'updatedAt' | 'splits'> & { targetAccountId?: number; transferDestAccountId?: number; splits?: SplitInput[] }) => {
+  const handleSaveTx = async (data: Omit<Transaction, 'id' | 'accountId' | 'createdAt' | 'updatedAt' | 'splits' | 'isVoided'> & { targetAccountId?: number; transferDestAccountId?: number; splits?: SplitInput[] }) => {
     if (editingTx && (editingTx.status === 'Cleared' || editingTx.status === 'Reconciled')) {
       const proceed = confirm(
         `This transaction is marked ${editingTx.status}. Editing it may affect your reconciled balance. Save changes anyway?`
@@ -753,6 +753,25 @@ export default function AccountRegister() {
     }
   };
 
+  const handleToggleVoid = async (tx: Transaction) => {
+    const next = !tx.isVoided;
+    if (next) {
+      const msg = tx.transferTransactionId
+        ? 'Void this transfer? Both linked transactions will be voided — the row stays visible in both registers, but no longer counts toward either balance.'
+        : 'Void this transaction? It stays in the register but is excluded from the balance, Reports, and duplicate detection.';
+      if (!confirm(msg)) return;
+    }
+    try {
+      await updateTransactionVoided(accountId, tx.id, next);
+      // Voiding changes the running balance of every row after it, not just
+      // this one — an optimistic single-row patch would leave the rest stale.
+      await reloadLoadedPages();
+    } catch (err) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setError(msg ?? 'Failed to update transaction.');
+    }
+  };
+
   const handleReceiptConfirm = (data: ExtractedReceipt) => {
     if (!confirmDiscardIfDirty()) return;
     setShowScanner(false);
@@ -823,11 +842,12 @@ export default function AccountRegister() {
     <tr
       key={tx.id}
       ref={el => { if (el) rowRefs.current.set(tx.id, el); else rowRefs.current.delete(tx.id); }}
-      className={`${styles.txRow} ${styles.txRowClickable} ${(tx.postDate ?? tx.date) > today ? styles.txRowFuture : ''} ${highlightTxId === tx.id ? styles.txRowHighlight : ''} ${editingTx?.id === tx.id ? styles.txRowSelected : ''}`}
+      className={`${styles.txRow} ${styles.txRowClickable} ${(tx.postDate ?? tx.date) > today ? styles.txRowFuture : ''} ${highlightTxId === tx.id ? styles.txRowHighlight : ''} ${editingTx?.id === tx.id ? styles.txRowSelected : ''} ${tx.isVoided ? styles.txRowVoided : ''}`}
       onClick={() => handleEdit(tx)}
       onContextMenu={e => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, tx }); }}
     >
       <td>
+        {tx.isVoided && <span className={styles.voidBadge} title="Voided — excluded from the balance">VOID</span>}
         {tx.scheduledTransactionId != null && (
           <span className={styles.recurringIcon} title="Created from a recurring schedule">↻</span>
         )}
@@ -894,6 +914,12 @@ export default function AccountRegister() {
                 onClick={e => { e.stopPropagation(); setOpenMenuId(null); goToBillsPrefilled(tx); }}
               >
                 Make Recurring…
+              </button>
+              <button
+                className={styles.dropdownGoto}
+                onClick={e => { e.stopPropagation(); setOpenMenuId(null); handleToggleVoid(tx); }}
+              >
+                {tx.isVoided ? 'Un-void' : 'Void…'}
               </button>
               <button className={styles.dropdownDelete} onClick={e => { e.stopPropagation(); setOpenMenuId(null); handleDelete(tx.id); }}>Delete</button>
             </div>
@@ -1310,6 +1336,12 @@ export default function AccountRegister() {
             onClick={() => { const tx = contextMenu.tx; setContextMenu(null); goToBillsPrefilled(tx); }}
           >
             Make Recurring…
+          </button>
+          <button
+            className={styles.dropdownGoto}
+            onClick={() => { const tx = contextMenu.tx; setContextMenu(null); handleToggleVoid(tx); }}
+          >
+            {contextMenu.tx.isVoided ? 'Un-void' : 'Void…'}
           </button>
           <button className={styles.dropdownDelete} onClick={() => { const id = contextMenu.tx.id; setContextMenu(null); handleDelete(id); }}>Delete</button>
         </div>

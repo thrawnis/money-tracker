@@ -453,6 +453,24 @@
 .txRowFuture td { color: #66707d; }
 .txRowFuture .debit, .txRowFuture .credit { color: inherit; }
 
+/* Voided: still in the register (audit trail), just visually inert and
+   excluded from the running balance. */
+.txRowVoided td { opacity: 0.5; text-decoration: line-through; }
+.txRowVoided .debit, .txRowVoided .credit { color: inherit; }
+
+.voidBadge {
+  display: inline-block;
+  background: #c0392b;
+  color: #fff;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  border-radius: 2px;
+  padding: 1px 4px;
+  margin-right: 4px;
+  text-decoration: none;
+}
+
 .futureTxRow td {
   opacity: 0.8;
   font-style: italic;

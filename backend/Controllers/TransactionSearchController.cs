@@ -46,7 +46,7 @@ public class TransactionSearchController(
         var dek = user.EncryptedDataKey;
 
         var query = db.Transactions
-            .Where(t => t.Account.UserId == userId)
+            .Where(t => t.Account.UserId == userId && !t.IsVoided)
             .Include(t => t.Payee)
             .Include(t => t.Category)
             .Include(t => t.Account)

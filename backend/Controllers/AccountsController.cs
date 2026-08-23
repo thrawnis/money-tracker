@@ -57,7 +57,7 @@ public class AccountsController(
         // Effective date (PostDate ?? Date) <= today — same as-of-today rule the
         // register header uses, so the two balances always agree.
         var txSums = await db.Transactions
-            .Where(t => accountIds.Contains(t.AccountId) && (t.PostDate ?? t.Date) <= today)
+            .Where(t => accountIds.Contains(t.AccountId) && (t.PostDate ?? t.Date) <= today && !t.IsVoided)
             .GroupBy(t => t.AccountId)
             .Select(g => new { AccountId = g.Key, Sum = g.Sum(t => t.Amount) })
             .ToDictionaryAsync(x => x.AccountId, x => x.Sum);
