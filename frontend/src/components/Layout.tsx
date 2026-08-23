@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import ImportDraftBanner from './ImportDraftBanner';
+import KeyboardShortcutsModal from './KeyboardShortcutsModal';
 import styles from './Layout.module.css';
 
 interface Props {
@@ -11,8 +12,24 @@ interface Props {
 export default function Layout({ onLogout }: Props) {
   const { user } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
 
   const closeSidebar = () => setSidebarOpen(false);
+
+  // "?" opens the shortcuts list from anywhere, except while typing in a
+  // field (where Shift+/ should just type a literal "?") or another modal
+  // that has its own key handling is already open.
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== '?') return;
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      e.preventDefault();
+      setShowShortcuts(true);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
 
   const navItem = ({ isActive }: { isActive: boolean }) =>
     `${styles.navItem} ${isActive ? styles.navItemActive : ''}`;
@@ -63,6 +80,12 @@ export default function Layout({ onLogout }: Props) {
 
         <div className={styles.sidebarFooter}>
           {user && <div className={styles.userEmail}>{user.email}</div>}
+          <button
+            className={styles.shortcutsBtn}
+            onClick={() => { setShowShortcuts(true); closeSidebar(); }}
+          >
+            Keyboard Shortcuts
+          </button>
           <button className={styles.logoutBtn} onClick={onLogout}>
             Sign Out
           </button>
@@ -73,6 +96,8 @@ export default function Layout({ onLogout }: Props) {
         <ImportDraftBanner />
         <Outlet />
       </main>
+
+      {showShortcuts && <KeyboardShortcutsModal onClose={() => setShowShortcuts(false)} />}
     </div>
   );
 }

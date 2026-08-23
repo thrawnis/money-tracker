@@ -134,6 +134,23 @@
   border-color: rgba(255,255,255,0.4);
 }
 
+.shortcutsBtn {
+  width: 100%;
+  padding: 6px 0;
+  margin-bottom: 8px;
+  background: transparent;
+  border: none;
+  color: rgba(200,223,240,0.6);
+  font-size: 11px;
+  text-decoration: underline;
+  cursor: pointer;
+  transition: color var(--transition);
+}
+
+.shortcutsBtn:hover {
+  color: #fff;
+}
+
 /* ── Main content ──────────────────────────────────────────────────────────── */
 
 .content {
