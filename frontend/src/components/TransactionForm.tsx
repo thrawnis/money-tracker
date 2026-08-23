@@ -749,17 +749,6 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
         )}
 
         <div className={styles.field}>
-          <label className={styles.label}>Memo</label>
-          <input
-            type="text"
-            className={styles.input}
-            value={memo}
-            onChange={e => setMemo(e.target.value)}
-            tabIndex={4}
-          />
-        </div>
-
-        <div className={styles.field}>
           <label className={styles.label}>Amount</label>
           {!isTransfer && (
             <div className={styles.amountModeToggle}>
@@ -782,10 +771,21 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
           <AmountField
             value={amount}
             onChange={setAmount}
-            tabIndex={5}
+            tabIndex={4}
             placeholder="e.g. 42.50 or (33.40*17)/14"
           />
           {errors.amount && <span className={styles.error}>{errors.amount}</span>}
+        </div>
+
+        <div className={styles.field}>
+          <label className={styles.label}>Memo</label>
+          <input
+            type="text"
+            className={styles.input}
+            value={memo}
+            onChange={e => setMemo(e.target.value)}
+            tabIndex={5}
+          />
         </div>
       </div>
 
