@@ -772,6 +772,33 @@ export default function AccountRegister() {
     }
   };
 
+  // Prefills a new blank transaction with another one's details so the user
+  // can review/tweak (date especially) before saving a fresh copy. Not
+  // offered for transfers: a new transfer is always created debiting this
+  // account, so duplicating the credit/destination leg of an existing
+  // transfer would silently reverse its direction.
+  const handleDuplicate = (tx: Transaction) => {
+    if (!confirmDiscardIfDirty()) return;
+    // Bump the form key: if a blank "new" form is already mounted, the key
+    // would otherwise stay 'new-N' and the form would never re-read this prefill.
+    setFormNonce(n => n + 1);
+    setEditingTx(null);
+    setReceiptPrefill({
+      date:       tx.date,
+      postDate:   tx.postDate,
+      amount:     tx.amount,
+      memo:       tx.memo,
+      payeeId:    tx.payeeId,
+      payee:      tx.payee,
+      categoryId: tx.categoryId,
+      category:   tx.category,
+      splits:     tx.splits,
+    });
+    setReceiptPayeeName(undefined);
+    setReceiptCategoryLabel(undefined);
+    setShowForm(true);
+  };
+
   const handleReceiptConfirm = (data: ExtractedReceipt) => {
     if (!confirmDiscardIfDirty()) return;
     setShowScanner(false);
@@ -909,6 +936,14 @@ export default function AccountRegister() {
                 </button>
               )}
               <button className={styles.dropdownEdit} onClick={e => { e.stopPropagation(); setOpenMenuId(null); handleEdit(tx); }}>Edit</button>
+              {!tx.transferTransactionId && (
+                <button
+                  className={styles.dropdownGoto}
+                  onClick={e => { e.stopPropagation(); setOpenMenuId(null); handleDuplicate(tx); }}
+                >
+                  Duplicate
+                </button>
+              )}
               <button
                 className={styles.dropdownGoto}
                 onClick={e => { e.stopPropagation(); setOpenMenuId(null); goToBillsPrefilled(tx); }}
@@ -1331,6 +1366,14 @@ export default function AccountRegister() {
             </button>
           )}
           <button className={styles.dropdownEdit} onClick={() => { const tx = contextMenu.tx; setContextMenu(null); handleEdit(tx); }}>Edit</button>
+          {!contextMenu.tx.transferTransactionId && (
+            <button
+              className={styles.dropdownGoto}
+              onClick={() => { const tx = contextMenu.tx; setContextMenu(null); handleDuplicate(tx); }}
+            >
+              Duplicate
+            </button>
+          )}
           <button
             className={styles.dropdownGoto}
             onClick={() => { const tx = contextMenu.tx; setContextMenu(null); goToBillsPrefilled(tx); }}
