@@ -368,6 +368,10 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
   // Category autocomplete
   const [categoryInput, setCategoryInput] = useState('');
   const categoryRef = useRef<HTMLInputElement>(null);
+  // Jump target for selectPayee below: when picking a payee auto-fills the
+  // category from its default, Category no longer needs attention, so focus
+  // skips ahead to Amount instead of leaving it on the just-filled Payee field.
+  const amountRef = useRef<HTMLInputElement>(null);
 
   // Split across multiple categories — mutually exclusive with the single
   // category field above and disallowed on transfers.
@@ -461,13 +465,19 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
   const selectPayee = (p: Payee) => {
     setPayeeInput(p.name);
     setPayeeId(p.id);
+    let categoryFilled = false;
     if (p.defaultCategoryId) {
       const flat = flattenCategories(categories);
       const found = flat.find(c => c.id === p.defaultCategoryId);
-      if (found) setCategoryInput(found.label);
+      if (found) { setCategoryInput(found.label); categoryFilled = true; }
     }
     setShowPayeeSuggestions(false);
     setPayeeHighlight(-1);
+    // Category is already filled in from the payee's default, so there's
+    // nothing left to fill in before Amount — send focus straight there
+    // instead of leaving it on the Payee field. Skipped when there's no
+    // default: the user still needs to type/pick a category next.
+    if (categoryFilled) amountRef.current?.focus();
   };
 
   const handlePayeeKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -843,6 +853,7 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
             onChange={setAmount}
             tabIndex={4}
             placeholder="e.g. 42.50 or (33.40*17)/14"
+            inputRef={amountRef}
           />
           {errors.amount && <span className={styles.error}>{errors.amount}</span>}
         </div>
