@@ -88,23 +88,32 @@ public class CategoriesController(
         DateOnly? LastOf(int id)  => combined.TryGetValue(id, out var s) ? s.Last : null;
         int CountOf(int id)       => combined.TryGetValue(id, out var s) ? s.Count : 0;
 
-        return Ok(categories.Select(c => new
-        {
-            id               = c.Id,
-            name             = encryption.Decrypt(c.NameEncrypted, user.EncryptedDataKey),
-            firstUsed        = FirstOf(c.Id),
-            lastUsed         = LastOf(c.Id),
-            transactionCount = CountOf(c.Id),
-            subCategories = c.SubCategories.Select(s => new
+        // Alphabetical (case-insensitive) at both levels — names are encrypted,
+        // so this can't happen in SQL and has to wait until after decryption.
+        // Every consumer (this page, the transaction form's category
+        // autocomplete, split rows) reads from here, so sorting once here
+        // covers all of them instead of each screen needing its own.
+        return Ok(categories
+            .Select(c => new
             {
-                id               = s.Id,
-                name             = encryption.Decrypt(s.NameEncrypted, user.EncryptedDataKey),
-                parentId         = s.ParentId,
-                firstUsed        = FirstOf(s.Id),
-                lastUsed         = LastOf(s.Id),
-                transactionCount = CountOf(s.Id),
-            }),
-        }));
+                id               = c.Id,
+                name             = encryption.Decrypt(c.NameEncrypted, user.EncryptedDataKey),
+                firstUsed        = FirstOf(c.Id),
+                lastUsed         = LastOf(c.Id),
+                transactionCount = CountOf(c.Id),
+                subCategories = c.SubCategories
+                    .Select(s => new
+                    {
+                        id               = s.Id,
+                        name             = encryption.Decrypt(s.NameEncrypted, user.EncryptedDataKey),
+                        parentId         = s.ParentId,
+                        firstUsed        = FirstOf(s.Id),
+                        lastUsed         = LastOf(s.Id),
+                        transactionCount = CountOf(s.Id),
+                    })
+                    .OrderBy(s => s.name, StringComparer.OrdinalIgnoreCase),
+            })
+            .OrderBy(c => c.name, StringComparer.OrdinalIgnoreCase));
     }
 
     [HttpPost]

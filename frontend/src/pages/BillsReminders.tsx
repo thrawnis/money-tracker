@@ -456,7 +456,14 @@ export default function BillsReminders() {
               <label>Account *</label>
               <select value={form.accountId} onChange={e => setForm(f => ({ ...f, accountId: e.target.value }))}>
                 <option value="">Select…</option>
-                {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+                {accounts
+                  // Active accounts, plus whichever one this bill is already
+                  // assigned to (editing an existing bill shouldn't make its
+                  // own account disappear just because it's since been
+                  // deactivated).
+                  .filter(a => a.isActive || String(a.id) === form.accountId)
+                  .sort((a, b) => a.name.localeCompare(b.name))
+                  .map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
               </select>
               {formErrors.accountId && <span className={styles.fieldError}>{formErrors.accountId}</span>}
             </div>
@@ -479,7 +486,11 @@ export default function BillsReminders() {
                 >
                   <option value="">Select…</option>
                   {accounts
-                    .filter(a => a.isActive && String(a.id) !== form.accountId)
+                    // Same exception as the source Account field above: keep
+                    // an already-assigned destination selectable even if it's
+                    // since gone inactive, so editing this bill doesn't
+                    // silently drop it from the dropdown out from under you.
+                    .filter(a => (a.isActive || String(a.id) === form.transferAccountId) && String(a.id) !== form.accountId)
                     .sort((a, b) => a.name.localeCompare(b.name))
                     .map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
                 </select>

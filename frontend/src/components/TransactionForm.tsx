@@ -676,11 +676,14 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
         .sort((a, b) => a.name.localeCompare(b.name))
     : [];
 
-  // The account this entry is filed under. An inactive account stays listed
-  // while editing something already in it, but can't be picked for new entries.
+  // The account this entry is filed under. Only active accounts are offered,
+  // plus the register's own account even when inactive — you're already
+  // looking at it (browsing an inactive account's history is allowed), so it
+  // has to stay choosable as the default. Any other inactive account can't be
+  // picked, whether adding a new entry or moving an existing one.
   const entryAccounts = accounts
     ? accounts
-        .filter(a => a.isActive || a.id === _accountId || a.id === entryAccountId)
+        .filter(a => a.isActive || a.id === _accountId)
         .sort((a, b) => a.name.localeCompare(b.name))
     : [];
 
