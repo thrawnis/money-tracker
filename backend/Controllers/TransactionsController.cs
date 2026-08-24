@@ -151,6 +151,8 @@ public class TransactionsController(
         [FromQuery] string?    memo,          // wildcard
         [FromQuery] string?    checkNumber,   // wildcard
         [FromQuery] bool?      uncategorized, // true = no category assigned
+        [FromQuery] TransactionStatus? status,
+        [FromQuery] bool?      voided,        // true = voided only, false = exclude voided
         [FromQuery] string     sortBy  = "date",
         [FromQuery] string     sortDir = "desc",
         [FromQuery] int        page     = 1,
@@ -185,6 +187,11 @@ public class TransactionsController(
             t.CategoryId == categoryId.Value || t.Category!.ParentId == categoryId.Value ||
             t.Splits.Any(s => s.CategoryId == categoryId.Value || s.Category!.ParentId == categoryId.Value));
         if (uncategorized == true) query = query.Where(t => t.CategoryId == null && !t.Splits.Any());
+        if (status.HasValue)      query = query.Where(t => t.Status == status.Value);
+        // Voided rows stay in the register by default (dimmed, "as if it never
+        // happened financially") — this filter is opt-in either direction:
+        // voided=true isolates them, voided=false hides them, omitted shows both.
+        if (voided.HasValue)      query = query.Where(t => t.IsVoided == voided.Value);
 
         // ── Paging strategy ───────────────────────────────────────────────────
         // Filtering or sorting on an encrypted column can only happen after

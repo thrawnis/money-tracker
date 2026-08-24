@@ -10,7 +10,12 @@ export interface GetTransactionsParams {
   payeeName?: string;
   categoryId?: number;
   memo?: string;
-  uncategorizedOnly?: boolean;
+  // Renamed from the mismatched `uncategorizedOnly` this was previously sent
+  // as — the backend's query param has always been named `uncategorized`, so
+  // the "Uncategorized only" checkbox silently did nothing before this fix.
+  uncategorized?: boolean;
+  status?: string;
+  voided?: boolean;
   sortBy?: string;
   sortDir?: 'asc' | 'desc';
   page?: number;

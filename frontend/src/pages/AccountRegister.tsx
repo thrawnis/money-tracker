@@ -46,7 +46,9 @@ interface TxFilters {
   payeeName?: string;
   categoryId?: number;
   memo?: string;
-  uncategorizedOnly?: boolean;
+  uncategorized?: boolean;
+  status?: string;
+  voided?: boolean;
 }
 
 export default function AccountRegister() {
@@ -102,6 +104,11 @@ export default function AccountRegister() {
   const [filterCategoryId, setFilterCategoryId] = useState('');
   const [filterMemo, setFilterMemo] = useState('');
   const [filterUncategorized, setFilterUncategorized] = useState(false);
+  const [filterStatus, setFilterStatus] = useState('');
+  // '' = both (register's normal default), 'true' = voided only, 'false' =
+  // exclude voided. A plain checkbox can't express three states, so this is
+  // a select like Status rather than a checkbox like Uncategorized above.
+  const [filterVoided, setFilterVoided] = useState('');
   const [appliedFilters, setAppliedFilters] = useState<TxFilters>({});
 
   // Sort — seeded from the user's saved preference (Settings → Preferences),
@@ -236,7 +243,9 @@ export default function AccountRegister() {
     payeeName: filterPayee || undefined,
     categoryId: filterCategoryId ? Number(filterCategoryId) : undefined,
     memo: filterMemo || undefined,
-    uncategorizedOnly: filterUncategorized || undefined,
+    uncategorized: filterUncategorized || undefined,
+    status: filterStatus || undefined,
+    voided: filterVoided === '' ? undefined : filterVoided === 'true',
   });
 
   /** Fetches page 1 with explicit filters/sort. `full` also reloads account,
@@ -436,6 +445,7 @@ export default function AccountRegister() {
     if (!defaultSortReady) return;
     setFilterFrom(''); setFilterTo(''); setFilterMinAmount(''); setFilterMaxAmount('');
     setFilterPayee(''); setFilterCategoryId(''); setFilterMemo(''); setFilterUncategorized(false);
+    setFilterStatus(''); setFilterVoided('');
     setAppliedFilters({});
     setJumpDate('');
     const { sortBy: defBy, sortDir: defDir } = defaultSort.current;
@@ -663,6 +673,7 @@ export default function AccountRegister() {
   const clearFilters = () => {
     setFilterFrom(''); setFilterTo(''); setFilterMinAmount(''); setFilterMaxAmount('');
     setFilterPayee(''); setFilterCategoryId(''); setFilterMemo(''); setFilterUncategorized(false);
+    setFilterStatus(''); setFilterVoided('');
     setAppliedFilters({});
     setHighlightTxId(null);
     // Pass {} explicitly — state updates above won't be visible to this call yet
@@ -1297,6 +1308,23 @@ export default function AccountRegister() {
             <div className={styles.filterField}>
               <label>Memo</label>
               <input type="text" value={filterMemo} onChange={e => setFilterMemo(e.target.value)} placeholder="* wildcard" />
+            </div>
+            <div className={styles.filterField}>
+              <label>Status</label>
+              <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+                <option value="">All</option>
+                <option value="Uncleared">Uncleared</option>
+                <option value="Cleared">Cleared</option>
+                <option value="Reconciled">Reconciled</option>
+              </select>
+            </div>
+            <div className={styles.filterField}>
+              <label>Void</label>
+              <select value={filterVoided} onChange={e => setFilterVoided(e.target.value)}>
+                <option value="">All</option>
+                <option value="false">Exclude voided</option>
+                <option value="true">Voided only</option>
+              </select>
             </div>
             <div className={styles.filterField} style={{ justifyContent: 'flex-end' }}>
               <label>
