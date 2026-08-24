@@ -3,6 +3,8 @@ import type { Transaction, Category, Payee, Account } from '../types';
 import { getCategories, createCategory } from '../api/categories';
 import { getPayees, createPayee, updatePayee } from '../api/payees';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
+import { useAuth } from '../contexts/auth-context';
+import { formatDateTime } from '../utils/timezone';
 import styles from './TransactionForm.module.css';
 
 export interface SplitInput {
@@ -342,6 +344,7 @@ interface SplitRow {
 }
 
 export default function TransactionForm({ accountId: _accountId, accounts, initial, initialPayeeName, initialCategoryLabel, onSave, onCancel, onDirtyChange }: Props) {
+  const { user } = useAuth();
   const today = new Date().toISOString().slice(0, 10);
   const [date, setDate] = useState(initial?.date ?? today);
   const [payeeInput, setPayeeInput] = useState(initialPayeeName ?? initial?.payee?.name ?? '');
@@ -934,6 +937,15 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
             </span>
           )}
         </div>
+      )}
+
+      {initial?.id && initial.createdAt && (
+        <p className={styles.addedNote}>
+          Added {formatDateTime(initial.createdAt, user?.timeZoneId)}
+          {initial.updatedAt && initial.updatedAt !== initial.createdAt && (
+            <> · edited {formatDateTime(initial.updatedAt, user?.timeZoneId)}</>
+          )}
+        </p>
       )}
 
       {saveError && <div className={styles.error}>{saveError}</div>}

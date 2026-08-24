@@ -171,6 +171,14 @@
   font-weight: 600;
 }
 
+/* Read-only timestamp — when this row was actually added/edited, distinct
+   from the (user-editable) transaction Date field above. */
+.addedNote {
+  margin: 8px 0 0;
+  font-size: 11px;
+  color: #8a97a8;
+}
+
 .actions {
   display: flex;
   gap: 8px;
