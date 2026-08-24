@@ -738,17 +738,34 @@ export default function AccountRegister() {
       await jumpToTransaction(newTxId);
     } else {
       // Edit of an existing row: refetch in place so the user stays exactly
-      // where they were instead of being dropped back at page 1.
-      await reloadLoadedPages();
+      // where they were instead of being dropped back at page 1. Not
+      // awaited — the save itself already succeeded (the awaits above this
+      // point are what can fail/reject), so the form has nothing left to
+      // wait on. Awaiting this too just made "Saving…" sit there for as
+      // long as it takes to re-fetch every loaded page (up to 500 rows
+      // apiece) purely to refresh running-balance figures that were already
+      // correct a moment ago and are about to be silently corrected in place.
+      reloadLoadedPages();
     }
   };
 
   const handleDelete = async (txId: number) => {
     if (!confirm('Delete this transaction?')) return;
+    // Optimistic: the row disappears the instant you confirm, not after a
+    // round trip. Deleting shifts every later row's running balance and the
+    // header total, which — like void below — isn't something to recompute
+    // by hand client-side; that correction arrives a moment later from the
+    // background reconcile, quietly, with no loading state of its own.
+    const prevTxs = pastTxs;
+    const prevTotal = pastTotal;
+    setPastTxs(prev => prev.filter(t => t.id !== txId));
+    setPastTotal(prev => Math.max(0, prev - 1));
     try {
       await deleteTransaction(accountId, txId);
-      await reloadLoadedPages();
+      reloadLoadedPages();
     } catch (err) {
+      setPastTxs(prevTxs);
+      setPastTotal(prevTotal);
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
       setError(msg ?? 'Failed to delete transaction.');
     }
@@ -788,12 +805,18 @@ export default function AccountRegister() {
         : 'Void this transaction? It stays in the register but is excluded from the balance, Reports, and duplicate detection.';
       if (!confirm(msg)) return;
     }
+    // Optimistic: the row dims/undims immediately. Voiding changes the
+    // running balance of every row after it and the header total, so those
+    // stay as-is for a moment rather than being (incorrectly) patched by
+    // hand here — the background reconcile below corrects them quietly,
+    // same as delete. Only this row's own isVoided flag is safe to predict
+    // without the server: everything downstream needs the real computation.
+    setPastTxs(prev => prev.map(t => t.id === tx.id ? { ...t, isVoided: next } : t));
     try {
       await updateTransactionVoided(accountId, tx.id, next);
-      // Voiding changes the running balance of every row after it, not just
-      // this one — an optimistic single-row patch would leave the rest stale.
-      await reloadLoadedPages();
+      reloadLoadedPages();
     } catch (err) {
+      setPastTxs(prev => prev.map(t => t.id === tx.id ? { ...t, isVoided: !next } : t));
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
       setError(msg ?? 'Failed to update transaction.');
     }
