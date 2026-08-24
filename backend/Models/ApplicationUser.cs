@@ -40,6 +40,12 @@ public class ApplicationUser : IdentityUser
     // See VoidCategoryMigrationService.
     public bool VoidCategoriesMigrated { get; set; } = false;
 
+    // Sibling to VoidCategoriesMigrated: the same "VOID ..." bank-export
+    // placeholder, but landing in the payee/description column instead of a
+    // category column (the more common case for plain bank CSVs, which
+    // usually have no category column at all). See VoidPayeeMigrationService.
+    public bool VoidPayeesMigrated { get; set; } = false;
+
     public ICollection<RefreshToken> RefreshTokens { get; set; } = [];
     public ICollection<UserPasskeyCredential> PasskeyCredentials { get; set; } = [];
 }

@@ -32,6 +32,7 @@ public class AuthController(
     UrlEncoder                      urlEncoder,
     IAuditService                   audit,
     VoidCategoryMigrationService    voidCategoryMigration,
+    VoidPayeeMigrationService       voidPayeeMigration,
     IConfiguration                  config) : ControllerBase
 {
     private bool IsDemoMode => config["DEMO_MODE"] == "true";
@@ -427,6 +428,7 @@ public class AuthController(
         // the migration only ever fired on a full sign-in — not on the silent
         // refresh that the service's own docs claim covers it.
         await voidCategoryMigration.RunIfNeededAsync(stored.User);
+        await voidPayeeMigration.RunIfNeededAsync(stored.User);
 
         var roles = await userManager.GetRolesAsync(stored.User);
         var role  = roles.Contains(Roles.Admin) ? Roles.Admin : Roles.Standard;
@@ -556,6 +558,7 @@ public class AuthController(
         // chokepoint every login path and silent token refresh funnels
         // through, so it fires "next time the app loads" for free.
         await voidCategoryMigration.RunIfNeededAsync(user);
+        await voidPayeeMigration.RunIfNeededAsync(user);
 
         var roles      = await userManager.GetRolesAsync(user);
         var role       = roles.Contains(Roles.Admin) ? Roles.Admin : Roles.Standard;
