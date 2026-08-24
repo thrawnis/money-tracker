@@ -21,7 +21,7 @@
   align-items: center;
   margin-bottom: 14px;
   padding-bottom: 10px;
-  border-bottom: 2px solid #c5d4e0;
+  border-bottom: 2px solid var(--c-c5d4e0);
   flex-shrink: 0;
   flex-wrap: wrap;
   gap: 6px;
@@ -31,21 +31,21 @@
   margin: 0;
   font-size: 17px;
   font-weight: 700;
-  color: #002a52;
+  color: var(--c-002a52);
 }
 
-.hint { font-size: 11px; color: #99a; font-style: italic; }
-.loading { color: #777; }
-.errorMsg { color: #c0392b; font-size: 12px; margin-bottom: 10px; }
-.empty { text-align: center; color: #aaa; font-style: italic; padding: 24px; }
+.hint { font-size: 11px; color: var(--c-9999aa); font-style: italic; }
+.loading { color: var(--c-777777); }
+.errorMsg { color: var(--c-c0392b); font-size: 12px; margin-bottom: 10px; }
+.empty { text-align: center; color: var(--c-aaaaaa); font-style: italic; padding: 24px; }
 
 .tableWrapper {
   flex: 1;
   overflow-x: auto;
   overflow-y: auto;
-  border: 1.5px solid #c5d4e0;
+  border: 1.5px solid var(--c-c5d4e0);
   border-radius: 6px;
-  background: #fff;
+  background: var(--c-ffffff);
   box-shadow: 0 2px 8px rgba(0,0,0,0.06);
 }
 
@@ -56,11 +56,11 @@
 }
 
 .table th {
-  background: linear-gradient(to bottom, #e8f0f8, #dde8f2);
-  color: #002a52;
+  background: linear-gradient(to bottom, var(--c-e8f0f8), var(--c-dde8f2));
+  color: var(--c-002a52);
   font-weight: 700;
   padding: 8px 10px;
-  border-bottom: 2px solid #c5d4e0;
+  border-bottom: 2px solid var(--c-c5d4e0);
   text-align: left;
   white-space: nowrap;
   position: sticky;
@@ -71,16 +71,16 @@
 
 .table td {
   padding: 6px 10px;
-  border-bottom: 1px solid #eef2f7;
+  border-bottom: 1px solid var(--c-eef2f7);
   vertical-align: middle;
 }
 
 .row { transition: background 0.1s; cursor: default; }
-.row:hover { background: #f2f7fd; }
+.row:hover { background: var(--c-f2f7fd); }
 
 .payeeName { font-weight: 500; }
-.catLabel { color: #556; font-size: 12px; }
-.lastUsed { color: #99a; font-size: 11.5px; white-space: nowrap; }
+.catLabel { color: var(--c-555566); font-size: 12px; }
+.lastUsed { color: var(--c-9999aa); font-size: 11.5px; white-space: nowrap; }
 
 .inlineEdit {
   display: flex;
@@ -96,23 +96,23 @@
 
 .input {
   padding: 4px 7px;
-  border: 1.5px solid #c5d4e0;
+  border: 1.5px solid var(--c-c5d4e0);
   border-radius: 4px;
   font-size: 12px;
-  background: #fff;
+  background: var(--c-ffffff);
   flex: 1;
   min-width: 100px;
 }
-.input:focus { outline: none; border-color: #005f5f; box-shadow: 0 0 0 3px rgba(0,95,95,0.1); }
+.input:focus { outline: none; border-color: var(--c-005f5f); box-shadow: 0 0 0 3px rgba(0,95,95,0.1); }
 
 .select {
   padding: 4px 7px;
-  border: 1.5px solid #c5d4e0;
+  border: 1.5px solid var(--c-c5d4e0);
   border-radius: 4px;
   font-size: 12px;
-  background: #fafbfc;
+  background: var(--c-fafbfc);
 }
-.select:disabled { background: #eef1f4; color: #999; }
+.select:disabled { background: var(--c-eef1f4); color: var(--c-999999); }
 
 /* Category select + "never auto-suggest" checkbox stacked together, so the
    inline editor's Save/Cancel buttons stay on one row next to them. */
@@ -127,7 +127,7 @@
   align-items: center;
   gap: 4px;
   font-size: 11px;
-  color: #555;
+  color: var(--c-555555);
   white-space: nowrap;
   cursor: pointer;
 }
@@ -136,47 +136,47 @@
   display: inline-block;
   font-size: 11px;
   font-weight: 600;
-  color: #8a6d00;
-  background: #fdf1cd;
-  border: 1px solid #e6d190;
+  color: var(--c-8a6d00);
+  background: var(--c-fdf1cd);
+  border: 1px solid var(--c-e6d190);
   border-radius: 3px;
   padding: 1px 6px;
 }
 
 .btnSm {
   padding: 3px 9px;
-  background: #edf4fb;
-  color: #002a52;
-  border: 1.5px solid #c5d4e0;
+  background: var(--c-edf4fb);
+  color: var(--c-002a52);
+  border: 1.5px solid var(--c-c5d4e0);
   border-radius: 4px;
   font-size: 11px;
   cursor: pointer;
   white-space: nowrap;
   transition: background 0.12s;
 }
-.btnSm:hover { background: #d8eaf8; }
+.btnSm:hover { background: var(--c-d8eaf8); }
 
 .btnSmSecondary {
   padding: 3px 9px;
-  background: #f5f5f5;
-  color: #556;
-  border: 1.5px solid #ddd;
+  background: var(--c-f5f5f5);
+  color: var(--c-555566);
+  border: 1.5px solid var(--c-dddddd);
   border-radius: 4px;
   font-size: 11px;
   cursor: pointer;
   white-space: nowrap;
 }
-.btnSmSecondary:hover { background: #eee; }
+.btnSmSecondary:hover { background: var(--c-eeeeee); }
 
 .btnSmDelete {
   padding: 3px 9px;
-  background: #fdf0ef;
-  color: #c0392b;
-  border: 1.5px solid #f0c8c4;
+  background: var(--c-fdf0ef);
+  color: var(--c-c0392b);
+  border: 1.5px solid var(--c-f0c8c4);
   border-radius: 4px;
   font-size: 11px;
   cursor: pointer;
   white-space: nowrap;
   transition: background 0.12s;
 }
-.btnSmDelete:hover { background: #fce0de; }
+.btnSmDelete:hover { background: var(--c-fce0de); }

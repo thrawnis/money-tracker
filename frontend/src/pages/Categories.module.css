@@ -21,7 +21,7 @@
   align-items: center;
   margin-bottom: 14px;
   padding-bottom: 10px;
-  border-bottom: 2px solid #c5d4e0;
+  border-bottom: 2px solid var(--c-c5d4e0);
   flex-shrink: 0;
 }
 
@@ -29,12 +29,12 @@
   margin: 0;
   font-size: 17px;
   font-weight: 700;
-  color: #002a52;
+  color: var(--c-002a52);
 }
 
-.loading { color: #777; }
-.errorMsg { color: #c0392b; font-size: 12px; margin-bottom: 10px; }
-.empty { color: #aaa; font-style: italic; font-size: 12px; padding: 12px 0; }
+.loading { color: var(--c-777777); }
+.errorMsg { color: var(--c-c0392b); font-size: 12px; margin-bottom: 10px; }
+.empty { color: var(--c-aaaaaa); font-style: italic; font-size: 12px; padding: 12px 0; }
 
 /* ── Add row ── */
 
@@ -44,8 +44,8 @@
   gap: 8px;
   margin-bottom: 12px;
   padding: 10px 12px;
-  background: #f0f5fb;
-  border: 1.5px solid #c5d4e0;
+  background: var(--c-f0f5fb);
+  border: 1.5px solid var(--c-c5d4e0);
   border-radius: 6px;
   flex-shrink: 0;
 }
@@ -58,8 +58,8 @@
 }
 
 .categoryGroup {
-  background: #fff;
-  border: 1.5px solid #c5d4e0;
+  background: var(--c-ffffff);
+  border: 1.5px solid var(--c-c5d4e0);
   border-radius: 8px;
   margin-bottom: 8px;
   box-shadow: 0 1px 4px rgba(0,0,0,0.05);
@@ -70,8 +70,8 @@
   display: flex;
   align-items: center;
   padding: 9px 12px;
-  background: linear-gradient(to right, #edf4fb, #f5f8fc);
-  border-bottom: 1px solid #e8eef5;
+  background: linear-gradient(to right, var(--c-edf4fb), var(--c-f5f8fc));
+  border-bottom: 1px solid var(--c-e8eef5);
   gap: 10px;
   min-height: 38px;
 }
@@ -79,7 +79,7 @@
 .categoryName {
   font-size: 13px;
   font-weight: 700;
-  color: #002a52;
+  color: var(--c-002a52);
   flex: 1;
 }
 
@@ -87,7 +87,7 @@
   display: flex;
   align-items: center;
   padding: 7px 12px 7px 24px;
-  border-bottom: 1px solid #f2f5f8;
+  border-bottom: 1px solid var(--c-f2f5f8);
   gap: 10px;
   min-height: 34px;
 }
@@ -96,13 +96,13 @@
 
 .subName {
   font-size: 12.5px;
-  color: #334;
+  color: var(--c-333344);
   flex: 1;
 }
 
 .subPrefix {
   font-size: 12.5px;
-  color: #778;
+  color: var(--c-777788);
   white-space: nowrap;
 }
 
@@ -111,8 +111,8 @@
   align-items: center;
   gap: 8px;
   padding: 7px 12px 7px 24px;
-  background: #f8fafb;
-  border-top: 1px dashed #c5d4e0;
+  background: var(--c-f8fafb);
+  border-top: 1px dashed var(--c-c5d4e0);
 }
 
 .movePanel {
@@ -127,7 +127,7 @@
   display: flex;
   gap: 10px;
   font-size: 10.5px;
-  color: #99a;
+  color: var(--c-9999aa);
   white-space: nowrap;
   margin-right: 4px;
 }
@@ -136,7 +136,7 @@
   display: flex;
   gap: 20px;
   font-size: 11px;
-  color: #667;
+  color: var(--c-666677);
   margin-bottom: 10px;
   flex-shrink: 0;
 }
@@ -153,10 +153,10 @@
 
 .input {
   padding: 5px 8px;
-  border: 1.5px solid #c5d4e0;
+  border: 1.5px solid var(--c-c5d4e0);
   border-radius: 4px;
   font-size: 12px;
-  background: #fff;
+  background: var(--c-ffffff);
   transition: border-color 0.15s;
   flex: 1;
   min-width: 120px;
@@ -164,24 +164,24 @@
 
 .input:focus {
   outline: none;
-  border-color: #005f5f;
+  border-color: var(--c-005f5f);
   box-shadow: 0 0 0 3px rgba(0,95,95,0.1);
 }
 
 .select {
   padding: 4px 8px;
-  border: 1.5px solid #c5d4e0;
+  border: 1.5px solid var(--c-c5d4e0);
   border-radius: 4px;
   font-size: 12px;
-  background: #fafbfc;
+  background: var(--c-fafbfc);
 }
 
 /* ── Buttons ── */
 
 .btnPrimary {
   padding: 6px 14px;
-  background: linear-gradient(135deg, #002a52, #005f5f);
-  color: #fff;
+  background: linear-gradient(135deg, var(--c-002a52), var(--c-005f5f));
+  color: var(--c-ffffff);
   border: none;
   border-radius: 5px;
   font-size: 12px;
@@ -195,64 +195,64 @@
 
 .btnSecondary {
   padding: 5px 12px;
-  background: #fff;
-  color: #334;
-  border: 1.5px solid #c5d4e0;
+  background: var(--c-ffffff);
+  color: var(--c-333344);
+  border: 1.5px solid var(--c-c5d4e0);
   border-radius: 5px;
   font-size: 12px;
   cursor: pointer;
   white-space: nowrap;
   transition: background 0.15s;
 }
-.btnSecondary:hover { background: #f0f4f8; }
+.btnSecondary:hover { background: var(--c-f0f4f8); }
 
 .btnSm {
   padding: 3px 9px;
-  background: #edf4fb;
-  color: #002a52;
-  border: 1.5px solid #c5d4e0;
+  background: var(--c-edf4fb);
+  color: var(--c-002a52);
+  border: 1.5px solid var(--c-c5d4e0);
   border-radius: 4px;
   font-size: 11px;
   cursor: pointer;
   white-space: nowrap;
   transition: background 0.12s;
 }
-.btnSm:hover { background: #d8eaf8; }
+.btnSm:hover { background: var(--c-d8eaf8); }
 
 .btnSmSecondary {
   padding: 3px 9px;
-  background: #f5f5f5;
-  color: #556;
-  border: 1.5px solid #ddd;
+  background: var(--c-f5f5f5);
+  color: var(--c-555566);
+  border: 1.5px solid var(--c-dddddd);
   border-radius: 4px;
   font-size: 11px;
   cursor: pointer;
   white-space: nowrap;
 }
-.btnSmSecondary:hover { background: #eee; }
+.btnSmSecondary:hover { background: var(--c-eeeeee); }
 
 .btnSmAdd {
   padding: 3px 9px;
-  background: #f0faf5;
-  color: #1a6640;
-  border: 1.5px solid #a8d5b5;
+  background: var(--c-f0faf5);
+  color: var(--c-1a6640);
+  border: 1.5px solid var(--c-a8d5b5);
   border-radius: 4px;
   font-size: 11px;
   cursor: pointer;
   white-space: nowrap;
   transition: background 0.12s;
 }
-.btnSmAdd:hover { background: #e0f5e8; }
+.btnSmAdd:hover { background: var(--c-e0f5e8); }
 
 .btnSmDelete {
   padding: 3px 9px;
-  background: #fdf0ef;
-  color: #c0392b;
-  border: 1.5px solid #f0c8c4;
+  background: var(--c-fdf0ef);
+  color: var(--c-c0392b);
+  border: 1.5px solid var(--c-f0c8c4);
   border-radius: 4px;
   font-size: 11px;
   cursor: pointer;
   white-space: nowrap;
   transition: background 0.12s;
 }
-.btnSmDelete:hover { background: #fce0de; }
+.btnSmDelete:hover { background: var(--c-fce0de); }

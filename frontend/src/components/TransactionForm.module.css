@@ -1,6 +1,6 @@
 .form {
-  background: #e8f0f8;
-  border: 1px solid #b0c4d8;
+  background: var(--c-e8f0f8);
+  border: 1px solid var(--c-b0c4d8);
   border-radius: 3px;
   padding: 10px 12px;
   margin-bottom: 8px;
@@ -26,13 +26,13 @@
 .label {
   font-size: 11px;
   font-weight: 700;
-  color: #333;
+  color: var(--c-333333);
   margin-bottom: 3px;
 }
 
 .input, .select {
   padding: 5px 7px;
-  border: 1px solid #b0b0b0;
+  border: 1px solid var(--c-b0b0b0);
   border-radius: 2px;
   font-size: 12px;
   height: 26px;
@@ -41,7 +41,7 @@
 
 .input:focus, .select:focus {
   outline: none;
-  border-color: #006666;
+  border-color: var(--c-006666);
 }
 
 .suggestions {
@@ -49,8 +49,8 @@
   top: 100%;
   left: 0;
   right: 0;
-  background: #fff;
-  border: 1px solid #b0b0b0;
+  background: var(--c-ffffff);
+  border: 1px solid var(--c-b0b0b0);
   border-top: none;
   list-style: none;
   margin: 0;
@@ -68,7 +68,7 @@
 
 .suggestion:hover,
 .suggestionActive {
-  background: #e8f0f8;
+  background: var(--c-e8f0f8);
 }
 
 .amountModeToggle {
@@ -79,9 +79,9 @@
 
 .amountModeBtn {
   flex: 1;
-  border: 1px solid #b0b0b0;
-  background: #fff;
-  color: #667;
+  border: 1px solid var(--c-b0b0b0);
+  background: var(--c-ffffff);
+  color: var(--c-666677);
   border-radius: 2px;
   font-size: 10px;
   font-weight: 700;
@@ -90,15 +90,15 @@
 }
 
 .amountModeExpense {
-  background: #fbeaea;
-  border-color: #c0392b;
-  color: #c0392b;
+  background: var(--c-fbeaea);
+  border-color: var(--c-c0392b);
+  color: var(--c-c0392b);
 }
 
 .amountModeIncome {
-  background: #e6f5ea;
-  border-color: #1a7a40;
-  color: #1a7a40;
+  background: var(--c-e6f5ea);
+  border-color: var(--c-1a7a40);
+  color: var(--c-1a7a40);
 }
 
 .amountFieldWrap {
@@ -112,13 +112,13 @@
 }
 
 @keyframes amountEvaluatedFlash {
-  0%   { background: #d6f5df; }
+  0%   { background: var(--c-d6f5df); }
   100% { background: transparent; }
 }
 
 .amountPreview {
   font-size: 11px;
-  color: #1a7a40;
+  color: var(--c-1a7a40);
   margin-top: 2px;
   white-space: nowrap;
   overflow: hidden;
@@ -127,7 +127,7 @@
 
 .amountFormulaError {
   font-size: 11px;
-  color: #cc0000;
+  color: var(--c-cc0000);
   margin-top: 2px;
   white-space: nowrap;
   overflow: hidden;
@@ -135,7 +135,7 @@
 }
 
 .error {
-  color: #cc0000;
+  color: var(--c-cc0000);
   font-size: 11px;
   margin-top: 2px;
 }
@@ -146,7 +146,7 @@
 
 .transferToggleLabel {
   font-size: 0.85rem;
-  color: #456;
+  color: var(--c-445566);
   cursor: pointer;
   user-select: none;
 }
@@ -157,7 +157,7 @@
   gap: 10px;
   margin-top: 8px;
   padding-top: 8px;
-  border-top: 1px dashed #c5d4e0;
+  border-top: 1px dashed var(--c-c5d4e0);
 }
 
 .moveRow .label { white-space: nowrap; }
@@ -167,7 +167,7 @@
    saving somewhere else is easy to do by accident otherwise. */
 .moveHint {
   font-size: 11px;
-  color: var(--ms-gold, #b8860b);
+  color: var(--ms-gold, var(--c-b8860b));
   font-weight: 600;
 }
 
@@ -176,7 +176,7 @@
 .addedNote {
   margin: 8px 0 0;
   font-size: 11px;
-  color: #8a97a8;
+  color: var(--c-8a97a8);
 }
 
 .actions {
@@ -194,27 +194,27 @@
 }
 
 .btnSave {
-  background: #003366;
-  color: #fff;
+  background: var(--c-003366);
+  color: var(--c-ffffff);
 }
 
 .btnSave:hover {
-  background: #004488;
+  background: var(--c-004488);
 }
 
 .btnSave:disabled {
-  background: #999;
+  background: var(--c-999999);
   cursor: not-allowed;
 }
 
 .btnCancel {
-  background: #e0e0e0;
-  color: #333;
-  border-color: #b0b0b0;
+  background: var(--c-e0e0e0);
+  color: var(--c-333333);
+  border-color: var(--c-b0b0b0);
 }
 
 .btnCancel:hover {
-  background: #d0d0d0;
+  background: var(--c-d0d0d0);
 }
 
 .postDateToggle {
@@ -229,7 +229,7 @@
   border-radius: 3px;
   transition: opacity 0.1s;
 }
-.postDateToggle:hover { opacity: 1; background: #dce8f4; }
+.postDateToggle:hover { opacity: 1; background: var(--c-dce8f4); }
 
 .postDateRow {
   margin-top: 5px;
@@ -241,7 +241,7 @@
   gap: 6px;
   font-size: 10px;
   font-weight: 700;
-  color: #556;
+  color: var(--c-555566);
   text-transform: uppercase;
   letter-spacing: 0.3px;
   margin-bottom: 3px;
@@ -250,7 +250,7 @@
 .postDateHint {
   font-size: 10px;
   font-weight: 400;
-  color: #99a;
+  color: var(--c-9999aa);
   text-transform: none;
   letter-spacing: 0;
   font-style: italic;
@@ -259,7 +259,7 @@
 .splitsSection {
   margin-top: 8px;
   padding-top: 8px;
-  border-top: 1px dashed #c5d4e0;
+  border-top: 1px dashed var(--c-c5d4e0);
 }
 
 .splitsHeader {
@@ -272,13 +272,13 @@
 .splitsRemainingOk {
   font-size: 11px;
   font-weight: 700;
-  color: #1a7a40;
+  color: var(--c-1a7a40);
 }
 
 .splitsRemainingBad {
   font-size: 11px;
   font-weight: 700;
-  color: #cc0000;
+  color: var(--c-cc0000);
 }
 
 .splitRow {
@@ -291,21 +291,21 @@
 
 .splitRemoveBtn {
   background: none;
-  border: 1px solid #c5d4e0;
+  border: 1px solid var(--c-c5d4e0);
   border-radius: 2px;
-  color: #cc0000;
+  color: var(--c-cc0000);
   cursor: pointer;
   font-size: 11px;
   height: 26px;
   width: 26px;
 }
-.splitRemoveBtn:hover:not(:disabled) { background: #fdf0ef; }
+.splitRemoveBtn:hover:not(:disabled) { background: var(--c-fdf0ef); }
 .splitRemoveBtn:disabled { opacity: 0.35; cursor: not-allowed; }
 
 .btnSecondaryLink {
   background: none;
   border: none;
-  color: #2563ab;
+  color: var(--c-2563ab);
   cursor: pointer;
   font-size: 11.5px;
   padding: 2px 0;

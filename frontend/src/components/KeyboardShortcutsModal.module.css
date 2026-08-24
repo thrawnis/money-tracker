@@ -9,7 +9,7 @@
 }
 
 .modal {
-  background: #fff;
+  background: var(--c-ffffff);
   border-radius: 4px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.3);
   width: 480px;
@@ -23,8 +23,8 @@
   align-items: center;
   justify-content: space-between;
   padding: 14px 18px;
-  background: #003366;
-  color: #fff;
+  background: var(--c-003366);
+  color: var(--c-ffffff);
   border-radius: 4px 4px 0 0;
   position: sticky;
   top: 0;
@@ -39,7 +39,7 @@
 .closeBtn {
   background: none;
   border: none;
-  color: #fff;
+  color: var(--c-ffffff);
   font-size: 16px;
   cursor: pointer;
   padding: 2px 6px;
@@ -57,7 +57,7 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.3px;
-  color: #556;
+  color: var(--c-555566);
   margin: 16px 0 8px;
 }
 
@@ -69,20 +69,20 @@
   justify-content: space-between;
   gap: 12px;
   padding: 6px 0;
-  border-bottom: 1px solid #eef2f6;
+  border-bottom: 1px solid var(--c-eef2f6);
 }
 
 .row:last-child { border-bottom: none; }
 
 .rowDesc {
   font-size: 12.5px;
-  color: #333;
+  color: var(--c-333333);
 }
 
 .rowScope {
   display: block;
   font-size: 10.5px;
-  color: #889;
+  color: var(--c-888899);
   font-style: italic;
 }
 
@@ -93,13 +93,13 @@
 }
 
 .key {
-  background: #f0f3f7;
-  border: 1px solid #c5d4e0;
+  background: var(--c-f0f3f7);
+  border: 1px solid var(--c-c5d4e0);
   border-bottom-width: 2px;
   border-radius: 3px;
   padding: 2px 7px;
   font-size: 11px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  color: #003366;
+  color: var(--c-003366);
   white-space: nowrap;
 }

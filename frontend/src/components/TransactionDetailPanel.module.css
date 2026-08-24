@@ -16,7 +16,7 @@
   width: 420px;
   max-width: 95vw;
   height: 100%;
-  background: #fff;
+  background: var(--c-ffffff);
   box-shadow: -4px 0 24px rgba(0,0,0,0.2);
   display: flex;
   flex-direction: column;
@@ -28,8 +28,8 @@
   align-items: center;
   justify-content: space-between;
   padding: 14px 18px;
-  background: #002a52;
-  color: #fff;
+  background: var(--c-002a52);
+  color: var(--c-ffffff);
   flex-shrink: 0;
 }
 
@@ -42,7 +42,7 @@
 .closeBtn {
   background: none;
   border: none;
-  color: #fff;
+  color: var(--c-ffffff);
   font-size: 16px;
   cursor: pointer;
   padding: 2px 6px;
@@ -57,21 +57,21 @@
   padding: 18px;
 }
 
-.hint { color: #777; font-size: 13px; }
-.error { color: #c0392b; font-size: 13px; }
+.hint { color: var(--c-777777); font-size: 13px; }
+.error { color: var(--c-c0392b); font-size: 13px; }
 
 .field {
   display: flex;
   flex-direction: column;
   gap: 3px;
   padding: 10px 0;
-  border-bottom: 1px solid #eef2f7;
+  border-bottom: 1px solid var(--c-eef2f7);
 }
 
 .label {
   font-size: 10.5px;
   font-weight: 700;
-  color: #556;
+  color: var(--c-555566);
   text-transform: uppercase;
   letter-spacing: 0.3px;
 }
@@ -79,7 +79,7 @@
 .accountLink {
   background: none;
   border: none;
-  color: #2563ab;
+  color: var(--c-2563ab);
   cursor: pointer;
   font-size: 13px;
   padding: 0;
@@ -90,7 +90,7 @@
 
 .transferValue {
   font-size: 13px;
-  color: #2563ab;
+  color: var(--c-2563ab);
   font-style: italic;
 }
 
@@ -109,11 +109,11 @@
 
 .splitCategory {
   font-weight: 600;
-  color: #334;
+  color: var(--c-333344);
 }
 
 .splitMemo {
-  color: #889;
+  color: var(--c-888899);
   font-style: italic;
   flex: 1;
   overflow: hidden;
@@ -131,8 +131,8 @@
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
-.debit  { color: #c0392b; }
-.credit { color: #1a7a40; }
+.debit  { color: var(--c-c0392b); }
+.credit { color: var(--c-1a7a40); }
 
 .actions {
   display: flex;
@@ -143,8 +143,8 @@
 
 .btnPrimary {
   padding: 7px 16px;
-  background: linear-gradient(135deg, #002a52, #005f5f);
-  color: #fff;
+  background: linear-gradient(135deg, var(--c-002a52), var(--c-005f5f));
+  color: var(--c-ffffff);
   border: none;
   border-radius: 5px;
   font-size: 12px;
@@ -155,23 +155,23 @@
 
 .btnSecondary {
   padding: 7px 14px;
-  background: #fff;
-  color: #334;
-  border: 1.5px solid #c5d4e0;
+  background: var(--c-ffffff);
+  color: var(--c-333344);
+  border: 1.5px solid var(--c-c5d4e0);
   border-radius: 5px;
   font-size: 12px;
   cursor: pointer;
 }
-.btnSecondary:hover { background: #f0f4f8; border-color: #99b4cc; }
+.btnSecondary:hover { background: var(--c-f0f4f8); border-color: var(--c-99b4cc); }
 
 .btnDanger {
   padding: 7px 14px;
-  background: #fff;
-  color: #c0392b;
-  border: 1.5px solid #e0b4b0;
+  background: var(--c-ffffff);
+  color: var(--c-c0392b);
+  border: 1.5px solid var(--c-e0b4b0);
   border-radius: 5px;
   font-size: 12px;
   cursor: pointer;
 }
-.btnDanger:hover { background: #fdf0ef; }
+.btnDanger:hover { background: var(--c-fdf0ef); }
 .btnDanger:disabled { opacity: 0.5; cursor: not-allowed; }

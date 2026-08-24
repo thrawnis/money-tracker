@@ -37,7 +37,7 @@
   align-items: flex-start;
   margin-bottom: 12px;
   padding-bottom: 10px;
-  border-bottom: 2px solid #c5d4e0;
+  border-bottom: 2px solid var(--c-c5d4e0);
   flex-shrink: 0;
 }
 
@@ -45,19 +45,23 @@
   margin: 0;
   font-size: 17px;
   font-weight: 700;
-  color: #002a52;
+  color: var(--c-002a52);
 }
 
 .accountSelect {
   font-size: 17px;
   font-weight: 700;
-  color: #002a52;
+  color: var(--c-002a52);
   background: transparent;
   border: none;
-  border-bottom: 2px solid #b0c4d8;
+  border-bottom: 2px solid var(--c-b0c4d8);
   padding: 0 20px 2px 0;
   appearance: none;
   -webkit-appearance: none;
+  /* URL-encoded SVG fill (%23336699 = #336699) — outside the dark-theme token
+     sweep since it isn't a literal `#hex` a plain regex can find. Left as-is
+     deliberately rather than special-cased: a medium-saturation blue reads
+     fine against both the light and dark surface tokens this arrow sits on. */
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23336699'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 2px center;
@@ -67,12 +71,12 @@
 
 .accountSelect:focus {
   outline: none;
-  border-bottom-color: #005f5f;
+  border-bottom-color: var(--c-005f5f);
 }
 
 .accountMeta {
   font-size: 12px;
-  color: #667;
+  color: var(--c-666677);
   margin-top: 3px;
 }
 
@@ -83,15 +87,15 @@
   flex-wrap: wrap;
 }
 
-.errorMsg  { color: #c0392b; }
-.loadingMsg { color: #777; }
+.errorMsg  { color: var(--c-c0392b); }
+.loadingMsg { color: var(--c-777777); }
 
 /* ── Buttons ── */
 
 .btnPrimary {
   padding: 6px 16px;
-  background: linear-gradient(135deg, #002a52, #005f5f);
-  color: #fff;
+  background: linear-gradient(135deg, var(--c-002a52), var(--c-005f5f));
+  color: var(--c-ffffff);
   border: none;
   border-radius: 5px;
   font-size: 12px;
@@ -102,24 +106,24 @@
 }
 .btnPrimary:hover { opacity: 0.88; transform: translateY(-1px); }
 .btnPrimary:active { transform: none; }
-.btnPrimary:disabled { background: #aaa; box-shadow: none; cursor: not-allowed; transform: none; }
+.btnPrimary:disabled { background: var(--c-aaaaaa); box-shadow: none; cursor: not-allowed; transform: none; }
 
 .btnSecondary {
   padding: 6px 14px;
-  background: #fff;
-  color: #334;
-  border: 1.5px solid #c5d4e0;
+  background: var(--c-ffffff);
+  color: var(--c-333344);
+  border: 1.5px solid var(--c-c5d4e0);
   border-radius: 5px;
   font-size: 12px;
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
 }
-.btnSecondary:hover { background: #f0f4f8; border-color: #99b4cc; }
+.btnSecondary:hover { background: var(--c-f0f4f8); border-color: var(--c-99b4cc); }
 .btnSecondary:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .btnSecondaryActive {
-  background: #e8f0f8;
-  border-color: #99b4cc;
+  background: var(--c-e8f0f8);
+  border-color: var(--c-99b4cc);
 }
 
 .jumpToDate {
@@ -127,19 +131,19 @@
   align-items: center;
   gap: 6px;
   font-size: 12px;
-  color: #556;
+  color: var(--c-555566);
   white-space: nowrap;
 }
 .jumpToDate input {
   padding: 5px 8px;
-  border: 1.5px solid #c5d4e0;
+  border: 1.5px solid var(--c-c5d4e0);
   border-radius: 5px;
   font-size: 12px;
-  color: #334;
-  background: #fff;
+  color: var(--c-333344);
+  background: var(--c-ffffff);
   cursor: pointer;
 }
-.jumpToDate input:hover { border-color: #99b4cc; }
+.jumpToDate input:hover { border-color: var(--c-99b4cc); }
 
 /* ── Settings dropdown ── */
 
@@ -152,8 +156,8 @@
   position: absolute;
   right: 0;
   top: calc(100% + 5px);
-  background: #fff;
-  border: 1.5px solid #c5d4e0;
+  background: var(--c-ffffff);
+  border: 1.5px solid var(--c-c5d4e0);
   border-radius: 7px;
   box-shadow: 0 4px 16px rgba(0,0,0,0.12);
   z-index: 200;
@@ -169,25 +173,25 @@
   align-items: center;
   gap: 8px;
   font-size: 12.5px;
-  color: #334;
+  color: var(--c-333344);
   white-space: nowrap;
 }
 
 .settingsRow label {
   font-size: 12.5px;
-  color: #556;
+  color: var(--c-555566);
 }
 
 .settingsHint {
   margin: 0;
   font-size: 11px;
-  color: #889;
+  color: var(--c-888899);
   font-style: italic;
 }
 
 .settingsDivider {
   border: none;
-  border-top: 1px solid #e0e8f0;
+  border-top: 1px solid var(--c-e0e8f0);
   margin: 2px 0;
 }
 
@@ -197,20 +201,20 @@
   text-align: left;
   padding: 4px 0;
   font-size: 12.5px;
-  color: #336699;
+  color: var(--c-336699);
   cursor: pointer;
 }
 
-.settingsAction:hover { color: #002a52; text-decoration: underline; }
+.settingsAction:hover { color: var(--c-002a52); text-decoration: underline; }
 
-.settingsActionDanger { color: #c0392b; }
-.settingsActionDanger:hover { color: #922b21; }
+.settingsActionDanger { color: var(--c-c0392b); }
+.settingsActionDanger:hover { color: var(--c-922b21); }
 
 /* ── Filter panel ── */
 
 .filterPanel {
-  background: #fff;
-  border: 1.5px solid #c5d4e0;
+  background: var(--c-ffffff);
+  border: 1.5px solid var(--c-c5d4e0);
   border-radius: 6px;
   padding: 12px 14px;
   margin-bottom: 10px;
@@ -234,24 +238,24 @@
 .filterField label {
   font-size: 10.5px;
   font-weight: 700;
-  color: #556;
+  color: var(--c-555566);
   text-transform: uppercase;
   letter-spacing: 0.3px;
 }
 
 .filterField input, .filterField select {
   padding: 5px 8px;
-  border: 1.5px solid #c5d4e0;
+  border: 1.5px solid var(--c-c5d4e0);
   border-radius: 4px;
   font-size: 12px;
   height: 26px;
-  background: #fafbfc;
+  background: var(--c-fafbfc);
   transition: border-color 0.15s;
 }
 
 .filterField input:focus, .filterField select:focus {
   outline: none;
-  border-color: #005f5f;
+  border-color: var(--c-005f5f);
   box-shadow: 0 0 0 3px rgba(0,95,95,0.1);
 }
 
@@ -267,10 +271,10 @@
   flex: 1;
   overflow-y: auto;
   overflow-x: auto;
-  border: 1.5px solid #c5d4e0;
+  border: 1.5px solid var(--c-c5d4e0);
   border-radius: 6px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-  background: #fff;
+  background: var(--c-ffffff);
 }
 
 /* ── Table ── */
@@ -282,11 +286,11 @@
 }
 
 .table th {
-  background: linear-gradient(to bottom, #e8f0f8, #dde8f2);
-  color: #002a52;
+  background: linear-gradient(to bottom, var(--c-e8f0f8), var(--c-dde8f2));
+  color: var(--c-002a52);
   font-weight: 700;
   padding: 8px 10px;
-  border-bottom: 2px solid #c5d4e0;
+  border-bottom: 2px solid var(--c-c5d4e0);
   text-align: left;
   white-space: nowrap;
   position: sticky;
@@ -298,36 +302,36 @@
 
 .table td {
   padding: 6px 10px;
-  border-bottom: 1px solid #eef2f7;
+  border-bottom: 1px solid var(--c-eef2f7);
 }
 
 .txRow {
   transition: background 0.12s;
 }
-.txRow:hover { background: #f2f7fd; }
+.txRow:hover { background: var(--c-f2f7fd); }
 
 .txRowClickable { cursor: pointer; }
 
 /* Brief bright flash, then settles into a persistent tint that stays until
    the row is clicked or the register reloads (filter/sort change, etc). */
 .txRowHighlight, .txRowHighlight:hover {
-  background: #fdf1cd;
+  background: var(--c-fdf1cd);
   animation: txHighlightFlash 1.2s ease-out;
 }
 @keyframes txHighlightFlash {
-  0%   { background: #ffe9a8; }
-  100% { background: #fdf1cd; }
+  0%   { background: var(--c-ffe9a8); }
+  100% { background: var(--c-fdf1cd); }
 }
 
 .txRowSelected, .txRowSelected:hover {
-  background: #dce9f9;
-  box-shadow: inset 3px 0 0 #336699;
+  background: var(--c-dce9f9);
+  box-shadow: inset 3px 0 0 var(--c-336699);
 }
 
 .right { text-align: right; font-variant-numeric: tabular-nums; }
 
-.debit  { color: #c0392b; font-weight: 600; }
-.credit { color: #1a7a40; font-weight: 600; }
+.debit  { color: var(--c-c0392b); font-weight: 600; }
+.credit { color: var(--c-1a7a40); font-weight: 600; }
 
 .statusUncleared,
 .statusCleared,
@@ -341,17 +345,17 @@
   line-height: 1;
   transition: background 0.1s;
 }
-.statusUncleared:hover  { background: #f0f0f0; }
-.statusCleared:hover    { background: #e6f9ee; }
-.statusReconciled:hover { background: #ddeaf8; }
+.statusUncleared:hover  { background: var(--c-f0f0f0); }
+.statusCleared:hover    { background: var(--c-e6f9ee); }
+.statusReconciled:hover { background: var(--c-ddeaf8); }
 
 .statusCell { text-align: center; }
 
-.statusUncleared  { color: #888; }
-.statusCleared    { color: #27ae60; font-weight: 700; }
-.statusReconciled { color: #002a52; font-weight: 700; }
+.statusUncleared  { color: var(--c-888888); }
+.statusCleared    { color: var(--c-27ae60); font-weight: 700; }
+.statusReconciled { color: var(--c-002a52); font-weight: 700; }
 .statusScheduled {
-  color: #b8860b;
+  color: var(--c-b8860b);
   font-size: 11px;
   font-style: italic;
 }
@@ -370,20 +374,20 @@
   border: none;
   cursor: pointer;
   font-size: 16px;
-  color: #99b4cc;
+  color: var(--c-99b4cc);
   padding: 2px 6px;
   border-radius: 4px;
   line-height: 1;
   transition: color 0.12s, background 0.12s;
 }
-.btnActionsToggle:hover { color: #002a52; background: #eef2f7; }
+.btnActionsToggle:hover { color: var(--c-002a52); background: var(--c-eef2f7); }
 
 .actionsDropdown {
   position: absolute;
   right: 0;
   top: calc(100% + 3px);
-  background: #fff;
-  border: 1.5px solid #c5d4e0;
+  background: var(--c-ffffff);
+  border: 1.5px solid var(--c-c5d4e0);
   border-radius: 6px;
   box-shadow: 0 4px 12px rgba(0,0,0,0.12);
   z-index: 100;
@@ -403,19 +407,19 @@
   font-weight: 500;
   transition: background 0.1s;
 }
-.dropdownEdit  { color: #002a52; }
-.dropdownEdit:hover  { background: #edf4fb; }
-.dropdownDelete { color: #c0392b; }
-.dropdownDelete:hover { background: #fdf0ef; }
-.dropdownGoto { color: #1a5c99; }
-.dropdownGoto:hover { background: #edf4fb; }
+.dropdownEdit  { color: var(--c-002a52); }
+.dropdownEdit:hover  { background: var(--c-edf4fb); }
+.dropdownDelete { color: var(--c-c0392b); }
+.dropdownDelete:hover { background: var(--c-fdf0ef); }
+.dropdownGoto { color: var(--c-1a5c99); }
+.dropdownGoto:hover { background: var(--c-edf4fb); }
 
 /* ── Right-click context menu ── */
 
 .contextMenu {
   position: fixed;
-  background: #fff;
-  border: 1.5px solid #c5d4e0;
+  background: var(--c-ffffff);
+  border: 1.5px solid var(--c-c5d4e0);
   border-radius: 6px;
   box-shadow: 0 4px 12px rgba(0,0,0,0.12);
   z-index: 200;
@@ -432,15 +436,15 @@
   align-items: center;
   gap: 10px;
   padding: 7px 10px;
-  background: linear-gradient(90deg, #fffbea, #fffef5);
-  border-top: 2px solid #d4aa00;
-  border-bottom: 2px solid #d4aa00;
+  background: linear-gradient(90deg, var(--c-fffbea), var(--c-fffef5));
+  border-top: 2px solid var(--c-d4aa00);
+  border-bottom: 2px solid var(--c-d4aa00);
 }
 
 .todayLabel {
   font-size: 10.5px;
   font-weight: 700;
-  color: #7a5500;
+  color: var(--c-7a5500);
   letter-spacing: 0.6px;
   text-transform: uppercase;
 }
@@ -450,7 +454,7 @@
 /* Real transactions dated after today, shown inline in the regular table
    (not the separate scheduled-bills section) — just a muted text color so
    they're distinguishable at a glance without looking like an error state. */
-.txRowFuture td { color: #66707d; }
+.txRowFuture td { color: var(--c-66707d); }
 .txRowFuture .debit, .txRowFuture .credit { color: inherit; }
 
 /* Voided: still in the register (audit trail), just visually inert and
@@ -460,8 +464,8 @@
 
 .voidBadge {
   display: inline-block;
-  background: #c0392b;
-  color: #fff;
+  background: var(--c-c0392b);
+  color: var(--c-ffffff);
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.3px;
@@ -474,14 +478,14 @@
 .futureTxRow td {
   opacity: 0.8;
   font-style: italic;
-  background: #f8fdf8;
+  background: var(--c-f8fdf8);
 }
-.futureTxRow:hover td { opacity: 1; background: #f0faf2; }
+.futureTxRow:hover td { opacity: 1; background: var(--c-f0faf2); }
 
 .recurringIcon {
   display: inline-block;
   margin-right: 4px;
-  color: #6a9fb5;
+  color: var(--c-6a9fb5);
   font-size: 11px;
 }
 
@@ -489,14 +493,14 @@
 
 .emptyMsg {
   text-align: center;
-  color: #999;
+  color: var(--c-999999);
   padding: 32px;
   font-style: italic;
 }
 
 .noUpcoming {
   text-align: center;
-  color: #aaa;
+  color: var(--c-aaaaaa);
   padding: 14px;
   font-style: italic;
 }
@@ -511,17 +515,17 @@
 
 .loadingMore {
   font-size: 11px;
-  color: #aaa;
+  color: var(--c-aaaaaa);
   font-style: italic;
 }
 
 .transferLabel {
-  color: #2563ab;
+  color: var(--c-2563ab);
   font-style: italic;
 }
 
 .postDateMark {
-  color: #888;
+  color: var(--c-888888);
   font-size: 10px;
   vertical-align: super;
   margin-left: 1px;
@@ -532,13 +536,13 @@
   user-select: none;
   white-space: nowrap;
 }
-.sortable:hover { background: #d4e4f0; }
+.sortable:hover { background: var(--c-d4e4f0); }
 
 .sortActive {
-  color: #1a6bbf;
+  color: var(--c-1a6bbf);
   font-size: 0.8em;
 }
 .sortIdle {
-  color: #b0bec5;
+  color: var(--c-b0bec5);
   font-size: 0.8em;
 }

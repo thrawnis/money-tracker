@@ -3,7 +3,29 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Matches the navy header/sidebar so the OS chrome (Android's status
+         bar, a PWA's title bar) blends with the app instead of showing a
+         mismatched default color. -->
+    <meta name="theme-color" content="#002a52" />
+    <!-- Tells the browser this page supports both themes, so native chrome it
+         draws itself — scrollbars, native form control outlines, the default
+         page background before any CSS loads — follows the OS setting
+         instead of defaulting to light. -->
+    <meta name="color-scheme" content="light dark" />
+    <!-- Runs full-screen (no Safari chrome) when launched from the iOS home
+         screen — iOS ignores the manifest's display:standalone and needs
+         this separately. "black" (opaque bar, content pushed below it) is
+         deliberate over "black-translucent": translucent draws content
+         *under* the status bar/notch and needs safe-area-inset padding on
+         every fixed-position element to avoid being covered by it — this app
+         has fixed elements (the mobile hamburger button) with none of that
+         padding, so translucent would need CSS changes this pass doesn't make. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+    <meta name="apple-mobile-web-app-title" content="Money Tracker" />
     <title>Money Tracker</title>
   </head>
   <body>

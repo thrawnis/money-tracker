@@ -21,8 +21,8 @@
 .sidebar {
   width: 200px;
   min-width: 200px;
-  background: #fff;
-  border: 1.5px solid #c5d4e0;
+  background: var(--c-ffffff);
+  border: 1.5px solid var(--c-c5d4e0);
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.06);
   overflow-y: auto;
@@ -32,7 +32,7 @@
 
 .sidebarSection {
   padding: 10px 0 6px;
-  border-bottom: 1px solid #eef2f7;
+  border-bottom: 1px solid var(--c-eef2f7);
 }
 
 .sidebarSection:last-child { border-bottom: none; }
@@ -42,7 +42,7 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.8px;
-  color: #8899aa;
+  color: var(--c-8899aa);
   padding: 0 12px 6px;
 }
 
@@ -55,7 +55,7 @@
   border: none;
   border-left: 3px solid transparent;
   font-size: 12.5px;
-  color: #334;
+  color: var(--c-333344);
   cursor: pointer;
   transition: background 0.12s, border-color 0.12s;
   white-space: nowrap;
@@ -63,12 +63,12 @@
   text-overflow: ellipsis;
 }
 
-.listItem:hover { background: #f0f5fb; }
+.listItem:hover { background: var(--c-f0f5fb); }
 
 .listItemActive {
   background: rgba(0,95,95,0.08) !important;
-  border-left-color: #005f5f !important;
-  color: #002a52;
+  border-left-color: var(--c-005f5f) !important;
+  color: var(--c-002a52);
   font-weight: 600;
 }
 
@@ -79,11 +79,11 @@
   transition: background 0.12s, border-color 0.12s;
 }
 
-.savedItem:hover { background: #f0f5fb; }
+.savedItem:hover { background: var(--c-f0f5fb); }
 
 .savedItemActive {
   background: rgba(0,95,95,0.08) !important;
-  border-left-color: #005f5f !important;
+  border-left-color: var(--c-005f5f) !important;
 }
 
 .savedItemBtn {
@@ -93,26 +93,26 @@
   background: none;
   border: none;
   font-size: 12px;
-  color: #334;
+  color: var(--c-333344);
   cursor: pointer;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.savedItemActive .savedItemBtn { color: #002a52; font-weight: 600; }
+.savedItemActive .savedItemBtn { color: var(--c-002a52); font-weight: 600; }
 
 .savedItemDelete {
   padding: 4px 8px;
   background: none;
   border: none;
-  color: #aaa;
+  color: var(--c-aaaaaa);
   cursor: pointer;
   font-size: 11px;
   flex-shrink: 0;
 }
 
-.savedItemDelete:hover { color: #c0392b; }
+.savedItemDelete:hover { color: var(--c-c0392b); }
 
 /* ── Main area ──────────────────────────────────────────────────────────────── */
 
@@ -126,7 +126,7 @@
 .mainHeader {
   margin-bottom: 10px;
   padding-bottom: 8px;
-  border-bottom: 2px solid #c5d4e0;
+  border-bottom: 2px solid var(--c-c5d4e0);
   flex-shrink: 0;
 }
 
@@ -134,14 +134,14 @@
   margin: 0;
   font-size: 17px;
   font-weight: 700;
-  color: #002a52;
+  color: var(--c-002a52);
 }
 
 /* ── Controls ───────────────────────────────────────────────────────────────── */
 
 .controls {
-  background: #fff;
-  border: 1.5px solid #c5d4e0;
+  background: var(--c-ffffff);
+  border: 1.5px solid var(--c-c5d4e0);
   border-radius: 6px;
   padding: 12px 14px;
   margin-bottom: 12px;
@@ -162,7 +162,7 @@
 .controlLabel {
   font-size: 11px;
   font-weight: 700;
-  color: #556;
+  color: var(--c-555566);
   white-space: nowrap;
   text-transform: uppercase;
   letter-spacing: 0.3px;
@@ -170,17 +170,17 @@
 
 .controlRow select, .controlRow input[type="date"] {
   padding: 4px 6px;
-  border: 1.5px solid #c5d4e0;
+  border: 1.5px solid var(--c-c5d4e0);
   border-radius: 4px;
   font-size: 12px;
   height: 26px;
-  background: #fafbfc;
+  background: var(--c-fafbfc);
   transition: border-color 0.15s;
 }
 
 .controlRow select:focus, .controlRow input[type="date"]:focus {
   outline: none;
-  border-color: #005f5f;
+  border-color: var(--c-005f5f);
   box-shadow: 0 0 0 3px rgba(0,95,95,0.1);
 }
 
@@ -192,9 +192,9 @@
 
 .presetBtn {
   padding: 3px 10px;
-  background: #edf4fb;
-  color: #002a52;
-  border: 1.5px solid #c5d4e0;
+  background: var(--c-edf4fb);
+  color: var(--c-002a52);
+  border: 1.5px solid var(--c-c5d4e0);
   border-radius: 4px;
   font-size: 11px;
   font-weight: 500;
@@ -202,7 +202,7 @@
   transition: background 0.12s;
 }
 
-.presetBtn:hover { background: #d8eaf8; }
+.presetBtn:hover { background: var(--c-d8eaf8); }
 
 .saveGroup {
   display: flex;
@@ -213,24 +213,24 @@
 
 .saveInput {
   padding: 4px 8px;
-  border: 1.5px solid #c5d4e0;
+  border: 1.5px solid var(--c-c5d4e0);
   border-radius: 4px;
   font-size: 12px;
   height: 26px;
   width: 160px;
-  background: #fafbfc;
+  background: var(--c-fafbfc);
 }
 
 .saveInput:focus {
   outline: none;
-  border-color: #005f5f;
+  border-color: var(--c-005f5f);
   box-shadow: 0 0 0 3px rgba(0,95,95,0.1);
 }
 
 .btnPrimary {
   padding: 5px 16px;
-  background: linear-gradient(135deg, #002a52, #005f5f);
-  color: #fff;
+  background: linear-gradient(135deg, var(--c-002a52), var(--c-005f5f));
+  color: var(--c-ffffff);
   border: none;
   border-radius: 5px;
   font-size: 12px;
@@ -241,25 +241,25 @@
 }
 
 .btnPrimary:hover { opacity: 0.88; }
-.btnPrimary:disabled { background: #aaa; box-shadow: none; cursor: not-allowed; }
+.btnPrimary:disabled { background: var(--c-aaaaaa); box-shadow: none; cursor: not-allowed; }
 
 .btnSecondary {
   padding: 5px 12px;
-  background: #fff;
-  color: #334;
-  border: 1.5px solid #c5d4e0;
+  background: var(--c-ffffff);
+  color: var(--c-333344);
+  border: 1.5px solid var(--c-c5d4e0);
   border-radius: 5px;
   font-size: 12px;
   cursor: pointer;
   transition: background 0.15s;
 }
 
-.btnSecondary:hover { background: #f0f4f8; }
+.btnSecondary:hover { background: var(--c-f0f4f8); }
 
 .btnSave {
   padding: 5px 14px;
-  background: #005f5f;
-  color: #fff;
+  background: var(--c-005f5f);
+  color: var(--c-ffffff);
   border: none;
   border-radius: 5px;
   font-size: 12px;
@@ -269,11 +269,11 @@
 }
 
 .btnSave:hover { opacity: 0.85; }
-.btnSave:disabled { background: #aaa; cursor: not-allowed; }
+.btnSave:disabled { background: var(--c-aaaaaa); cursor: not-allowed; }
 
 .colToggle {
   font-size: 12px;
-  color: #334;
+  color: var(--c-333344);
   display: flex;
   align-items: center;
   gap: 4px;
@@ -283,7 +283,7 @@
 /* ── Results ────────────────────────────────────────────────────────────────── */
 
 .errorMsg {
-  color: #c0392b;
+  color: var(--c-c0392b);
   font-size: 12px;
   margin-bottom: 8px;
 }
@@ -292,10 +292,10 @@
   flex: 1;
   overflow-x: auto;
   overflow-y: auto;
-  border: 1.5px solid #c5d4e0;
+  border: 1.5px solid var(--c-c5d4e0);
   border-radius: 6px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-  background: #fff;
+  background: var(--c-ffffff);
 }
 
 .reportTable {
@@ -305,11 +305,11 @@
 }
 
 .reportTable th {
-  background: linear-gradient(to bottom, #e8f0f8, #dde8f2);
-  color: #002a52;
+  background: linear-gradient(to bottom, var(--c-e8f0f8), var(--c-dde8f2));
+  color: var(--c-002a52);
   font-weight: 700;
   padding: 8px 10px;
-  border-bottom: 2px solid #c5d4e0;
+  border-bottom: 2px solid var(--c-c5d4e0);
   text-align: left;
   white-space: nowrap;
   position: sticky;
@@ -321,24 +321,24 @@
 
 .reportTable td {
   padding: 6px 10px;
-  border-bottom: 1px solid #eef2f7;
+  border-bottom: 1px solid var(--c-eef2f7);
 }
 
-.reportTable tbody tr:hover { background: #f2f7fd; }
+.reportTable tbody tr:hover { background: var(--c-f2f7fd); }
 
 .right { text-align: right; font-variant-numeric: tabular-nums; }
-.negative { color: #c0392b; }
+.negative { color: var(--c-c0392b); }
 .bold { font-weight: 700; }
 
 .totalsRow td {
   font-weight: 700;
-  background: #f0f4f8;
-  border-top: 2px solid #c5d4e0;
+  background: var(--c-f0f4f8);
+  border-top: 2px solid var(--c-c5d4e0);
 }
 
 .catSummary {
   font-size: 12.5px;
-  color: #334;
+  color: var(--c-333344);
   margin-bottom: 8px;
   flex-shrink: 0;
 }
@@ -362,7 +362,7 @@
 
   .sidebarSection {
     border-bottom: none;
-    border-right: 1px solid #eef2f7;
+    border-right: 1px solid var(--c-eef2f7);
     padding: 8px 0;
     white-space: nowrap;
   }

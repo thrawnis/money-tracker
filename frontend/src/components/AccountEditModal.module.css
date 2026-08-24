@@ -9,7 +9,7 @@
 }
 
 .modal {
-  background: #fff;
+  background: var(--c-ffffff);
   border-radius: 4px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.3);
   width: 440px;
@@ -23,8 +23,8 @@
   align-items: center;
   justify-content: space-between;
   padding: 14px 18px;
-  background: #002a52;
-  color: #fff;
+  background: var(--c-002a52);
+  color: var(--c-ffffff);
   border-radius: 4px 4px 0 0;
   position: sticky;
   top: 0;
@@ -39,7 +39,7 @@
 .closeBtn {
   background: none;
   border: none;
-  color: #fff;
+  color: var(--c-ffffff);
   font-size: 16px;
   cursor: pointer;
   padding: 2px 6px;
@@ -64,7 +64,7 @@
 .label {
   font-size: 12px;
   font-weight: 700;
-  color: #333;
+  color: var(--c-333333);
 }
 
 .checkLabel {
@@ -72,7 +72,7 @@
   align-items: center;
   gap: 6px;
   font-size: 13px;
-  color: #333;
+  color: var(--c-333333);
   cursor: pointer;
 }
 
@@ -80,7 +80,7 @@
 .select,
 .textarea {
   padding: 7px 9px;
-  border: 1px solid #c0c0c0;
+  border: 1px solid var(--c-c0c0c0);
   border-radius: 3px;
   font-size: 13px;
   font-family: inherit;
@@ -94,7 +94,7 @@
 .select:focus,
 .textarea:focus {
   outline: none;
-  border-color: #006666;
+  border-color: var(--c-006666);
 }
 
 .institutionRow {
@@ -109,7 +109,7 @@
 }
 
 .error {
-  color: #cc0000;
+  color: var(--c-cc0000);
   font-size: 12px;
 }
 
@@ -122,8 +122,8 @@
 
 .btnPrimary {
   padding: 7px 18px;
-  background: #006666;
-  color: #fff;
+  background: var(--c-006666);
+  color: var(--c-ffffff);
   border: none;
   border-radius: 4px;
   font-size: 13px;
@@ -131,42 +131,42 @@
   cursor: pointer;
 }
 
-.btnPrimary:hover { background: #007a7a; }
-.btnPrimary:disabled { background: #999; cursor: not-allowed; }
+.btnPrimary:hover { background: var(--c-007a7a); }
+.btnPrimary:disabled { background: var(--c-999999); cursor: not-allowed; }
 
 .btnSecondary {
   padding: 7px 14px;
-  background: #fff;
-  color: #336699;
-  border: 1px solid #b0c0d0;
+  background: var(--c-ffffff);
+  color: var(--c-336699);
+  border: 1px solid var(--c-b0c0d0);
   border-radius: 4px;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
 }
 
-.btnSecondary:hover { background: #f0f6ff; }
+.btnSecondary:hover { background: var(--c-f0f6ff); }
 .btnSecondary:disabled { opacity: 0.6; cursor: not-allowed; }
 
 .btnDanger {
   margin-left: auto;
   padding: 7px 14px;
-  background: #fff;
-  color: #c0392b;
-  border: 1px solid #c0392b;
+  background: var(--c-ffffff);
+  color: var(--c-c0392b);
+  border: 1px solid var(--c-c0392b);
   border-radius: 4px;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
 }
 
-.btnDanger:hover { background: #c0392b; color: #fff; }
+.btnDanger:hover { background: var(--c-c0392b); color: var(--c-ffffff); }
 .btnDanger:disabled { opacity: 0.6; cursor: not-allowed; }
 
 .btnLink {
   background: none;
   border: none;
-  color: #006666;
+  color: var(--c-006666);
   cursor: pointer;
   font-size: 12px;
   text-decoration: underline;

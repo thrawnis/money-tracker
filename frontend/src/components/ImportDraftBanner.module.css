@@ -10,8 +10,8 @@
   align-items: center;
   gap: 10px;
   padding: 10px 14px;
-  background: #fff4d6;
-  border: 1.5px solid #e6b800;
+  background: var(--c-fff4d6);
+  border: 1.5px solid var(--c-e6b800);
   border-radius: 6px;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
   flex-wrap: wrap;
@@ -25,36 +25,36 @@
   flex: 1;
   min-width: 240px;
   font-size: 13px;
-  color: #5c4400;
+  color: var(--c-5c4400);
 }
 
 .resumeBtn {
   padding: 5px 14px;
-  background: #006666;
-  color: #fff;
+  background: var(--c-006666);
+  color: var(--c-ffffff);
   border: none;
   border-radius: 3px;
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
 }
-.resumeBtn:hover { background: #005050; }
+.resumeBtn:hover { background: var(--c-005050); }
 
 .discardBtn {
   padding: 5px 14px;
   background: transparent;
-  color: #a33;
-  border: 1px solid #a33;
+  color: var(--c-aa3333);
+  border: 1px solid var(--c-aa3333);
   border-radius: 3px;
   font-size: 12px;
   cursor: pointer;
 }
-.discardBtn:hover { background: #fdf0ef; }
+.discardBtn:hover { background: var(--c-fdf0ef); }
 
 .hideBtn {
   background: none;
   border: none;
-  color: #806000;
+  color: var(--c-806000);
   cursor: pointer;
   font-size: 14px;
   padding: 2px 4px;

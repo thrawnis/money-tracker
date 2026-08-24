@@ -13,14 +13,14 @@
 .pageHeader {
   margin-bottom: 12px;
   padding-bottom: 10px;
-  border-bottom: 2px solid #c5d4e0;
+  border-bottom: 2px solid var(--c-c5d4e0);
   flex-shrink: 0;
 }
 
 .backBtn {
   background: none;
   border: none;
-  color: #005f5f;
+  color: var(--c-005f5f);
   font-size: 12px;
   cursor: pointer;
   padding: 0 0 4px;
@@ -32,26 +32,26 @@
   margin: 0;
   font-size: 17px;
   font-weight: 700;
-  color: #002a52;
+  color: var(--c-002a52);
 }
 
 .meta {
   font-size: 12px;
-  color: #778;
+  color: var(--c-777788);
   margin-top: 2px;
 }
 
-.error { color: #c0392b; font-size: 12px; margin-bottom: 8px; }
-.loading { color: #778; font-size: 12px; padding: 16px 0; }
-.empty { text-align: center; color: #aaa; font-style: italic; padding: 24px; }
+.error { color: var(--c-c0392b); font-size: 12px; margin-bottom: 8px; }
+.loading { color: var(--c-777788); font-size: 12px; padding: 16px 0; }
+.empty { text-align: center; color: var(--c-aaaaaa); font-style: italic; padding: 24px; }
 
 .tableWrapper {
   flex: 1;
   overflow-x: auto;
   overflow-y: auto;
-  border: 1.5px solid #c5d4e0;
+  border: 1.5px solid var(--c-c5d4e0);
   border-radius: 6px;
-  background: #fff;
+  background: var(--c-ffffff);
   box-shadow: 0 2px 8px rgba(0,0,0,0.06);
 }
 
@@ -62,11 +62,11 @@
 }
 
 .table th {
-  background: linear-gradient(to bottom, #e8f0f8, #dde8f2);
-  color: #002a52;
+  background: linear-gradient(to bottom, var(--c-e8f0f8), var(--c-dde8f2));
+  color: var(--c-002a52);
   font-weight: 700;
   padding: 8px 10px;
-  border-bottom: 2px solid #c5d4e0;
+  border-bottom: 2px solid var(--c-c5d4e0);
   text-align: left;
   white-space: nowrap;
   position: sticky;
@@ -77,27 +77,27 @@
 
 .table td {
   padding: 6px 10px;
-  border-bottom: 1px solid #eef2f7;
+  border-bottom: 1px solid var(--c-eef2f7);
 }
 
 .row { cursor: pointer; transition: background 0.1s; }
-.row:hover { background: #f2f7fd; }
+.row:hover { background: var(--c-f2f7fd); }
 
 .right { text-align: right; font-variant-numeric: tabular-nums; }
-.negative { color: #c0392b; }
+.negative { color: var(--c-c0392b); }
 
 .loadMore {
   margin-top: 10px;
   padding: 7px 20px;
-  background: #fff;
-  border: 1.5px solid #c5d4e0;
+  background: var(--c-ffffff);
+  border: 1.5px solid var(--c-c5d4e0);
   border-radius: 5px;
   font-size: 12px;
-  color: #334;
+  color: var(--c-333344);
   cursor: pointer;
   align-self: center;
   flex-shrink: 0;
   transition: background 0.15s;
 }
-.loadMore:hover { background: #f0f4f8; }
+.loadMore:hover { background: var(--c-f0f4f8); }
 .loadMore:disabled { opacity: 0.5; cursor: not-allowed; }
