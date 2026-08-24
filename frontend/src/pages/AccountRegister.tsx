@@ -634,8 +634,12 @@ export default function AccountRegister() {
     // reaches it — without this, the sentinel only fires once it's actually
     // on screen, by which point the user's scroll momentum has already
     // stopped (they hit the bottom of the currently-rendered content), so
-    // nothing continues until they manually scroll again.
-    }, { threshold: 0.1, rootMargin: '800px 0px' });
+    // nothing continues until they manually scroll again. 1500px rather than
+    // a smaller margin because PAST_PAGE_SIZE batches are 500 rows — a
+    // heavier fetch (more to transfer, more to decrypt server-side when a
+    // payee/memo filter is active) needs more lead time to finish before the
+    // user's scroll actually catches up to it.
+    }, { threshold: 0.1, rootMargin: '1500px 0px' });
 
     if (topSentinelRef.current) observer.observe(topSentinelRef.current);
     if (bottomSentinelRef.current) observer.observe(bottomSentinelRef.current);
