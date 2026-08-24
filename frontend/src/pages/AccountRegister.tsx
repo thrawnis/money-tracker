@@ -23,7 +23,10 @@ function formatDate(d: string) {
   return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
 }
 
-const PAST_PAGE_SIZE = 100;
+// 500 is the backend's own clamp ceiling (TransactionsController), so this is
+// the largest page the server will actually honor — anything higher would
+// silently get truncated back down to 500 anyway.
+const PAST_PAGE_SIZE = 500;
 const FUTURE_BATCH = 5;
 
 // Past transactions are ALWAYS fetched newest-first, regardless of the display
