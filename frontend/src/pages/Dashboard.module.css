@@ -66,12 +66,31 @@
   margin: 0 0 12px;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 7px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   padding-bottom: 8px;
   border-bottom: 1px solid var(--c-eef2f7);
 }
+
+/* Sits at the right edge of the "Accounts" heading (space-between above) —
+   the only sectionTitle with two children, so this doesn't shift the other,
+   single-child headings that reuse the same class. */
+.balanceToggle {
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--c-005f5f);
+  background: var(--c-e6f4f4);
+  border: 1px solid var(--c-b0c4d8);
+  border-radius: 4px;
+  padding: 3px 9px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.balanceToggle:hover { background: var(--c-d8eaf8); }
 
 /* ── Account list ─────────────────────────────────────────────────────────── */
 

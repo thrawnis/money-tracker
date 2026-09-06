@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getDashboard, type DashboardData, type DashboardAccount } from '../api/dashboard';
 import { usePageTitle } from '../hooks/usePageTitle';
+import { ACCOUNT_TYPE_GROUP_LABELS } from '../utils/accountTypes';
+import type { AccountType } from '../types';
 import styles from './Dashboard.module.css';
 
 const ACCOUNT_TYPE_ORDER = ['Checking', 'Savings', 'CreditCard', 'Cash', 'Investment', 'Loan', 'Other'];
@@ -81,6 +83,10 @@ function PieChart({ accounts }: { accounts: DashboardAccount[] }) {
 export default function Dashboard() {
   usePageTitle('Dashboard');
   const [data, setData] = useState<DashboardData | null>(null);
+  // Privacy toggle for the account balances below — defaults to hidden every
+  // time the Dashboard loads (not persisted), so a screen share or a glance
+  // over your shoulder doesn't default to showing dollar figures.
+  const [showBalances, setShowBalances] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -114,20 +120,33 @@ export default function Dashboard() {
       <div className={styles.grid}>
         {/* Left: Accounts */}
         <div className={styles.accountsPanel}>
-          <h3 className={styles.sectionTitle}>Accounts</h3>
+          <h3 className={styles.sectionTitle}>
+            Accounts
+            <button
+              type="button"
+              className={styles.balanceToggle}
+              onClick={() => setShowBalances(v => !v)}
+              title={showBalances ? 'Hide balances' : 'Show balances'}
+              aria-label={showBalances ? 'Hide balances' : 'Show balances'}
+            >
+              {showBalances ? '🙈 Hide' : '👁 Show'} balances
+            </button>
+          </h3>
           {sortedTypes.map(type => (
             <div key={type} className={styles.accountGroup}>
-              <div className={styles.accountGroupHeader}>{type}</div>
+              <div className={styles.accountGroupHeader}>{ACCOUNT_TYPE_GROUP_LABELS[type as AccountType] ?? type}</div>
               {byType[type].map(acc => (
                 <Link key={acc.id} to={`/accounts/${acc.id}`} className={styles.accountRow}>
                   <span className={styles.accountRowName}>{acc.name}</span>
-                  <span className={`${styles.accountRowBalance} ${acc.currentBalance < 0 ? styles.negative : ''}`}>
-                    {formatCurrency(acc.currentBalance)}
+                  <span className={`${styles.accountRowBalance} ${showBalances && acc.currentBalance < 0 ? styles.negative : ''}`}>
+                    {showBalances ? formatCurrency(acc.currentBalance) : '••••••'}
                   </span>
                 </Link>
               ))}
               <div className={styles.accountGroupTotal}>
-                Total: {formatCurrency(byType[type].reduce((s, a) => s + a.currentBalance, 0))}
+                Total: {showBalances
+                  ? formatCurrency(byType[type].reduce((s, a) => s + a.currentBalance, 0))
+                  : '••••••'}
               </div>
             </div>
           ))}
