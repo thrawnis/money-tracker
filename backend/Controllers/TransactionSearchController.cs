@@ -29,6 +29,7 @@ public class TransactionSearchController(
         [FromQuery] DateOnly? from,
         [FromQuery] DateOnly? to,
         [FromQuery] int[]?  accountIds,
+        [FromQuery] bool?   uncategorized, // true = no category assigned, and not a transfer leg (transfers never carry one)
         [FromQuery] int     page     = 1,
         [FromQuery] int     pageSize = 100)
     {
@@ -57,6 +58,12 @@ public class TransactionSearchController(
             query = query.Where(t => t.PayeeId == payeeId.Value);
         if (from.HasValue) query = query.Where(t => t.Date >= from.Value);
         if (to.HasValue)   query = query.Where(t => t.Date <= to.Value);
+        // Matches DashboardController's definition exactly, since this filter's
+        // main entry point is clicking the Dashboard's "Uncategorized
+        // Transactions" heading — the count shown there and what this returns
+        // need to agree, or the click-through would look like it lost rows.
+        if (uncategorized == true)
+            query = query.Where(t => t.CategoryId == null && t.TransferTransactionId == null && !t.Splits.Any());
 
         var loaded = await query
             .OrderByDescending(t => t.Date)

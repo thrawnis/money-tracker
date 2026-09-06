@@ -221,6 +221,19 @@
   padding-top: 14px;
 }
 
+/* Wraps the whole heading (text + badge) as one clickable link to the
+   cross-account Transactions view, filtered to uncategorized — inherits
+   sectionTitle's color/spacing rather than restyling, plus just a hover cue
+   so it doesn't look identical to this page's other three (non-clickable)
+   section headings. */
+.uncatTitleLink {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: inherit;
+}
+.uncatTitleLink:hover { color: var(--c-005f5f); text-decoration: underline; }
+
 .uncatBadge {
   background: var(--c-c0392b);
   color: var(--c-ffffff);

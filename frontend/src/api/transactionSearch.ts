@@ -29,6 +29,7 @@ export interface SearchParams {
   accountIds?: number[];
   payeeName?: string;
   memo?: string;
+  uncategorized?: boolean;
   page?: number;
   pageSize?: number;
 }

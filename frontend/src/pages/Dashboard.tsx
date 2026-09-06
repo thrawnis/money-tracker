@@ -169,8 +169,10 @@ export default function Dashboard() {
           {data.uncategorizedCount > 0 && (
             <div className={styles.uncatSection}>
               <h3 className={styles.sectionTitle}>
-                Uncategorized Transactions
-                <span className={styles.uncatBadge}>{data.uncategorizedCount}</span>
+                <Link to="/all-transactions?uncategorized=true" className={styles.uncatTitleLink}>
+                  Uncategorized Transactions
+                  <span className={styles.uncatBadge}>{data.uncategorizedCount}</span>
+                </Link>
               </h3>
               <p className={styles.uncatHint}>
                 {data.uncategorizedCount} transaction{data.uncategorizedCount !== 1 ? 's' : ''} need categorization.

@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { getAccounts } from '../api/accounts';
 import { searchTransactions, type SearchTransaction } from '../api/transactionSearch';
@@ -17,6 +18,7 @@ const PAGE_SIZE = 100;
 
 export default function AllTransactions() {
   usePageTitle('Transactions');
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [selectedTx, setSelectedTx] = useState<SearchTransaction | null>(null);
   // Dirty state reported up from the detail panel's embedded edit form, so
@@ -39,13 +41,26 @@ export default function AllTransactions() {
   const [filterTo, setFilterTo] = useState('');
   const [filterPayee, setFilterPayee] = useState('');
   const [filterMemo, setFilterMemo] = useState('');
-  const [filterOpen, setFilterOpen] = useState(false);
+  // Seeded from ?uncategorized=true (the Dashboard's "Uncategorized
+  // Transactions" heading links here) so the filter is already applied and
+  // visibly checked on arrival, not just active behind the scenes.
+  const [filterUncategorized, setFilterUncategorized] = useState(() => searchParams.get('uncategorized') === 'true');
+  const [filterOpen, setFilterOpen] = useState(() => searchParams.get('uncategorized') === 'true');
 
   // Applied filters (only change when user clicks Apply)
   const [appliedFrom, setAppliedFrom] = useState('');
   const [appliedTo, setAppliedTo] = useState('');
   const [appliedPayee, setAppliedPayee] = useState('');
   const [appliedMemo, setAppliedMemo] = useState('');
+  const [appliedUncategorized, setAppliedUncategorized] = useState(() => searchParams.get('uncategorized') === 'true');
+
+  // One-shot: consume ?uncategorized= from the URL, then strip it so it
+  // doesn't linger and reapply itself after the user clears the filter.
+  useEffect(() => {
+    if (!searchParams.has('uncategorized')) return;
+    setSearchParams(prev => { const p = new URLSearchParams(prev); p.delete('uncategorized'); return p; }, { replace: true });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     getAccounts().then(accs => {
@@ -94,6 +109,7 @@ export default function AllTransactions() {
         to: appliedTo || undefined,
         payeeName: appliedPayee || undefined,
         memo: appliedMemo || undefined,
+        uncategorized: appliedUncategorized || undefined,
         page: pg,
         pageSize: PAGE_SIZE,
       });
@@ -107,7 +123,7 @@ export default function AllTransactions() {
       if (seq === loadSeq.current) setLoading(false);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [effectiveIdsKey, appliedFrom, appliedTo, appliedPayee, appliedMemo, accounts.length]);
+  }, [effectiveIdsKey, appliedFrom, appliedTo, appliedPayee, appliedMemo, appliedUncategorized, accounts.length]);
 
   // Reload from page 1 when accounts selection or applied filters change
   useEffect(() => {
@@ -123,11 +139,12 @@ export default function AllTransactions() {
     setAppliedTo(filterTo);
     setAppliedPayee(filterPayee);
     setAppliedMemo(filterMemo);
+    setAppliedUncategorized(filterUncategorized);
   };
 
   const clearFilters = () => {
-    setFilterFrom(''); setFilterTo(''); setFilterPayee(''); setFilterMemo('');
-    setAppliedFrom(''); setAppliedTo(''); setAppliedPayee(''); setAppliedMemo('');
+    setFilterFrom(''); setFilterTo(''); setFilterPayee(''); setFilterMemo(''); setFilterUncategorized(false);
+    setAppliedFrom(''); setAppliedTo(''); setAppliedPayee(''); setAppliedMemo(''); setAppliedUncategorized(false);
   };
 
   const toggleAccount = (id: number) => {
@@ -245,6 +262,12 @@ export default function AllTransactions() {
             <div className={styles.filterField}>
               <label>Memo</label>
               <input type="text" value={filterMemo} onChange={e => setFilterMemo(e.target.value)} placeholder="* wildcard" />
+            </div>
+            <div className={styles.filterField} style={{ justifyContent: 'flex-end' }}>
+              <label>
+                <input type="checkbox" checked={filterUncategorized} onChange={e => setFilterUncategorized(e.target.checked)} />
+                {' '}Uncategorized only
+              </label>
             </div>
           </div>
           <div className={styles.filterActions}>
