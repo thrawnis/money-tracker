@@ -19,6 +19,25 @@
   --transition:       0.18s ease;
 }
 
+/* This file was excluded wholesale from the dark-mode token sweep because
+   its SIDEBAR is meant to always stay dark navy regardless of theme — but
+   --ms-bg isn't sidebar styling, it's .content's background, i.e. the page
+   canvas behind every single screen in the app. Excluding the whole file
+   silently took that down with it: --ms-bg had no dark value at all, so the
+   main content area stayed stuck at a fixed light blue-grey while the text
+   and cards drawn on top of it correctly went dark — the "half-themed,
+   colors look wrong" effect this override fixes. Reuses the exact value
+   the standalone --c-eef2f7 token already computes for the same literal
+   color, so every occurrence of this background (however it's referenced)
+   ends up the same shade in dark mode. Every other --ms-* token is
+   deliberately left alone — they're sidebar/hamburger-only and correctly
+   ignore the theme. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ms-bg: #172231;
+  }
+}
+
 /* ── Shell ─────────────────────────────────────────────────────────────────── */
 
 .shell {

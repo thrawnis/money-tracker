@@ -70,7 +70,7 @@ function PieChart({ accounts }: { accounts: DashboardAccount[] }) {
           {slices.map(s => (
             <li key={s.type} className={styles.pieLegendItem}>
               <span className={styles.pieDot} style={{ background: s.color }} />
-              <span className={styles.pieLegendType}>{s.type}</span>
+              <span className={styles.pieLegendType}>{ACCOUNT_TYPE_GROUP_LABELS[s.type as AccountType] ?? s.type}</span>
               <span className={styles.pieLegendPct}>{(s.pct * 100).toFixed(1)}%</span>
             </li>
           ))}

@@ -167,7 +167,12 @@
    saving somewhere else is easy to do by accident otherwise. */
 .moveHint {
   font-size: 11px;
-  color: var(--ms-gold, var(--c-b8860b));
+  /* Was var(--ms-gold, var(--c-b8860b)) — a fallback that never actually
+     fired: --ms-gold IS defined (Layout.module.css's :root, fixed, no dark
+     value), so it always won over the dark-aware fallback regardless of
+     theme. --c-b8860b already has a proper dark counterpart; just use it
+     directly. */
+  color: var(--c-b8860b);
   font-weight: 600;
 }
 
