@@ -169,6 +169,13 @@ builder.Services.AddScoped<ExportService>();
 builder.Services.AddScoped<DemoSeeder>();
 builder.Services.AddScoped<VoidCategoryMigrationService>();
 builder.Services.AddScoped<VoidPayeeMigrationService>();
+// SimpleFIN bank sync. Redirects are disabled on its HttpClient: the claim URL
+// comes from user input, and a followed redirect could point the server at an
+// internal address after SimpleFinClient already vetted the original host.
+builder.Services.AddHttpClient(SimpleFinClient.HttpClientName, c => c.Timeout = TimeSpan.FromSeconds(60))
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
+builder.Services.AddScoped<SimpleFinClient>();
+builder.Services.AddScoped<SimpleFinService>();
 builder.Services.AddSingleton<IAccountBackupService, AccountBackupService>();
 // Registered as itself (not just IHostedService) so controllers can inject it
 // directly to trigger an immediate posting pass right after a schedule is

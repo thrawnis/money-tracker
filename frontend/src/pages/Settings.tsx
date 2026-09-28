@@ -20,9 +20,10 @@ import TimeZoneSelect from '../components/TimeZoneSelect';
 import type { Account } from '../types';
 import ExportModal from '../components/ExportModal';
 import ReauthModal from '../components/ReauthModal';
+import BankSyncTab from '../components/BankSyncTab';
 import styles from './Settings.module.css';
 
-type Tab = 'preferences' | 'security' | 'export' | 'import' | 'backups' | 'audit';
+type Tab = 'preferences' | 'security' | 'export' | 'import' | 'banksync' | 'backups' | 'audit';
 
 // ── Change Password ──
 
@@ -1238,6 +1239,16 @@ export default function Settings() {
   const location = useLocation();
   const initialTab = (location.state as { tab?: Tab } | null)?.tab;
   const [tab, setTab] = useState<Tab>(initialTab ?? 'preferences');
+  // A navigation that targets a tab while Settings is already open (the
+  // unfinished-import banner's Resume, Bank Sync's Review) doesn't remount
+  // this page, so the initial useState above never sees it. Follow the new
+  // location's tab — the render-time "adjust state on prop change" pattern,
+  // keyed on location.key so repeated navigations to the same tab still work.
+  const [seenLocationKey, setSeenLocationKey] = useState(location.key);
+  if (location.key !== seenLocationKey) {
+    setSeenLocationKey(location.key);
+    if (initialTab) setTab(initialTab);
+  }
 
   return (
     <div className={styles.page}>
@@ -1270,6 +1281,12 @@ export default function Settings() {
           Import Data
         </button>
         <button
+          className={`${styles.tab} ${tab === 'banksync' ? styles.tabActive : ''}`}
+          onClick={() => setTab('banksync')}
+        >
+          Bank Sync
+        </button>
+        <button
           className={`${styles.tab} ${tab === 'backups' ? styles.tabActive : ''}`}
           onClick={() => setTab('backups')}
         >
@@ -1287,6 +1304,7 @@ export default function Settings() {
         {tab === 'security' && <SecurityTab />}
         {tab === 'export' && <ExportTab />}
         {tab === 'import' && <ImportTab />}
+        {tab === 'banksync' && <BankSyncTab />}
         {tab === 'backups' && <BackupsTab />}
         {tab === 'audit' && <AuditLogTab />}
       </div>

@@ -41,6 +41,21 @@ public static class UserClock
 
     public static DateOnly Today(ApplicationUser user) => Today(user.TimeZoneId);
 
+    /// <summary>The calendar date an instant falls on in the given zone (UTC if unset/invalid).</summary>
+    public static DateOnly ToLocalDate(DateTimeOffset instant, string? timeZoneId)
+    {
+        if (string.IsNullOrWhiteSpace(timeZoneId)) return DateOnly.FromDateTime(instant.UtcDateTime);
+        try
+        {
+            var tz = TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
+            return DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(instant, tz).DateTime);
+        }
+        catch (Exception ex) when (ex is TimeZoneNotFoundException or InvalidTimeZoneException)
+        {
+            return DateOnly.FromDateTime(instant.UtcDateTime);
+        }
+    }
+
     /// <summary>True when the id resolves on this host — used to validate input.</summary>
     public static bool IsValidTimeZone(string timeZoneId)
     {

@@ -78,6 +78,8 @@ export interface ImportDraftSummary {
   accountName: string;
   fileName: string;
   rowCount: number;
+  /** Staged by a SimpleFIN bank sync rather than a file upload. */
+  fromBankSync?: boolean;
   createdAt: string;
   updatedAt: string;
 }

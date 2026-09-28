@@ -105,8 +105,13 @@ public class ImportController(
     // the file, computes duplicates/transfer-match preview, and flags raw payee
     // strings that don't already resolve to a known payee or mapping rule so
     // the caller can ask the user to confirm/redirect them before committing.
+    // rowsAreDistinct: set for SimpleFIN sync drafts, whose rows each carry a
+    // bank-assigned transaction id — two rows with the same account, date, and
+    // amount there are two real transactions (two identical coffees), not an
+    // export glitch, so the within-file repeat check that protects hand-made
+    // files must not drop the second one.
     private async Task<(IActionResult? Error, PreviewResponse? Response, List<CsvRow>? Rows)> BuildPreviewAsync(
-        string userId, string fileName, byte[] fileBytes, int? accountId)
+        string userId, string fileName, byte[] fileBytes, int? accountId, bool rowsAreDistinct = false)
     {
         var ext = Path.GetExtension(fileName).ToLowerInvariant();
         if (ext is ".ofx" or ".qfx")
@@ -147,6 +152,11 @@ public class ImportController(
         var claimedTransferIds = new HashSet<int>();
         var batchKeys = new HashSet<(int AccountId, DateOnly Date, decimal Amount)>();
         var duplicatesWithinFile = 0;
+        // Each existing transaction can be "the duplicate of" at most one incoming
+        // row — otherwise two same-day, same-amount incoming rows would both be
+        // pinned to the one existing match, and a genuinely new second one would
+        // be hidden as a duplicate. Must match RunImportAsync's claiming exactly.
+        var claimedExistingDupIds = new HashSet<int>();
 
         var allPayees = await db.Payees.Where(p => p.UserId == userId).ToListAsync();
         var rules = await db.PayeeMappingRules.Where(r => r.UserId == userId).ToListAsync();
@@ -167,19 +177,22 @@ public class ImportController(
             // can't see the first one yet (nothing's been imported), so flag it
             // here too — matches the safeguard applied at actual import time.
             // These are always skipped (no "include" option, unlike DB duplicates).
-            if (!batchKeys.Add((rowAccountId, date, amount)))
+            if (!rowsAreDistinct && !batchKeys.Add((rowAccountId, date, amount)))
             {
                 duplicatesWithinFile++;
                 continue;
             }
 
-            var existing = await db.Transactions
+            var existing = (await db.Transactions
                 .Include(t => t.Payee)
                 .Where(t => t.AccountId == rowAccountId && t.Date == date && t.Amount == amount)
-                .FirstOrDefaultAsync();
+                .OrderBy(t => t.Id)
+                .ToListAsync())
+                .FirstOrDefault(t => !claimedExistingDupIds.Contains(t.Id));
 
             if (existing is not null)
             {
+                claimedExistingDupIds.Add(existing.Id);
                 var payeeName = existing.Payee is not null
                     ? encryption.Decrypt(existing.Payee.NameEncrypted, dek)
                     : row.Payee ?? "";
@@ -298,6 +311,7 @@ public class ImportController(
 
         string fileName;
         byte[] fileBytes;
+        ImportDraft? sourceDraft = null;
 
         if (draftId.HasValue)
         {
@@ -310,6 +324,7 @@ public class ImportController(
             fileName = draft.FileName;
             fileBytes = Convert.FromBase64String(encryption.Decrypt(draft.FileContentEncrypted, user.EncryptedDataKey)!);
             accountId ??= draft.AccountId;
+            sourceDraft = draft;
         }
         else if (file is not null)
         {
@@ -327,7 +342,24 @@ public class ImportController(
             return Conflict(new { message = "An import is already in progress for your account. Please wait for it to finish before starting another." });
         try
         {
-            var result = await RunImportAsync(fileName, fileBytes, includeDuplicateIds, accountId, userId, payeeOverrides, rememberPayeeMappings);
+            var fromSync = sourceDraft?.SimpleFinAccountId is not null;
+            var result = await RunImportAsync(fileName, fileBytes, includeDuplicateIds, accountId, userId,
+                payeeOverrides, rememberPayeeMappings, rowsAreDistinct: fromSync);
+
+            // A reviewed-and-committed SimpleFIN draft moves that bank account's
+            // sync cursor forward, so the next sync starts from here (minus an
+            // overlap). Only on success, and only from the draft itself —
+            // discarding a draft never advances it, so nothing gets skipped.
+            if (fromSync && result is OkObjectResult && sourceDraft!.SimpleFinSyncedThrough is DateOnly through)
+            {
+                var sfAccount = await db.SimpleFinAccounts
+                    .FirstOrDefaultAsync(a => a.Id == sourceDraft.SimpleFinAccountId && a.UserId == userId);
+                if (sfAccount is not null && (sfAccount.SyncedThrough is null || through > sfAccount.SyncedThrough))
+                {
+                    sfAccount.SyncedThrough = through;
+                    await db.SaveChangesAsync();
+                }
+            }
 
             // A completed import (whichever path it came from) supersedes any
             // staged draft for this account — nothing left to resume.
@@ -351,7 +383,7 @@ public class ImportController(
 
     private async Task<IActionResult> RunImportAsync(
         string fileName, byte[] fileBytes, string? includeDuplicateIds, int? accountId, string userId,
-        string? payeeOverridesJson, string? rememberPayeeMappingsJson)
+        string? payeeOverridesJson, string? rememberPayeeMappingsJson, bool rowsAreDistinct = false)
     {
         var ext = Path.GetExtension(fileName).ToLowerInvariant();
         if (ext is ".ofx" or ".qfx")
@@ -477,6 +509,13 @@ public class ImportController(
         // two identical rows in one file (a common symptom of a bad export) would
         // both be inserted as "new" since neither exists in the DB yet when checked.
         var batchKeys = new HashSet<(int AccountId, DateOnly Date, decimal Amount)>();
+        // Same claiming rule as BuildPreviewAsync (see there). addedThisRun
+        // matters because payee/category creation below calls SaveChanges
+        // mid-loop, flushing already-queued rows into the DB — without it a
+        // second identical incoming row would find the first one just
+        // inserted and be skipped as its "duplicate".
+        var claimedExistingDupIds = new HashSet<int>();
+        var addedThisRun = new HashSet<Transaction>(ReferenceEqualityComparer.Instance);
 
         var allPayeesCache = await db.Payees.Where(p => p.UserId == userId).ToListAsync();
         var mappingRulesCache = await db.PayeeMappingRules.Where(r => r.UserId == userId).ToListAsync();
@@ -523,19 +562,25 @@ public class ImportController(
                     }
 
                     var batchKey = (rowAccountId, date, amount);
-                    if (!batchKeys.Add(batchKey))
+                    if (!rowsAreDistinct && !batchKeys.Add(batchKey))
                     {
                         errors.Add($"Skipped duplicate row within this file: {row.Date} {row.Payee} {row.Amount}");
                         continue;
                     }
 
                     // Check for duplicate
-                    var existing = await db.Transactions
+                    var existing = (await db.Transactions
                         .Where(t => t.AccountId == rowAccountId && t.Date == date && t.Amount == amount)
-                        .FirstOrDefaultAsync();
+                        .OrderBy(t => t.Id)
+                        .ToListAsync())
+                        .FirstOrDefault(t => !addedThisRun.Contains(t) && !claimedExistingDupIds.Contains(t.Id));
 
-                    if (existing is not null && !includedIds.Contains(existing.Id))
-                        continue; // skip duplicate not selected for inclusion
+                    if (existing is not null)
+                    {
+                        claimedExistingDupIds.Add(existing.Id);
+                        if (!includedIds.Contains(existing.Id))
+                            continue; // skip duplicate not selected for inclusion
+                    }
 
                     // Resolve payee
                     int? payeeId = !string.IsNullOrWhiteSpace(row.Payee) ? await ResolvePayeeIdAsync(row.Payee) : null;
@@ -613,6 +658,7 @@ public class ImportController(
                     }
 
                     db.Transactions.Add(tx);
+                    addedThisRun.Add(tx);
                     imported++;
                 }
                 catch (Exception ex)
@@ -695,6 +741,7 @@ public class ImportController(
                 accountName = d.Account.Name,
                 fileName = d.FileName,
                 rowCount = d.RowCount,
+                fromBankSync = d.SimpleFinAccountId != null,
                 createdAt = d.CreatedAt,
                 updatedAt = d.UpdatedAt,
             })
@@ -720,7 +767,8 @@ public class ImportController(
         if (draft is null) return NotFound();
 
         var fileBytes = Convert.FromBase64String(encryption.Decrypt(draft.FileContentEncrypted, user.EncryptedDataKey)!);
-        var result = await BuildPreviewAsync(userId, draft.FileName, fileBytes, draft.AccountId);
+        var result = await BuildPreviewAsync(userId, draft.FileName, fileBytes, draft.AccountId,
+            rowsAreDistinct: draft.SimpleFinAccountId is not null);
         if (result.Error is not null) return result.Error;
 
         return Ok(new
@@ -806,6 +854,11 @@ public class ImportController(
             draft.RowCount = rowCount;
             draft.IncludeDuplicateIdsJson = null;
             draft.PayeeOverridesJson = null;
+            // A manual upload replacing a sync-generated draft is no longer a
+            // bank-feed draft — it must not inherit the distinct-rows handling
+            // or move the SimpleFIN sync cursor when committed.
+            draft.SimpleFinAccountId = null;
+            draft.SimpleFinSyncedThrough = null;
             draft.UpdatedAt = DateTime.UtcNow;
         }
 

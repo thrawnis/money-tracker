@@ -22,6 +22,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<DismissedDuplicateGroup> DismissedDuplicateGroups => Set<DismissedDuplicateGroup>();
     public DbSet<PayeeMappingRule> PayeeMappingRules => Set<PayeeMappingRule>();
     public DbSet<ImportDraft> ImportDrafts => Set<ImportDraft>();
+    public DbSet<SimpleFinConnection> SimpleFinConnections => Set<SimpleFinConnection>();
+    public DbSet<SimpleFinAccount> SimpleFinAccounts => Set<SimpleFinAccount>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -107,6 +109,26 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             e.HasOne(d => d.User).WithMany().HasForeignKey(d => d.UserId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(d => d.Account).WithMany().HasForeignKey(d => d.AccountId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(d => new { d.UserId, d.AccountId }).IsUnique();
+            e.HasOne(d => d.SimpleFinAccount).WithMany().HasForeignKey(d => d.SimpleFinAccountId).OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<SimpleFinConnection>(e =>
+        {
+            e.HasOne(c => c.User).WithMany().HasForeignKey(c => c.UserId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(c => c.UserId).IsUnique(); // one connection per user
+        });
+
+        modelBuilder.Entity<SimpleFinAccount>(e =>
+        {
+            e.Property(a => a.Balance).HasPrecision(18, 2);
+            e.HasOne(a => a.Connection).WithMany(c => c.Accounts).HasForeignKey(a => a.ConnectionId).OnDelete(DeleteBehavior.Cascade);
+            // Deleting a local account just unlinks it; the SimpleFIN row stays
+            // so it can be re-linked elsewhere.
+            e.HasOne(a => a.LinkedAccount).WithMany().HasForeignKey(a => a.LinkedAccountId).OnDelete(DeleteBehavior.SetNull);
+            e.HasIndex(a => new { a.ConnectionId, a.ExternalId }).IsUnique();
+            // A local account can be the target of at most one bank account,
+            // or two feeds would import into it and double every transaction.
+            e.HasIndex(a => a.LinkedAccountId).IsUnique().HasFilter("\"LinkedAccountId\" IS NOT NULL");
         });
 
         // ── Auth ──────────────────────────────────────────────────────────────
