@@ -56,6 +56,9 @@ export default function Layout({ onLogout }: Props) {
           <NavLink to="/all-transactions" className={navItem} onClick={closeSidebar}>
             Transactions
           </NavLink>
+          <NavLink to="/bank-sync" className={navItem} onClick={closeSidebar}>
+            Bank Sync
+          </NavLink>
           <NavLink to="/bills" className={navItem} onClick={closeSidebar}>
             Bills &amp; Reminders
           </NavLink>

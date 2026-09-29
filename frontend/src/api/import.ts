@@ -21,10 +21,26 @@ export interface UnmatchedPayee {
   suggestions: UnmatchedPayeeSuggestion[];
 }
 
+/** A row that would be imported, keyed by its position in the file. */
+export interface NewRow {
+  row: number;
+  date: string;
+  payee: string;
+  /** null when the row can't be parsed (it's reported as an error on import). */
+  amount: number | null;
+  memo?: string | null;
+  /** Destination account name (multi-account files). */
+  account?: string | null;
+  /** Looks like the other side of a transfer and will be linked. */
+  transfer: boolean;
+  invalid: boolean;
+}
+
 export interface PreviewResult {
   total: number;
   duplicates: DuplicateRow[];
   newTransactions: number;
+  newRows?: NewRow[];
   transferMatches: number;
   warnings?: string[];
   error?: string;
@@ -50,6 +66,8 @@ export interface ImportOptions {
   includeDuplicateIds: number[];
   payeeOverrides?: Record<string, number>;
   rememberPayeeMappings?: string[];
+  /** Row positions (NewRow.row) the user unticked. */
+  excludeRows?: number[];
 }
 
 export interface ImportResult {
@@ -67,6 +85,7 @@ export const importWithDuplicates = (opts: ImportOptions): Promise<ImportResult>
   if (opts.accountId != null) fd.append('accountId', String(opts.accountId));
   if (opts.payeeOverrides) fd.append('payeeOverrides', JSON.stringify(opts.payeeOverrides));
   if (opts.rememberPayeeMappings) fd.append('rememberPayeeMappings', JSON.stringify(opts.rememberPayeeMappings));
+  if (opts.excludeRows?.length) fd.append('excludeRows', JSON.stringify(opts.excludeRows));
   return api.post<ImportResult>('/import', fd).then(r => r.data);
 };
 
@@ -93,6 +112,8 @@ export interface ResumedImportDraft {
   fileName: string;
   includeDuplicateIds: number[];
   payeeOverrides: Record<string, number>;
+  excludedRows: number[];
+  fromBankSync: boolean;
   preview: PreviewResult;
 }
 
@@ -101,7 +122,7 @@ export const resumeImportDraft = (id: number): Promise<ResumedImportDraft> =>
 
 export const updateImportDraft = (
   id: number,
-  data: { includeDuplicateIds?: number[]; payeeOverrides?: Record<string, number> },
+  data: { includeDuplicateIds?: number[]; payeeOverrides?: Record<string, number>; excludedRows?: number[] },
 ): Promise<void> =>
   api.put(`/import/drafts/${id}`, data).then(() => undefined);
 

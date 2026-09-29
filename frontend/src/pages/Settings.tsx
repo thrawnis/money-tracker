@@ -561,6 +561,9 @@ function ImportTab() {
   const [step, setStep] = useState<'select' | 'review' | 'done'>('select');
   const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [checkedDups, setCheckedDups] = useState<Set<number>>(new Set());
+  // New rows (by file position) the user unticked — they won't be imported.
+  const [excludedRows, setExcludedRows] = useState<Set<number>>(new Set());
+  const [fromBankSync, setFromBankSync] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState<{ imported: number; transfersLinked: number; errors?: string[] } | null>(null);
@@ -593,6 +596,8 @@ function ImportTab() {
         setFile(null);
         setPreview(res.preview);
         setCheckedDups(new Set(res.includeDuplicateIds));
+        setExcludedRows(new Set(res.excludedRows ?? []));
+        setFromBankSync(!!res.fromBankSync);
         const choices: Record<string, PayeeChoice> = {};
         for (const [raw, payeeId] of Object.entries(res.payeeOverrides)) choices[raw] = { payeeId, remember: true };
         setPayeeChoices(choices);
@@ -611,10 +616,14 @@ function ImportTab() {
       const payeeOverrides = Object.fromEntries(
         Object.entries(payeeChoices).filter(([, c]) => c.payeeId != null).map(([raw, c]) => [raw, c.payeeId!])
       );
-      updateImportDraft(draftId, { includeDuplicateIds: Array.from(checkedDups), payeeOverrides }).catch(() => {});
+      updateImportDraft(draftId, {
+        includeDuplicateIds: Array.from(checkedDups),
+        payeeOverrides,
+        excludedRows: Array.from(excludedRows),
+      }).catch(() => {});
     }, 600);
     return () => clearTimeout(t);
-  }, [draftId, step, checkedDups, payeeChoices]);
+  }, [draftId, step, checkedDups, payeeChoices, excludedRows]);
 
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -637,6 +646,8 @@ function ImportTab() {
       if (res.error) { setError(res.error); setLoading(false); return; }
       setPreview(res);
       setCheckedDups(new Set());
+      setExcludedRows(new Set());
+      setFromBankSync(false);
       setPayeeChoices({});
       setDraftId(res.draftId ?? null);
       setStep('review');
@@ -668,6 +679,7 @@ function ImportTab() {
         includeDuplicateIds,
         payeeOverrides,
         rememberPayeeMappings,
+        excludeRows: Array.from(excludedRows),
       });
       setResult(res);
       setDraftId(null);
@@ -715,6 +727,14 @@ function ImportTab() {
     });
   };
 
+  const toggleRow = (row: number) => {
+    setExcludedRows(prev => {
+      const next = new Set(prev);
+      if (next.has(row)) next.delete(row); else next.add(row);
+      return next;
+    });
+  };
+
   const setPayeeChoice = (rawText: string, payeeId: number | undefined) => {
     setPayeeChoices(prev => ({ ...prev, [rawText]: { payeeId, remember: prev[rawText]?.remember ?? true } }));
   };
@@ -746,6 +766,9 @@ function ImportTab() {
   }
 
   if (step === 'review' && preview) {
+    const newRows = preview.newRows ?? [];
+    const selectedCount = newRows.filter(r => !excludedRows.has(r.row)).length;
+    const allSelected = selectedCount === newRows.length;
     return (
       <div className={styles.tabSection}>
         <p className={styles.hint}>
@@ -809,6 +832,61 @@ function ImportTab() {
           </>
         )}
 
+        {newRows.length > 0 && (
+          <>
+            <p className={styles.hint}>
+              New transactions: <strong>{selectedCount}</strong> of {newRows.length} selected. Untick any you don't want imported.
+              {fromBankSync && <> Unticked bank transactions won't be offered by later syncs; you can restore them from the Bank Sync screen.</>}
+            </p>
+            <div style={{ maxHeight: 420, overflowY: 'auto', marginBottom: 12 }}>
+              <table className={styles.dupTable}>
+                <thead>
+                  <tr>
+                    <th>
+                      <input
+                        type="checkbox"
+                        aria-label="Select all new transactions"
+                        checked={allSelected}
+                        ref={el => { if (el) el.indeterminate = selectedCount > 0 && !allSelected; }}
+                        onChange={() => setExcludedRows(allSelected ? new Set(newRows.map(r => r.row)) : new Set())}
+                      />
+                    </th>
+                    <th>Date</th>
+                    {newRows.some(r => r.account) && effectiveAccountId == null && <th>Account</th>}
+                    <th>Payee</th>
+                    <th>Amount</th>
+                    <th>Memo</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {newRows.map(r => (
+                    <tr key={r.row} style={excludedRows.has(r.row) ? { opacity: 0.5 } : undefined}>
+                      <td>
+                        <input
+                          type="checkbox"
+                          aria-label={`Import ${r.date} ${r.payee}`}
+                          checked={!excludedRows.has(r.row)}
+                          onChange={() => toggleRow(r.row)}
+                        />
+                      </td>
+                      <td style={{ whiteSpace: 'nowrap' }}>{r.date}</td>
+                      {newRows.some(x => x.account) && effectiveAccountId == null && <td>{r.account}</td>}
+                      <td>
+                        {r.payee}
+                        {r.transfer && <span className={styles.hint} style={{ margin: 0 }}> (transfer)</span>}
+                      </td>
+                      <td style={{ color: r.amount == null ? undefined : r.amount < 0 ? '#cc0000' : '#006600', whiteSpace: 'nowrap' }}>
+                        {r.amount == null ? <em>unreadable</em> : r.amount.toFixed(2)}
+                      </td>
+                      <td>{r.memo}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+
         {preview.duplicates.length > 0 && (
           <>
             <p className={styles.hint}>Check the duplicates you want to include:</p>
@@ -853,7 +931,7 @@ function ImportTab() {
             onClick={() => handleImport(true)}
             disabled={loading}
           >
-            {loading ? 'Importing…' : 'Import All'}
+            {loading ? 'Importing…' : excludedRows.size > 0 ? 'Import Selected' : 'Import All'}
           </button>
           <button
             className={styles.btnSecondary}

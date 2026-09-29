@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
-  getSimpleFinStatus, connectSimpleFin, disconnectSimpleFin, linkSimpleFinAccount, syncSimpleFin,
-  type SimpleFinStatus, type SimpleFinAccount, type SimpleFinSyncResult,
+  getSimpleFinStatus, connectSimpleFin, disconnectSimpleFin, linkSimpleFinAccount,
+  type SimpleFinStatus, type SimpleFinAccount,
 } from '../api/simplefin';
 import { getAccounts } from '../api/accounts';
 import { useAuth } from '../contexts/auth-context';
@@ -29,9 +29,10 @@ function formatDay(d?: string | null) {
 }
 
 /**
- * Settings → Bank Sync. Pulls posted transactions from SimpleFIN Bridge and
- * stages them as import drafts — nothing reaches a register until it's
- * reviewed and committed through the regular Import Data review screen.
+ * Settings → Bank Sync: connecting SimpleFIN Bridge and choosing which account
+ * each bank account feeds. Syncing itself happens on the Bank Sync screen
+ * (pages/BankSync.tsx), which stages new transactions as import drafts —
+ * nothing reaches a register until it's reviewed and committed.
  */
 export default function BankSyncTab() {
   const navigate = useNavigate();
@@ -39,9 +40,8 @@ export default function BankSyncTab() {
   const [status, setStatus] = useState<SimpleFinStatus | null>(null);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [token, setToken] = useState('');
-  const [busy, setBusy] = useState<'connect' | 'sync' | 'disconnect' | number | null>(null);
+  const [busy, setBusy] = useState<'connect' | 'disconnect' | number | null>(null);
   const [error, setError] = useState('');
-  const [syncResult, setSyncResult] = useState<SimpleFinSyncResult | null>(null);
 
   useEffect(() => {
     Promise.all([getSimpleFinStatus(), getAccounts()])
@@ -88,22 +88,6 @@ export default function BankSyncTab() {
     }
   };
 
-  const handleSync = async () => {
-    setBusy('sync');
-    setError('');
-    setSyncResult(null);
-    try {
-      const result = await syncSimpleFin();
-      setSyncResult(result);
-      setStatus(await getSimpleFinStatus());
-    } catch (err) {
-      setError(apiMsg(err, 'Sync failed.'));
-      getSimpleFinStatus().then(setStatus).catch(() => {});
-    } finally {
-      setBusy(null);
-    }
-  };
-
   const handleDisconnect = async () => {
     if (!confirm(
       'Disconnect SimpleFIN? Money Tracker will delete its stored access key and stop syncing. '
@@ -115,7 +99,6 @@ export default function BankSyncTab() {
     try {
       await disconnectSimpleFin();
       setStatus({ connected: false });
-      setSyncResult(null);
     } catch (err) {
       setError(apiMsg(err, 'Failed to disconnect.'));
     } finally {
@@ -183,9 +166,10 @@ export default function BankSyncTab() {
       <p className={styles.hint}>
         Connected to SimpleFIN since {formatDateTime(status.createdAt, user?.timeZoneId)}
         {status.lastSyncAt ? <> · last synced {formatDateTime(status.lastSyncAt, user?.timeZoneId)}</> : <> · not synced yet</>}.
-        Each sync fetches posted transactions since the last one you imported (re-checking the previous
-        week, since banks often post late), skips any already in the register, and stages the rest for review.
-        Pending transactions are left until they post.
+        Choose which Money Tracker account each bank account syncs into, then sync from the{' '}
+        <Link to="/bank-sync">Bank Sync</Link> screen. Each sync fetches posted transactions since the last
+        one you imported (re-checking the previous week, since banks often post late), skips any already in
+        the register, and stages the rest for review. Pending transactions are left until they post.
       </p>
 
       {status.lastErrors.length > 0 && (
@@ -250,8 +234,8 @@ export default function BankSyncTab() {
       </table>
 
       <div style={{ display: 'flex', gap: 10, marginTop: 14, alignItems: 'center' }}>
-        <button className={styles.btnPrimary} onClick={handleSync} disabled={busy !== null || !hasLinks}>
-          {busy === 'sync' ? 'Syncing…' : 'Sync now'}
+        <button className={styles.btnPrimary} onClick={() => navigate('/bank-sync')} disabled={busy !== null || !hasLinks}>
+          Go to Bank Sync
         </button>
         {!hasLinks && <span className={styles.hint} style={{ margin: 0 }}>Choose where at least one bank account should sync into.</span>}
         <span style={{ flex: 1 }} />
@@ -259,30 +243,6 @@ export default function BankSyncTab() {
           {busy === 'disconnect' ? 'Disconnecting…' : 'Disconnect'}
         </button>
       </div>
-      <p className={styles.hint}>
-        SimpleFIN refreshes bank data about once a day and limits how often apps can ask for it, so
-        syncing more than a few times a day won't find anything new.
-      </p>
-
-      {syncResult && (
-        <div className={styles.prefGroup}>
-          <p className={styles.prefGroupTitle}>Sync results</p>
-          {syncResult.accounts.map(r => (
-            <div key={r.simpleFinAccountId} style={{ marginBottom: 6 }}>
-              <strong>{r.name}</strong> → {r.linkedAccountName}:{' '}
-              {r.skipped ? 'not synced' : r.newTransactions > 0 ? (
-                <>
-                  {r.newTransactions} new transaction{r.newTransactions === 1 ? '' : 's'} to review{' '}
-                  {r.draftId != null && (
-                    <button className={styles.btnLink} onClick={() => review(r.draftId!)}>Review</button>
-                  )}
-                </>
-              ) : 'no new transactions'}
-              {r.note && <div className={styles.hint} style={{ margin: '2px 0 0' }}>{r.note}</div>}
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

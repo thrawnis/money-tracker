@@ -24,6 +24,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<ImportDraft> ImportDrafts => Set<ImportDraft>();
     public DbSet<SimpleFinConnection> SimpleFinConnections => Set<SimpleFinConnection>();
     public DbSet<SimpleFinAccount> SimpleFinAccounts => Set<SimpleFinAccount>();
+    public DbSet<SimpleFinSkippedTransaction> SimpleFinSkippedTransactions => Set<SimpleFinSkippedTransaction>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -129,6 +130,14 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             // A local account can be the target of at most one bank account,
             // or two feeds would import into it and double every transaction.
             e.HasIndex(a => a.LinkedAccountId).IsUnique().HasFilter("\"LinkedAccountId\" IS NOT NULL");
+        });
+
+        modelBuilder.Entity<SimpleFinSkippedTransaction>(e =>
+        {
+            e.Property(s => s.Amount).HasPrecision(18, 2);
+            e.HasOne(s => s.SimpleFinAccount).WithMany(a => a.SkippedTransactions)
+                .HasForeignKey(s => s.SimpleFinAccountId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(s => new { s.SimpleFinAccountId, s.ExternalId }).IsUnique();
         });
 
         // ── Auth ──────────────────────────────────────────────────────────────

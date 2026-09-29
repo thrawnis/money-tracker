@@ -73,4 +73,35 @@ public class SimpleFinAccount
     public DateOnly? SyncedThrough { get; set; }
 
     public DateTime LastSeenAt { get; set; } = DateTime.UtcNow;
+
+    public ICollection<SimpleFinSkippedTransaction> SkippedTransactions { get; set; } = [];
+}
+
+/// <summary>
+/// A bank transaction the user unticked when reviewing a sync. Later syncs
+/// leave it out instead of offering it again every time. Restoring it deletes
+/// this row and rewinds the account's cursor so the next sync picks it up.
+/// </summary>
+public class SimpleFinSkippedTransaction
+{
+    public int Id { get; set; }
+
+    [Required]
+    public string UserId { get; set; } = null!;
+
+    public int SimpleFinAccountId { get; set; }
+    public SimpleFinAccount SimpleFinAccount { get; set; } = null!;
+
+    // SimpleFIN's opaque transaction id, plaintext for the same reason as
+    // SimpleFinAccount.ExternalId.
+    [Required, MaxLength(200)]
+    public string ExternalId { get; set; } = string.Empty;
+
+    // Enough to show the user what was skipped. Payee text is encrypted like
+    // every other payee/memo string; date and amount are plaintext as on Transaction.
+    public DateOnly Date { get; set; }
+    public decimal Amount { get; set; }
+    public string? PayeeEncrypted { get; set; }
+
+    public DateTime SkippedAt { get; set; } = DateTime.UtcNow;
 }

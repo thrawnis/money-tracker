@@ -21,7 +21,8 @@ namespace MoneyTracker.Controllers;
 public class ImportController(
     AppDbContext db,
     IEncryptionService encryption,
-    UserManager<ApplicationUser> userManager) : ControllerBase
+    UserManager<ApplicationUser> userManager,
+    SimpleFinService simpleFin) : ControllerBase
 {
     // A slow import (many DB round-trips per row) can outlast a client-side or
     // proxy timeout — the browser reports failure while the request keeps running
@@ -147,6 +148,9 @@ public class ImportController(
         }
 
         var duplicates = new List<object>();
+        // Every row that would be imported, keyed by its position in the file,
+        // so the review screen can list them and let the user untick some.
+        var newRows = new List<object>();
         var newCount = 0;
         var transferMatchCount = 0;
         var claimedTransferIds = new HashSet<int>();
@@ -162,14 +166,28 @@ public class ImportController(
         var rules = await db.PayeeMappingRules.Where(r => r.UserId == userId).ToListAsync();
         var unmatchedPayees = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var row in rows)
+        for (var rowIndex = 0; rowIndex < rows.Count; rowIndex++)
         {
+            var row = rows[rowIndex];
             if (!string.IsNullOrWhiteSpace(row.Payee))
                 CollectUnmatchedPayee(row.Payee.Trim(), allPayees, rules, dek, unmatchedPayees);
 
             if (!TryParseRow(row, userAccounts, out var date, out var amount, out var rowAccountId, out _, accountId))
             {
+                // Can't be imported as-is (the commit reports it as an error), but
+                // it's still listed so the user can see it and untick it.
                 newCount++;
+                newRows.Add(new
+                {
+                    row = rowIndex,
+                    date = row.Date ?? "",
+                    payee = row.Payee?.Trim() ?? "",
+                    amount = (double?)null,
+                    memo = row.Memo?.Trim(),
+                    account = row.Account?.Trim(),
+                    transfer = false,
+                    invalid = true,
+                });
                 continue;
             }
 
@@ -222,6 +240,18 @@ public class ImportController(
                     claimedTransferIds.Add(match.Id);
                     transferMatchCount++;
                 }
+
+                newRows.Add(new
+                {
+                    row = rowIndex,
+                    date = date.ToString("yyyy-MM-dd"),
+                    payee = row.Payee?.Trim() ?? "",
+                    amount = (double?)amount,
+                    memo = row.Memo?.Trim(),
+                    account = userAccounts.FirstOrDefault(a => a.Id == rowAccountId)?.Name,
+                    transfer = match is not null,
+                    invalid = false,
+                });
             }
         }
 
@@ -234,6 +264,7 @@ public class ImportController(
             Total = rows.Count,
             Duplicates = duplicates,
             NewTransactions = newCount,
+            NewRows = newRows,
             TransferMatches = transferMatchCount,
             Warnings = warnings.Count > 0 ? warnings : null,
             UnmatchedPayees = unmatchedPayees.Values,
@@ -249,6 +280,7 @@ public class ImportController(
         public int Total { get; set; }
         public object Duplicates { get; set; } = null!;
         public int NewTransactions { get; set; }
+        public List<object> NewRows { get; set; } = [];
         public int TransferMatches { get; set; }
         public List<string>? Warnings { get; set; }
         public object UnmatchedPayees { get; set; } = null!;
@@ -304,7 +336,8 @@ public class ImportController(
         [FromForm] int? accountId,
         [FromForm] int? draftId,
         [FromForm] string? payeeOverrides,
-        [FromForm] string? rememberPayeeMappings)
+        [FromForm] string? rememberPayeeMappings,
+        [FromForm] string? excludeRows)
     {
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
@@ -343,8 +376,22 @@ public class ImportController(
         try
         {
             var fromSync = sourceDraft?.SimpleFinAccountId is not null;
+            var excluded = ImportDraftJson.ReadInts(excludeRows).ToHashSet();
+            var skippedRows = new List<(int Index, DateOnly Date, decimal Amount, string? Payee)>();
             var result = await RunImportAsync(fileName, fileBytes, includeDuplicateIds, accountId, userId,
-                payeeOverrides, rememberPayeeMappings, rowsAreDistinct: fromSync);
+                payeeOverrides, rememberPayeeMappings, rowsAreDistinct: fromSync, excluded, skippedRows);
+
+            // Bank rows the user unticked are remembered, so the next sync
+            // doesn't offer them again (they can be restored from the Sync screen).
+            if (fromSync && result is OkObjectResult && skippedRows.Count > 0)
+            {
+                var txIds = ImportDraftJson.ReadStrings(sourceDraft!.SimpleFinTxIdsJson);
+                var user = await userManager.FindByIdAsync(userId);
+                if (user is not null)
+                    await simpleFin.RecordSkippedAsync(user, sourceDraft.SimpleFinAccountId!.Value,
+                        skippedRows.Where(r => r.Index < txIds.Count)
+                            .Select(r => (txIds[r.Index], r.Date, r.Amount, r.Payee)));
+            }
 
             // A reviewed-and-committed SimpleFIN draft moves that bank account's
             // sync cursor forward, so the next sync starts from here (minus an
@@ -383,7 +430,9 @@ public class ImportController(
 
     private async Task<IActionResult> RunImportAsync(
         string fileName, byte[] fileBytes, string? includeDuplicateIds, int? accountId, string userId,
-        string? payeeOverridesJson, string? rememberPayeeMappingsJson, bool rowsAreDistinct = false)
+        string? payeeOverridesJson, string? rememberPayeeMappingsJson, bool rowsAreDistinct = false,
+        IReadOnlySet<int>? excludedRows = null,
+        List<(int Index, DateOnly Date, decimal Amount, string? Payee)>? skippedExcluded = null)
     {
         var ext = Path.GetExtension(fileName).ToLowerInvariant();
         if (ext is ".ofx" or ".qfx")
@@ -551,13 +600,16 @@ public class ImportController(
 
         await using (var dbTx = await db.Database.BeginTransactionAsync())
         {
-            foreach (var row in rows)
+            for (var rowIndex = 0; rowIndex < rows.Count; rowIndex++)
             {
+                var row = rows[rowIndex];
+                var isExcluded = excludedRows?.Contains(rowIndex) == true;
                 try
                 {
                     if (!TryParseRow(row, userAccounts, out var date, out var amount, out var rowAccountId, out var status, accountId))
                     {
-                        errors.Add($"Could not parse row: {row.Date} {row.Payee} {row.Amount}");
+                        if (!isExcluded)
+                            errors.Add($"Could not parse row: {row.Date} {row.Payee} {row.Amount}");
                         continue;
                     }
 
@@ -580,6 +632,14 @@ public class ImportController(
                         claimedExistingDupIds.Add(existing.Id);
                         if (!includedIds.Contains(existing.Id))
                             continue; // skip duplicate not selected for inclusion
+                    }
+                    else if (isExcluded)
+                    {
+                        // A new row the user unticked on the review screen. Checked
+                        // here, after the repeat and duplicate checks, so every
+                        // other row is classified exactly as the preview showed it.
+                        skippedExcluded?.Add((rowIndex, date, amount, row.Payee));
+                        continue;
                     }
 
                     // Resolve payee
@@ -782,11 +842,13 @@ public class ImportController(
             payeeOverrides = string.IsNullOrWhiteSpace(draft.PayeeOverridesJson)
                 ? new Dictionary<string, int>()
                 : JsonSerializer.Deserialize<Dictionary<string, int>>(draft.PayeeOverridesJson),
+            excludedRows = ImportDraftJson.ReadInts(draft.ExcludedRowsJson),
+            fromBankSync = draft.SimpleFinAccountId is not null,
             preview = result.Response,
         });
     }
 
-    public record DraftReviewDto(int[]? IncludeDuplicateIds, Dictionary<string, int>? PayeeOverrides);
+    public record DraftReviewDto(int[]? IncludeDuplicateIds, Dictionary<string, int>? PayeeOverrides, int[]? ExcludedRows);
 
     // Saves in-progress review choices (which duplicates to include, payee
     // resolutions picked so far) without committing — called as the user works
@@ -805,6 +867,8 @@ public class ImportController(
             draft.IncludeDuplicateIdsJson = JsonSerializer.Serialize(dto.IncludeDuplicateIds);
         if (dto.PayeeOverrides is not null)
             draft.PayeeOverridesJson = JsonSerializer.Serialize(dto.PayeeOverrides);
+        if (dto.ExcludedRows is not null)
+            draft.ExcludedRowsJson = JsonSerializer.Serialize(dto.ExcludedRows);
         draft.UpdatedAt = DateTime.UtcNow;
 
         await db.SaveChangesAsync();
@@ -854,11 +918,13 @@ public class ImportController(
             draft.RowCount = rowCount;
             draft.IncludeDuplicateIdsJson = null;
             draft.PayeeOverridesJson = null;
+            draft.ExcludedRowsJson = null;
             // A manual upload replacing a sync-generated draft is no longer a
             // bank-feed draft — it must not inherit the distinct-rows handling
             // or move the SimpleFIN sync cursor when committed.
             draft.SimpleFinAccountId = null;
             draft.SimpleFinSyncedThrough = null;
+            draft.SimpleFinTxIdsJson = null;
             draft.UpdatedAt = DateTime.UtcNow;
         }
 

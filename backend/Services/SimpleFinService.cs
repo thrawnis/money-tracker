@@ -49,6 +49,8 @@ public class SimpleFinService(
     {
         var conn = await db.SimpleFinConnections
             .Include(c => c.Accounts).ThenInclude(a => a.LinkedAccount)
+            .Include(c => c.Accounts).ThenInclude(a => a.SkippedTransactions)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(c => c.UserId == user.Id);
         if (conn is null) return new { connected = false };
 
@@ -80,6 +82,16 @@ public class SimpleFinService(
                         syncedThrough = a.SyncedThrough,
                         pendingDraftId = draft?.Id,
                         pendingDraftRows = draft?.RowCount,
+                        skipped = a.SkippedTransactions
+                            .OrderByDescending(s => s.Date).ThenByDescending(s => s.Id)
+                            .Select(s => new
+                            {
+                                id = s.Id,
+                                date = s.Date,
+                                amount = s.Amount,
+                                payee = encryption.Decrypt(s.PayeeEncrypted, dek),
+                            })
+                            .ToList(),
                     };
                 })
                 .OrderBy(a => a.orgName).ThenBy(a => a.name)
@@ -163,7 +175,13 @@ public class SimpleFinService(
         await db.SaveChangesAsync();
     }
 
-    public async Task<SimpleFinSyncResult> SyncAsync(ApplicationUser user, CancellationToken ct)
+    /// <param name="onlyAccountIds">
+    /// SimpleFIN account ids to sync this time; null syncs every linked
+    /// account. Leaving an account out only skips it for this run — its link
+    /// and cursor are untouched, so a later sync picks up where it left off.
+    /// </param>
+    public async Task<SimpleFinSyncResult> SyncAsync(
+        ApplicationUser user, IReadOnlyCollection<int>? onlyAccountIds, CancellationToken ct)
     {
         var conn = await db.SimpleFinConnections
             .Include(c => c.Accounts).ThenInclude(a => a.LinkedAccount)
@@ -175,6 +193,24 @@ public class SimpleFinService(
         var linked = conn.Accounts.Where(a => a.LinkedAccount is { IsActive: true }).ToList();
         if (linked.Count == 0)
             throw new SimpleFinConflictException("Link at least one bank account to a Money Tracker account before syncing.");
+        if (onlyAccountIds is not null)
+        {
+            linked = linked.Where(a => onlyAccountIds.Contains(a.Id)).ToList();
+            if (linked.Count == 0)
+                throw new SimpleFinConflictException("Select at least one linked bank account to sync.");
+        }
+
+        // Transactions the user chose not to import on an earlier review. Old
+        // ones that no sync can reach any more are pruned as they age out.
+        var linkedIds = linked.Select(a => a.Id).ToList();
+        await db.SimpleFinSkippedTransactions
+            .Where(s => s.UserId == user.Id && s.Date < today.AddDays(-MaxWindowDays - OverlapDays))
+            .ExecuteDeleteAsync(ct);
+        var skippedIds = (await db.SimpleFinSkippedTransactions
+                .Where(s => s.UserId == user.Id && linkedIds.Contains(s.SimpleFinAccountId))
+                .Select(s => new { s.SimpleFinAccountId, s.ExternalId })
+                .ToListAsync(ct))
+            .ToLookup(s => s.SimpleFinAccountId, s => s.ExternalId);
 
         // Per-account start date: the cursor minus the overlap; for an account
         // never synced, the newest transaction already in its register (so a
@@ -256,10 +292,14 @@ public class SimpleFinService(
             // Drop rows already in the register (the overlap window, or entered by
             // hand), matching each existing transaction at most once so two real
             // same-day, same-amount charges aren't collapsed into one.
+            // Rows the user skipped before are neither offered again nor allowed
+            // to claim an existing transaction, but still count toward the cursor.
+            var skipped = skippedIds[a.Id].ToHashSet(StringComparer.Ordinal);
             var claimed = new HashSet<int>();
             var fresh = new List<(SfTransaction Tx, DateOnly Date)>();
             foreach (var r in rows)
             {
+                if (skipped.Contains(r.Tx.Id)) continue;
                 var match = await db.Transactions
                     .Where(t => t.AccountId == localId && t.Date == r.Date && t.Amount == r.Tx.Amount)
                     .OrderBy(t => t.Id)
@@ -286,18 +326,34 @@ public class SimpleFinService(
 
             // A newer sync supersedes an unreviewed older one for the same account:
             // its window starts at the same (unadvanced) cursor, so it's a superset.
+            // Rows already unticked in that older review stay unticked: row
+            // positions change in the rebuilt file, so carry them over by bank id.
+            var txIds = fresh.Select(r => r.Tx.Id).ToList();
+            string? excludedJson = null;
             if (existingDraft is null)
             {
                 existingDraft = new ImportDraft { UserId = user.Id, AccountId = localId };
                 db.ImportDrafts.Add(existingDraft);
+            }
+            else
+            {
+                var oldIds = ImportDraftJson.ReadStrings(existingDraft.SimpleFinTxIdsJson);
+                var unticked = ImportDraftJson.ReadInts(existingDraft.ExcludedRowsJson)
+                    .Where(i => i >= 0 && i < oldIds.Count)
+                    .Select(i => oldIds[i])
+                    .ToHashSet(StringComparer.Ordinal);
+                var carried = txIds.Select((id, i) => (id, i)).Where(x => unticked.Contains(x.id)).Select(x => x.i).ToArray();
+                if (carried.Length > 0) excludedJson = JsonSerializer.Serialize(carried);
             }
             existingDraft.FileName = fileName;
             existingDraft.FileContentEncrypted = encrypted;
             existingDraft.RowCount = fresh.Count;
             existingDraft.IncludeDuplicateIdsJson = null;
             existingDraft.PayeeOverridesJson = null;
+            existingDraft.ExcludedRowsJson = excludedJson;
             existingDraft.SimpleFinAccountId = a.Id;
             existingDraft.SimpleFinSyncedThrough = fresh[^1].Date;
+            existingDraft.SimpleFinTxIdsJson = JsonSerializer.Serialize(txIds);
             existingDraft.UpdatedAt = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
 
@@ -315,6 +371,53 @@ public class SimpleFinService(
         });
 
         return new SimpleFinSyncResult(results, set.Errors);
+    }
+
+    /// <summary>
+    /// Offers a skipped transaction again: forgets the skip and rewinds the
+    /// account's cursor to the transaction's date, so the next sync of that
+    /// account fetches it (anything already imported is filtered out as usual).
+    /// </summary>
+    public async Task RestoreSkippedAsync(ApplicationUser user, int skippedId)
+    {
+        var skip = await db.SimpleFinSkippedTransactions
+            .Include(s => s.SimpleFinAccount)
+            .FirstOrDefaultAsync(s => s.Id == skippedId && s.UserId == user.Id)
+            ?? throw new KeyNotFoundException();
+
+        var account = skip.SimpleFinAccount;
+        if (account.SyncedThrough is null || skip.Date < account.SyncedThrough)
+            account.SyncedThrough = skip.Date;
+        db.SimpleFinSkippedTransactions.Remove(skip);
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Called when a sync draft is committed: remembers the rows the user
+    /// unticked so later syncs don't offer them again.
+    /// </summary>
+    public async Task RecordSkippedAsync(
+        ApplicationUser user, int simpleFinAccountId, IEnumerable<(string ExternalId, DateOnly Date, decimal Amount, string? Payee)> rows)
+    {
+        var existing = (await db.SimpleFinSkippedTransactions
+                .Where(s => s.SimpleFinAccountId == simpleFinAccountId && s.UserId == user.Id)
+                .Select(s => s.ExternalId)
+                .ToListAsync())
+            .ToHashSet(StringComparer.Ordinal);
+        foreach (var r in rows)
+        {
+            if (!existing.Add(r.ExternalId)) continue;
+            db.SimpleFinSkippedTransactions.Add(new SimpleFinSkippedTransaction
+            {
+                UserId = user.Id,
+                SimpleFinAccountId = simpleFinAccountId,
+                ExternalId = r.ExternalId,
+                Date = r.Date,
+                Amount = r.Amount,
+                PayeeEncrypted = string.IsNullOrWhiteSpace(r.Payee) ? null : encryption.Encrypt(r.Payee.Trim(), user.EncryptedDataKey),
+            });
+        }
+        await db.SaveChangesAsync();
     }
 
     private static string CappedNote() =>

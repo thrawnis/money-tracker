@@ -80,18 +80,38 @@ public class SimpleFinController(
         return Ok(await simpleFin.GetStatusAsync(user));
     }
 
+    // AccountIds: the SimpleFIN accounts to sync this time (the Sync screen's
+    // checkboxes). Omitted or null syncs every linked account.
+    public record SyncDto(int[]? AccountIds);
+
     [HttpPost("sync")]
-    public async Task<IActionResult> Sync(CancellationToken ct)
+    public async Task<IActionResult> Sync([FromBody] SyncDto? dto, CancellationToken ct)
     {
         var user = await GetUserAsync();
         if (user is null) return Unauthorized();
 
         try
         {
-            return Ok(await simpleFin.SyncAsync(user, ct));
+            return Ok(await simpleFin.SyncAsync(user, dto?.AccountIds, ct));
         }
         catch (KeyNotFoundException) { return NotFound(new { message = "SimpleFIN isn't connected." }); }
         catch (SimpleFinConflictException ex) { return Conflict(new { message = ex.Message }); }
         catch (SimpleFinException ex) { return StatusCode(StatusCodes.Status502BadGateway, new { message = ex.Message }); }
+    }
+
+    // Forget that a transaction was skipped, so the next sync offers it again.
+    [HttpDelete("skipped/{id}")]
+    public async Task<IActionResult> RestoreSkipped(int id)
+    {
+        var user = await GetUserAsync();
+        if (user is null) return Unauthorized();
+
+        try
+        {
+            await simpleFin.RestoreSkippedAsync(user, id);
+        }
+        catch (KeyNotFoundException) { return NotFound(); }
+
+        return Ok(await simpleFin.GetStatusAsync(user));
     }
 }
