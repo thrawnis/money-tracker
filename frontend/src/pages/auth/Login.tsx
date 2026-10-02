@@ -120,7 +120,7 @@ export default function Login() {
                 onChange={e => setRememberMe(e.target.checked)}
                 className={styles.rememberCheck}
               />
-              Remember me for 2 weeks
+              Remember me for 2 months
             </label>
           </div>
           <button type="submit" className={styles.btn} disabled={submitting}>

@@ -437,7 +437,7 @@ public class AuthController(
 
         // Preserve remember-me duration: if old token lived > 2 days it was a remember-me token
         bool wasRememberMe   = (stored.ExpiresAt - stored.CreatedAt).TotalDays > 2;
-        var newExpiry        = wasRememberMe ? DateTime.UtcNow.AddDays(14) : DateTime.UtcNow.AddDays(1);
+        var newExpiry        = wasRememberMe ? DateTime.UtcNow.AddDays(RememberMeDays) : DateTime.UtcNow.AddDays(1);
         var (newRefresh, _)  = jwtService.GenerateRefreshToken(newExpiry);
 
         db.RefreshTokens.Add(new RefreshToken
@@ -566,8 +566,8 @@ public class AuthController(
 
         var (accessToken, expiry) = jwtService.GenerateAccessToken(user, role);
 
-        // Remember Me: 14-day persistent cookie; otherwise session cookie (closes with browser)
-        DateTime? refreshExpiry = rememberMe ? DateTime.UtcNow.AddDays(14) : DateTime.UtcNow.AddDays(1);
+        // Remember Me: persistent cookie for RememberMeDays; otherwise session cookie (closes with browser)
+        DateTime? refreshExpiry = rememberMe ? DateTime.UtcNow.AddDays(RememberMeDays) : DateTime.UtcNow.AddDays(1);
         var refreshToken = jwtService.GenerateRefreshToken(refreshExpiry.Value).token;
 
         db.RefreshTokens.Add(new RefreshToken
@@ -584,6 +584,10 @@ public class AuthController(
         return Ok(new TokenResponse(accessToken, expiry, role, user.MfaEnrolled,
             RequiresTimeZone: string.IsNullOrWhiteSpace(user.TimeZoneId)));
     }
+
+    // How long "Remember me" keeps a browser signed in. Each refresh issues a
+    // new token with a fresh expiry, so it's measured from the last visit.
+    private const int RememberMeDays = 60;
 
     private void SetRefreshCookie(string token, DateTime? expires)
     {

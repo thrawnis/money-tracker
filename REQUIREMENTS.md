@@ -9,6 +9,7 @@ Update this file whenever requirements change or new features are defined.
 
 - Users register with email and password (12+ chars, mixed case, digit)
 - Login issues a short-lived JWT access token (15 min) and a httpOnly refresh token cookie
+- "Remember me" keeps the browser signed in for 2 months (60 days from the last visit, since each refresh renews the token); without it the refresh cookie is a session cookie, ending when the browser closes (and at most 1 day)
 - TOTP-based MFA: users can enroll; enrolled users must verify on each login
 - Optional WebAuthn/FIDO2 passkey login (build flag `FIDO2_AVAILABLE`)
 - Password change requires current password; blocked for demo account
