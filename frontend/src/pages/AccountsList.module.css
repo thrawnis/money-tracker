@@ -159,3 +159,16 @@
 }
 
 .inactiveToggle:hover { color: var(--c-002a52); }
+
+/* Smaller screens: drop Institution and fold First/Last Transaction into one
+   column so the table fits without sideways scrolling. */
+.narrowOnly { display: none; }
+
+@media (max-width: 768px) {
+  .thInst, .tdInst, .wideOnly { display: none; }
+  .narrowOnly { display: table-cell; }
+  .table th, .table td { padding-left: 6px; padding-right: 6px; }
+  .table th { white-space: normal; }
+  .wideOnlyInline { display: none; }
+  .page { padding: 16px 12px; }
+}

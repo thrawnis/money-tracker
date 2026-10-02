@@ -35,16 +35,21 @@ function ColumnHeaders() {
     <tr>
       <th className={styles.thName}>Account</th>
       <th className={styles.thInst}>Institution</th>
-      <th className={styles.thDate}>
+      {/* Narrow screens: one combined column replaces First/Last (see .wideOnly/.narrowOnly). */}
+      <th className={`${styles.thDate} ${styles.narrowOnly}`}>
+        Transactions
+        <InfoIcon text="Dates of the earliest and latest transactions in this account, including future-dated transactions." />
+      </th>
+      <th className={`${styles.thDate} ${styles.wideOnly}`}>
         First Transaction
         <InfoIcon text="Date of the earliest transaction ever entered in this account, including future-dated transactions." />
       </th>
-      <th className={styles.thDate}>
+      <th className={`${styles.thDate} ${styles.wideOnly}`}>
         Last Transaction
         <InfoIcon text="Date of the latest transaction ever entered in this account, including future-dated transactions." />
       </th>
       <th className={styles.thCount}>
-        # Transactions
+        #<span className={styles.wideOnlyInline}> Transactions</span>
         <InfoIcon text="Total number of transactions in this account, including future-dated transactions." />
       </th>
       <th className={styles.thBal}>
@@ -108,7 +113,7 @@ export default function AccountsList() {
               <Fragment key={type}>
                 {showTypeHeaders && (
                   <tr>
-                    <td colSpan={6} className={styles.groupHeaderCell}>{label}</td>
+                    <td colSpan={7} className={styles.groupHeaderCell}>{label}</td>
                   </tr>
                 )}
                 {items.map(acc => (
@@ -154,12 +159,17 @@ function AccountRow({ acc, onClick, inactive = false }: { acc: Account; onClick:
     >
       <td className={styles.tdName}>{acc.name}</td>
       <td className={styles.tdInst}>{acc.institution?.name ?? <span className={styles.none}>—</span>}</td>
-      <td className={styles.tdDate}>
+      <td className={`${styles.tdDate} ${styles.narrowOnly}`}>
+        {acc.firstTransactionDate && acc.lastTransactionDate
+          ? <>{formatDate(acc.firstTransactionDate)}<br />– {formatDate(acc.lastTransactionDate)}</>
+          : <span className={styles.none}>—</span>}
+      </td>
+      <td className={`${styles.tdDate} ${styles.wideOnly}`}>
         {acc.firstTransactionDate
           ? formatDate(acc.firstTransactionDate)
           : <span className={styles.none}>—</span>}
       </td>
-      <td className={styles.tdDate}>
+      <td className={`${styles.tdDate} ${styles.wideOnly}`}>
         {acc.lastTransactionDate
           ? formatDate(acc.lastTransactionDate)
           : <span className={styles.none}>—</span>}
