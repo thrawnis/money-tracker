@@ -1,6 +1,8 @@
 .page {
   padding: 24px;
-  max-width: 700px;
+  /* Wide enough to use a 1440p screen; long explanatory text is capped
+     separately (p.hint) so it stays readable. */
+  max-width: 1600px;
 }
 
 .pageHeader {
@@ -72,7 +74,7 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
-  max-width: 400px;
+  max-width: 520px;
 }
 
 .field {
@@ -428,7 +430,7 @@
 
 .auditDetails {
   color: var(--c-333333);
-  max-width: 260px;
+  max-width: 560px;
   word-break: break-word;
 }
 
@@ -462,7 +464,7 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  max-width: 620px;
+  max-width: 960px;
 }
 
 .accountRow {
@@ -579,3 +581,6 @@
   color: var(--c-003366);
   margin-bottom: 6px;
 }
+
+/* Paragraph-length help text reads badly at full page width. */
+p.hint { max-width: 110ch; }

@@ -144,7 +144,7 @@ export default function BankSync() {
   );
 
   return (
-    <div className={styles.page} style={{ maxWidth: 820 }}>
+    <div className={styles.page}>
       <div className={styles.pageHeader}><h2 className={styles.pageTitle}>Bank Sync</h2></div>
 
       <div className={styles.tabSection}>
