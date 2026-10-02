@@ -13,6 +13,11 @@ export interface SimpleFinAccount {
   /** An unreviewed sync draft for this account, if one is waiting. */
   pendingDraftId?: number | null;
   pendingDraftRows?: number | null;
+  /** Record only the reported balance (no transactions); for investment/retirement accounts. */
+  balanceOnly: boolean;
+  /** Latest recorded value for the linked account, and the day it's for. */
+  valueRecorded?: number | null;
+  valueDate?: string | null;
   /** Bank transactions unticked on an earlier review, newest first. Later syncs leave these out. */
   skipped: SimpleFinSkippedTransaction[];
 }
@@ -31,6 +36,9 @@ export type SimpleFinStatus =
       createdAt: string;
       lastSyncAt?: string | null;
       lastErrors: string[];
+      /** Hour (0-23, user's time zone) of the daily automatic balance update; null when off. */
+      dailyUpdateHour?: number | null;
+      lastAutoUpdateDate?: string | null;
       accounts: SimpleFinAccount[];
     };
 
@@ -45,6 +53,9 @@ export interface SimpleFinSyncAccountResult {
   note?: string | null;
   /** Nothing was checked for this account (see note), as opposed to "checked, nothing new". */
   skipped?: boolean;
+  /** Balance-only accounts: the value recorded by this sync, and the day it's for. */
+  valueRecorded?: number | null;
+  valueDate?: string | null;
 }
 
 export interface SimpleFinSyncResult {
@@ -67,6 +78,12 @@ export const linkSimpleFinAccount = (simpleFinAccountId: number, accountId: numb
 /** accountIds: SimpleFIN accounts to sync this time; omit to sync every linked account. */
 export const syncSimpleFin = (accountIds?: number[]): Promise<SimpleFinSyncResult> =>
   api.post('/simplefin/sync', { accountIds: accountIds ?? null }).then(r => r.data);
+
+export const setSimpleFinBalanceOnly = (simpleFinAccountId: number, balanceOnly: boolean): Promise<SimpleFinStatus> =>
+  api.put(`/simplefin/accounts/${simpleFinAccountId}/mode`, { balanceOnly }).then(r => r.data);
+
+export const setSimpleFinDailyUpdate = (hour: number | null): Promise<SimpleFinStatus> =>
+  api.put('/simplefin/daily-update', { hour }).then(r => r.data);
 
 /** Forget a skip, so the next sync of that account offers the transaction again. */
 export const restoreSkippedTransaction = (skippedId: number): Promise<SimpleFinStatus> =>

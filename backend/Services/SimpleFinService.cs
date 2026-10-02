@@ -13,7 +13,8 @@ public class SimpleFinConflictException(string message) : Exception(message);
 
 public record SimpleFinSyncAccountResult(
     int SimpleFinAccountId, string Name, int? LinkedAccountId, string? LinkedAccountName,
-    DateOnly? From, int NewTransactions, int? DraftId, string? Note, bool Skipped = false);
+    DateOnly? From, int NewTransactions, int? DraftId, string? Note, bool Skipped = false,
+    decimal? ValueRecorded = null, DateOnly? ValueDate = null);
 
 public record SimpleFinSyncResult(List<SimpleFinSyncAccountResult> Accounts, List<string> Errors);
 
@@ -55,6 +56,8 @@ public class SimpleFinService(
         if (conn is null) return new { connected = false };
 
         var dek = user.EncryptedDataKey;
+        var linkedIds = conn.Accounts.Where(a => a.LinkedAccountId != null).Select(a => a.LinkedAccountId!.Value).ToList();
+        var latestValues = await LatestValuesAsync(linkedIds);
         var syncDrafts = await db.ImportDrafts
             .Where(d => d.UserId == user.Id && d.SimpleFinAccountId != null)
             .Select(d => new { d.Id, d.SimpleFinAccountId, d.RowCount })
@@ -66,10 +69,13 @@ public class SimpleFinService(
             createdAt = conn.CreatedAt,
             lastSyncAt = conn.LastSyncAt,
             lastErrors = DecryptErrors(conn.LastErrorsEncrypted, dek),
+            dailyUpdateHour = conn.DailyUpdateHour,
+            lastAutoUpdateDate = conn.LastAutoUpdateDate,
             accounts = conn.Accounts
                 .Select(a =>
                 {
                     var draft = syncDrafts.FirstOrDefault(d => d.SimpleFinAccountId == a.Id);
+                    var value = a.LinkedAccountId is int lid && latestValues.TryGetValue(lid, out var v) ? v : null;
                     return new
                     {
                         id = a.Id,
@@ -80,6 +86,9 @@ public class SimpleFinService(
                         linkedAccountId = a.LinkedAccountId,
                         linkedAccountName = a.LinkedAccount?.Name,
                         syncedThrough = a.SyncedThrough,
+                        balanceOnly = a.BalanceOnly,
+                        valueRecorded = value?.Balance,
+                        valueDate = value?.Date,
                         pendingDraftId = draft?.Id,
                         pendingDraftRows = draft?.RowCount,
                         skipped = a.SkippedTransactions
@@ -165,6 +174,14 @@ public class SimpleFinService(
 
         if (sfAccount.LinkedAccountId == localAccountId) return;
 
+        // Investment accounts default to balance-only (their value moves with
+        // the market, not through transactions); everything else to transactions.
+        if (localAccountId.HasValue)
+            sfAccount.BalanceOnly = await db.Accounts
+                .Where(a => a.Id == localAccountId.Value)
+                .Select(a => a.Type == AccountType.Investment)
+                .FirstAsync();
+
         // A different target account has different history: the cursor no
         // longer applies, and any staged draft was built for the old target.
         sfAccount.LinkedAccountId = localAccountId;
@@ -212,6 +229,11 @@ public class SimpleFinService(
                 .ToListAsync(ct))
             .ToLookup(s => s.SimpleFinAccountId, s => s.ExternalId);
 
+        // Balance-only accounts import nothing; their reported value is recorded
+        // below. Everything after this works on the transaction-syncing ones.
+        var valueAccounts = linked.Where(a => a.BalanceOnly).ToList();
+        linked = linked.Where(a => !a.BalanceOnly).ToList();
+
         // Per-account start date: the cursor minus the overlap; for an account
         // never synced, the newest transaction already in its register (so a
         // switch from manual CSV imports picks up where they left off); for an
@@ -240,7 +262,9 @@ public class SimpleFinService(
         // A day of slack on the lower bound absorbs time-zone differences
         // between SimpleFIN's timestamps and the user's local calendar; rows are
         // filtered to each account's own start date below.
-        var fetchFrom = starts.Values.Min(s => s.Start).AddDays(-1);
+        // With only balance-only accounts selected, ask for (almost) no history:
+        // just the current balances and holdings.
+        var fetchFrom = starts.Count > 0 ? starts.Values.Min(s => s.Start).AddDays(-1) : today.AddDays(-1);
         SfAccountSet set;
         try
         {
@@ -259,6 +283,22 @@ public class SimpleFinService(
         UpsertAccounts(user, conn, set);
 
         var results = new List<SimpleFinSyncAccountResult>();
+        foreach (var a in valueAccounts)
+        {
+            var name = encryption.Decrypt(a.NameEncrypted, dek) ?? a.ExternalId;
+            var sf = set.Accounts.FirstOrDefault(x => x.Id == a.ExternalId);
+            var recorded = sf is null ? null : await RecordValueAsync(user, a.LinkedAccountId!.Value, sf, ct);
+            results.Add(new SimpleFinSyncAccountResult(
+                a.Id, name, a.LinkedAccountId, a.LinkedAccount!.Name, null, 0, null,
+                recorded is null
+                    ? sf is null
+                        ? "SimpleFIN didn't return this account this time — its bank connection may need attention on SimpleFIN Bridge."
+                        : "SimpleFIN didn't report a balance for this account."
+                    : null,
+                Skipped: recorded is null,
+                ValueRecorded: recorded?.Balance, ValueDate: recorded?.Date));
+        }
+
         foreach (var a in linked)
         {
             var name = encryption.Decrypt(a.NameEncrypted, dek) ?? a.ExternalId;
@@ -371,6 +411,135 @@ public class SimpleFinService(
         });
 
         return new SimpleFinSyncResult(results, set.Errors);
+    }
+
+    /// <summary>
+    /// Records today's value (and holdings, when reported) for every linked
+    /// balance-only account. Used by the daily automatic update.
+    /// </summary>
+    public async Task<int> UpdateBalancesAsync(ApplicationUser user, CancellationToken ct)
+    {
+        var conn = await db.SimpleFinConnections
+            .Include(c => c.Accounts).ThenInclude(a => a.LinkedAccount)
+            .FirstOrDefaultAsync(c => c.UserId == user.Id, ct)
+            ?? throw new KeyNotFoundException();
+        var targets = conn.Accounts.Where(a => a.BalanceOnly && a.LinkedAccount is { IsActive: true }).ToList();
+        if (targets.Count == 0) return 0;
+
+        var dek = user.EncryptedDataKey;
+        SfAccountSet set;
+        try
+        {
+            // Not balances-only: holdings may only come with the full account
+            // payload. A start date of yesterday keeps the transaction list tiny.
+            set = await client.GetAccountsAsync(
+                encryption.Decrypt(conn.AccessUrlEncrypted, dek)!,
+                DateTimeOffset.UtcNow.AddDays(-1), balancesOnly: false, ct);
+        }
+        catch (SimpleFinException ex)
+        {
+            conn.LastErrorsEncrypted = EncryptErrors([ex.Message], dek);
+            await db.SaveChangesAsync(CancellationToken.None);
+            throw;
+        }
+
+        UpsertAccounts(user, conn, set);
+        var recorded = 0;
+        foreach (var a in targets)
+        {
+            var sf = set.Accounts.FirstOrDefault(x => x.Id == a.ExternalId);
+            if (sf is not null && await RecordValueAsync(user, a.LinkedAccountId!.Value, sf, ct) is not null)
+                recorded++;
+        }
+        conn.LastErrorsEncrypted = EncryptErrors(set.Errors, dek);
+        await db.SaveChangesAsync(ct);
+        return recorded;
+    }
+
+    /// <summary>
+    /// Saves one day's reported value for a local account, replacing any
+    /// earlier value for the same day, and that day's holdings as a set.
+    /// The day is SimpleFIN's balance date in the user's time zone.
+    /// </summary>
+    private async Task<AccountValueSnapshot?> RecordValueAsync(ApplicationUser user, int accountId, SfAccount sf, CancellationToken ct)
+    {
+        if (sf.Balance is not decimal balance) return null;
+        var when = sf.BalanceDate is > 0
+            ? DateTimeOffset.FromUnixTimeSeconds(sf.BalanceDate.Value)
+            : DateTimeOffset.UtcNow;
+        var date = UserClock.ToLocalDate(when, user.TimeZoneId);
+        var today = UserClock.Today(user);
+        if (date > today) date = today;
+
+        var snap = await db.AccountValueSnapshots.FirstOrDefaultAsync(v => v.AccountId == accountId && v.Date == date, ct);
+        if (snap is null)
+        {
+            snap = new AccountValueSnapshot { UserId = user.Id, AccountId = accountId, Date = date };
+            db.AccountValueSnapshots.Add(snap);
+        }
+        snap.Balance = balance;
+        snap.UpdatedAt = DateTime.UtcNow;
+
+        if (sf.Holdings is { Count: > 0 })
+        {
+            var dek = user.EncryptedDataKey;
+            await db.HoldingSnapshots.Where(h => h.AccountId == accountId && h.Date == date).ExecuteDeleteAsync(ct);
+            foreach (var h in sf.Holdings)
+            {
+                db.HoldingSnapshots.Add(new HoldingSnapshot
+                {
+                    UserId = user.Id,
+                    AccountId = accountId,
+                    Date = date,
+                    HoldingKeyEncrypted = encryption.Encrypt(h.Id, dek)!,
+                    SymbolEncrypted = encryption.Encrypt(h.Symbol, dek),
+                    DescriptionEncrypted = encryption.Encrypt(h.Description, dek),
+                    Shares = h.Shares,
+                    MarketValue = h.MarketValue,
+                    CostBasis = h.CostBasis,
+                });
+            }
+        }
+
+        await db.SaveChangesAsync(ct);
+        return snap;
+    }
+
+    /// <summary>
+    /// Latest recorded value for each of the given local accounts that has one.
+    /// </summary>
+    private async Task<Dictionary<int, AccountValueSnapshot>> LatestValuesAsync(List<int> accountIds) =>
+        (await db.AccountValueSnapshots
+            .Where(v => accountIds.Contains(v.AccountId))
+            .GroupBy(v => v.AccountId)
+            .Select(g => g.OrderByDescending(v => v.Date).First())
+            .ToListAsync())
+        .ToDictionary(v => v.AccountId);
+
+    public async Task SetBalanceOnlyAsync(ApplicationUser user, int simpleFinAccountId, bool balanceOnly)
+    {
+        var sfAccount = await db.SimpleFinAccounts
+            .FirstOrDefaultAsync(a => a.Id == simpleFinAccountId && a.UserId == user.Id)
+            ?? throw new KeyNotFoundException();
+        if (sfAccount.BalanceOnly == balanceOnly) return;
+
+        sfAccount.BalanceOnly = balanceOnly;
+        // Unreviewed transactions belong to the old mode; switching back to
+        // transactions starts from the newest transaction in the register.
+        sfAccount.SyncedThrough = null;
+        await db.ImportDrafts
+            .Where(d => d.UserId == user.Id && d.SimpleFinAccountId == sfAccount.Id)
+            .ExecuteDeleteAsync();
+        await db.SaveChangesAsync();
+    }
+
+    public async Task SetDailyUpdateHourAsync(ApplicationUser user, int? hour)
+    {
+        if (hour is < 0 or > 23) throw new ArgumentOutOfRangeException(nameof(hour));
+        var conn = await db.SimpleFinConnections.FirstOrDefaultAsync(c => c.UserId == user.Id)
+            ?? throw new KeyNotFoundException();
+        conn.DailyUpdateHour = hour;
+        await db.SaveChangesAsync();
     }
 
     /// <summary>

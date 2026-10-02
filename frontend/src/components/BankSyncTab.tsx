@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   getSimpleFinStatus, connectSimpleFin, disconnectSimpleFin, linkSimpleFinAccount,
+  setSimpleFinBalanceOnly, setSimpleFinDailyUpdate,
   type SimpleFinStatus, type SimpleFinAccount,
 } from '../api/simplefin';
 import { getAccounts } from '../api/accounts';
@@ -85,6 +86,32 @@ export default function BankSyncTab() {
       setError(apiMsg(err, 'Failed to update the account link.'));
     } finally {
       setBusy(null);
+    }
+  };
+
+  const handleMode = async (sf: SimpleFinAccount, balanceOnly: boolean) => {
+    if (balanceOnly === sf.balanceOnly) return;
+    if (sf.pendingDraftId != null && !confirm(
+      `Switch "${sf.name}" to ${balanceOnly ? 'balance only' : 'transactions'}? `
+      + `Its ${sf.pendingDraftRows ?? ''} unreviewed transaction(s) will be discarded.`,
+    )) return;
+    setBusy(sf.id);
+    setError('');
+    try {
+      setStatus(await setSimpleFinBalanceOnly(sf.id, balanceOnly));
+    } catch (err) {
+      setError(apiMsg(err, 'Failed to change how this account syncs.'));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleDailyHour = async (value: string) => {
+    setError('');
+    try {
+      setStatus(await setSimpleFinDailyUpdate(value === '' ? null : Number(value)));
+    } catch (err) {
+      setError(apiMsg(err, 'Failed to save the daily update time.'));
     }
   };
 
@@ -188,6 +215,7 @@ export default function BankSyncTab() {
             <th>Bank account</th>
             <th style={{ textAlign: 'right' }}>Bank balance</th>
             <th>Sync into</th>
+            <th>Records</th>
             <th>Imported through</th>
             <th></th>
           </tr>
@@ -220,7 +248,25 @@ export default function BankSyncTab() {
                     })}
                 </select>
               </td>
-              <td>{sf.linkedAccountId != null ? formatDay(sf.syncedThrough) : '—'}</td>
+              <td>
+                {sf.linkedAccountId != null && (
+                  <select
+                    value={sf.balanceOnly ? 'balance' : 'transactions'}
+                    onChange={e => handleMode(sf, e.target.value === 'balance')}
+                    disabled={busy !== null}
+                    aria-label={`What to record for ${sf.name}`}
+                  >
+                    <option value="transactions">Transactions</option>
+                    <option value="balance">Balance only</option>
+                  </select>
+                )}
+              </td>
+              <td>
+                {sf.linkedAccountId == null ? '—'
+                  : sf.balanceOnly
+                    ? (sf.valueDate ? <>{formatMoney(sf.valueRecorded, sf.currency)} on {formatDay(sf.valueDate)}</> : 'No value yet')
+                    : formatDay(sf.syncedThrough)}
+              </td>
               <td>
                 {sf.pendingDraftId != null && (
                   <button className={styles.btnSecondary} onClick={() => review(sf.pendingDraftId!)}>
@@ -232,6 +278,36 @@ export default function BankSyncTab() {
           ))}
         </tbody>
       </table>
+
+      <p className={styles.hint}>
+        <strong>Balance only</strong> suits investment and retirement accounts: no transactions are imported,
+        and the value your bank reports becomes the account's balance, with a history kept day by day.
+        Linking an Investment account picks it automatically.
+      </p>
+
+      <div className={styles.prefGroup}>
+        <p className={styles.prefGroupTitle}>Daily balance update</p>
+        <p className={styles.hint} style={{ marginBottom: 8 }}>
+          Records the value of every balance-only account once a day, without you having to sync, so its
+          history has no gaps. Runs in your time zone; if the server is down at that time, it catches up
+          before midnight.
+        </p>
+        <select
+          value={status.dailyUpdateHour ?? ''}
+          onChange={e => handleDailyHour(e.target.value)}
+          aria-label="Daily balance update time"
+        >
+          <option value="">Off</option>
+          {Array.from({ length: 24 }, (_, h) => (
+            <option key={h} value={h}>
+              Every day after {h === 0 ? '12 am' : h < 12 ? `${h} am` : h === 12 ? '12 pm' : `${h - 12} pm`}
+            </option>
+          ))}
+        </select>
+        {status.lastAutoUpdateDate && (
+          <span className={styles.hint} style={{ marginLeft: 10 }}>Last ran {formatDay(status.lastAutoUpdateDate)}.</span>
+        )}
+      </div>
 
       <div style={{ display: 'flex', gap: 10, marginTop: 14, alignItems: 'center' }}>
         <button className={styles.btnPrimary} onClick={() => navigate('/bank-sync')} disabled={busy !== null || !hasLinks}>

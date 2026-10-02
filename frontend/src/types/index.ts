@@ -18,6 +18,8 @@ export interface Account {
   type: AccountType;
   openingBalance: number;
   currentBalance?: number;
+  /** Set when the balance is the bank's reported value (balance-only bank sync), not a sum of transactions. */
+  balanceAsOf?: string | null;
   lastTransactionDate?: string;
   firstTransactionDate?: string;
   transactionCount?: number;

@@ -182,6 +182,8 @@ builder.Services.AddSingleton<IAccountBackupService, AccountBackupService>();
 // created/edited, instead of waiting for the next 6-hour background tick.
 builder.Services.AddSingleton<ScheduledTransactionPostingService>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<ScheduledTransactionPostingService>());
+builder.Services.AddSingleton<SimpleFinDailyUpdateService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<SimpleFinDailyUpdateService>());
 
 // ── MVC & Swagger ─────────────────────────────────────────────────────────────
 

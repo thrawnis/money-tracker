@@ -1195,6 +1195,9 @@ export default function AccountRegister() {
           {account && (
             <div className={styles.accountMeta}>
               {account.type} &bull; Balance: <strong>{formatCurrency(accountBalance)}</strong>
+              {account.balanceAsOf && (
+                <> (reported by your bank, {new Date(account.balanceAsOf + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })})</>
+              )}
             </div>
           )}
         </div>

@@ -340,7 +340,12 @@ public class TransactionsController(
             .Select(t => MapTransaction(t, dek, balances.GetValueOrDefault(t.Id)))
             .ToList();
 
-        return Ok(new { total, page, pageSize, currentBalance, items });
+        // A balance-only bank-synced account's headline balance is the bank's
+        // reported value; row running balances still add up its transactions.
+        var reported = (await ReportedBalances.ForUserAsync(db, user.Id)).GetValueOrDefault(accountId);
+        if (reported is not null) currentBalance = reported.Balance;
+
+        return Ok(new { total, page, pageSize, currentBalance, balanceAsOf = reported?.Date, items });
     }
 
     [HttpGet("{id}")]

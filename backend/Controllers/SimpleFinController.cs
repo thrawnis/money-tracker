@@ -80,6 +80,41 @@ public class SimpleFinController(
         return Ok(await simpleFin.GetStatusAsync(user));
     }
 
+    public record ModeDto(bool BalanceOnly);
+
+    // Switches a bank account between importing transactions and recording
+    // only its balance (for investment/retirement accounts).
+    [HttpPut("accounts/{id}/mode")]
+    public async Task<IActionResult> SetMode(int id, ModeDto dto)
+    {
+        var user = await GetUserAsync();
+        if (user is null) return Unauthorized();
+        try
+        {
+            await simpleFin.SetBalanceOnlyAsync(user, id, dto.BalanceOnly);
+        }
+        catch (KeyNotFoundException) { return NotFound(); }
+        return Ok(await simpleFin.GetStatusAsync(user));
+    }
+
+    // Hour: 0-23 in the user's time zone, or null to turn the daily
+    // automatic balance update off.
+    public record DailyUpdateDto(int? Hour);
+
+    [HttpPut("daily-update")]
+    public async Task<IActionResult> SetDailyUpdate(DailyUpdateDto dto)
+    {
+        var user = await GetUserAsync();
+        if (user is null) return Unauthorized();
+        if (dto.Hour is < 0 or > 23) return BadRequest(new { message = "Choose an hour between 0 and 23." });
+        try
+        {
+            await simpleFin.SetDailyUpdateHourAsync(user, dto.Hour);
+        }
+        catch (KeyNotFoundException) { return NotFound(new { message = "SimpleFIN isn't connected." }); }
+        return Ok(await simpleFin.GetStatusAsync(user));
+    }
+
     // AccountIds: the SimpleFIN accounts to sync this time (the Sync screen's
     // checkboxes). Omitted or null syncs every linked account.
     public record SyncDto(int[]? AccountIds);

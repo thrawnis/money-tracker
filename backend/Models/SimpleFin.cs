@@ -31,6 +31,14 @@ public class SimpleFinConnection
     // needs attention"). Encrypted: they routinely name the bank and account.
     public string? LastErrorsEncrypted { get; set; }
 
+    // Daily automatic balance update for balance-only accounts: the hour (0-23,
+    // in the user's own time zone) after which it runs each day, or null when
+    // turned off. LastAutoUpdateDate is the user-local day it last succeeded;
+    // LastAutoAttemptAt spaces out retries after a failure.
+    public int? DailyUpdateHour { get; set; } = 20;
+    public DateOnly? LastAutoUpdateDate { get; set; }
+    public DateTime? LastAutoAttemptAt { get; set; }
+
     public ICollection<SimpleFinAccount> Accounts { get; set; } = [];
 }
 
@@ -65,6 +73,12 @@ public class SimpleFinAccount
 
     public int? LinkedAccountId { get; set; }
     public Account? LinkedAccount { get; set; }
+
+    // Balance-only: no transactions are imported; each sync (and the daily
+    // update) records the reported value instead, and that value becomes the
+    // linked account's balance. Meant for investment and retirement accounts,
+    // whose value moves with the market rather than through transactions.
+    public bool BalanceOnly { get; set; }
 
     // Newest transaction date already committed to the linked account from a
     // SimpleFIN sync. Advanced only when a sync draft is actually imported (see

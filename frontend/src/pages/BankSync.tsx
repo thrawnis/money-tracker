@@ -179,7 +179,7 @@ export default function BankSync() {
                 <th>Bank account</th>
                 <th>Syncs into</th>
                 <th style={{ textAlign: 'right' }}>Bank balance</th>
-                <th>Imported through</th>
+                <th>Imported through / value</th>
                 <th></th>
               </tr>
             </thead>
@@ -213,7 +213,12 @@ export default function BankSync() {
                             : <Link to="/settings" state={{ tab: 'banksync' }}>Not linked</Link>}
                         </td>
                         <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{formatMoney(sf.balance, sf.currency)}</td>
-                        <td style={{ whiteSpace: 'nowrap' }}>{linkedHere ? formatDay(sf.syncedThrough) : '—'}</td>
+                        <td style={{ whiteSpace: 'nowrap' }}>
+                          {!linkedHere ? '—'
+                            : sf.balanceOnly
+                              ? <>Balance only{sf.valueDate && <>: {formatMoney(sf.valueRecorded, sf.currency)} on {formatDay(sf.valueDate)}</>}</>
+                              : formatDay(sf.syncedThrough)}
+                        </td>
                         <td style={{ whiteSpace: 'nowrap' }}>
                           {sf.pendingDraftId != null && (
                             <button className={styles.btnSecondary} onClick={() => review(sf.pendingDraftId!)}>
@@ -289,7 +294,9 @@ export default function BankSync() {
             {syncResult.accounts.map(r => (
               <div key={r.simpleFinAccountId} style={{ marginBottom: 6 }}>
                 <strong>{r.name}</strong> → {r.linkedAccountName}:{' '}
-                {r.skipped ? 'not synced' : r.newTransactions > 0 ? (
+                {r.skipped ? 'not synced' : r.valueRecorded != null ? (
+                  <>balance recorded: {formatMoney(r.valueRecorded)}{r.valueDate && <> for {formatDay(r.valueDate)}</>}</>
+                ) : r.newTransactions > 0 ? (
                   <>
                     {r.newTransactions} new transaction{r.newTransactions === 1 ? '' : 's'} to review{' '}
                     {r.draftId != null && (

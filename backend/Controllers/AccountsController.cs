@@ -76,10 +76,14 @@ public class AccountsController(
             })
             .ToDictionaryAsync(x => x.AccountId, x => x);
 
+        // Balance-only bank-synced accounts show the bank's reported value.
+        var reported = await ReportedBalances.ForUserAsync(db, userId);
+
         return Ok(accounts.Select(a =>
         {
             var txSum = txSums.TryGetValue(a.Id, out var s) ? s : 0m;
-            var currentBalance = a.OpeningBalance + txSum;
+            var reportedValue = reported.GetValueOrDefault(a.Id);
+            var currentBalance = reportedValue?.Balance ?? a.OpeningBalance + txSum;
             return new
             {
                 id            = a.Id,
@@ -87,6 +91,7 @@ public class AccountsController(
                 type          = a.Type,
                 openingBalance = a.OpeningBalance,
                 currentBalance,
+                balanceAsOf = reportedValue?.Date,
                 lastTransactionDate = txStats.TryGetValue(a.Id, out var st) ? st.Last : (DateOnly?)null,
                 firstTransactionDate = txStats.TryGetValue(a.Id, out var st2) ? st2.First : (DateOnly?)null,
                 transactionCount = txStats.TryGetValue(a.Id, out var st3) ? st3.Count : 0,

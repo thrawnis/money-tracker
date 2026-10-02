@@ -25,6 +25,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<SimpleFinConnection> SimpleFinConnections => Set<SimpleFinConnection>();
     public DbSet<SimpleFinAccount> SimpleFinAccounts => Set<SimpleFinAccount>();
     public DbSet<SimpleFinSkippedTransaction> SimpleFinSkippedTransactions => Set<SimpleFinSkippedTransaction>();
+    public DbSet<AccountValueSnapshot> AccountValueSnapshots => Set<AccountValueSnapshot>();
+    public DbSet<HoldingSnapshot> HoldingSnapshots => Set<HoldingSnapshot>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -138,6 +140,23 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             e.HasOne(s => s.SimpleFinAccount).WithMany(a => a.SkippedTransactions)
                 .HasForeignKey(s => s.SimpleFinAccountId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(s => new { s.SimpleFinAccountId, s.ExternalId }).IsUnique();
+        });
+
+        modelBuilder.Entity<AccountValueSnapshot>(e =>
+        {
+            e.Property(v => v.Balance).HasPrecision(18, 2);
+            e.HasOne(v => v.Account).WithMany().HasForeignKey(v => v.AccountId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(v => new { v.AccountId, v.Date }).IsUnique();
+            e.HasIndex(v => v.UserId);
+        });
+
+        modelBuilder.Entity<HoldingSnapshot>(e =>
+        {
+            e.Property(h => h.Shares).HasPrecision(24, 8);
+            e.Property(h => h.MarketValue).HasPrecision(18, 2);
+            e.Property(h => h.CostBasis).HasPrecision(18, 2);
+            e.HasOne(h => h.Account).WithMany().HasForeignKey(h => h.AccountId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(h => new { h.AccountId, h.Date });
         });
 
         // ── Auth ──────────────────────────────────────────────────────────────

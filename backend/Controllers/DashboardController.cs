@@ -48,6 +48,8 @@ public class DashboardController(
 
         var sumByAccount = transactionSums.ToDictionary(x => x.AccountId, x => x.Sum);
 
+        var reported = await ReportedBalances.ForUserAsync(db, userId);
+
         var accountSummaries = accounts.Select(a => new
         {
             id              = a.Id,
@@ -55,7 +57,9 @@ public class DashboardController(
             type            = a.Type.ToString(),
             institution     = a.Institution?.Name,
             openingBalance  = a.OpeningBalance,
-            currentBalance  = a.OpeningBalance + sumByAccount.GetValueOrDefault(a.Id, 0m),
+            currentBalance  = reported.GetValueOrDefault(a.Id)?.Balance
+                              ?? a.OpeningBalance + sumByAccount.GetValueOrDefault(a.Id, 0m),
+            balanceAsOf     = reported.GetValueOrDefault(a.Id)?.Date,
         })
         .OrderBy(a => a.type)
         .ThenBy(a => a.name)

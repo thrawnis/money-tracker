@@ -17,9 +17,15 @@ public record SfTransaction(
     string Id, long Posted, long? TransactedAt, decimal Amount,
     string? Description, string? Payee, string? Memo, bool Pending);
 
+// One investment position, as some institutions report it (not part of the
+// original protocol; SimpleFIN Bridge sends it for brokerages that provide it).
+public record SfHolding(
+    string Id, string? Symbol, string? Description, decimal? Shares,
+    decimal? MarketValue, decimal? CostBasis, string? Currency);
+
 public record SfAccount(
     string Id, string Name, string? OrgName, string? Currency, decimal? Balance,
-    List<SfTransaction> Transactions);
+    List<SfTransaction> Transactions, long? BalanceDate = null, List<SfHolding>? Holdings = null);
 
 public record SfAccountSet(List<string> Errors, List<SfAccount> Accounts);
 
@@ -220,8 +226,27 @@ public class SimpleFinClient(IHttpClientFactory httpFactory, IConfiguration conf
                     }
                 }
 
+                var holdings = new List<SfHolding>();
+                if (a.TryGetProperty("holdings", out var hEl) && hEl.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var h in hEl.EnumerateArray())
+                    {
+                        if (h.ValueKind != JsonValueKind.Object) continue;
+                        var symbol = Str(h, "symbol");
+                        var description = Str(h, "description");
+                        // Some feeds omit ids; the symbol (or name) identifies the
+                        // position well enough to follow it from day to day.
+                        var hid = Str(h, "id") ?? symbol ?? description;
+                        if (string.IsNullOrEmpty(hid)) continue;
+                        holdings.Add(new SfHolding(
+                            hid, symbol, description, Dec(h, "shares"),
+                            Dec(h, "market_value"), Dec(h, "cost_basis"), Str(h, "currency")));
+                    }
+                }
+
                 accounts.Add(new SfAccount(
-                    id, Str(a, "name") ?? id, orgName, Str(a, "currency"), Dec(a, "balance"), txs));
+                    id, Str(a, "name") ?? id, orgName, Str(a, "currency"), Dec(a, "balance"), txs,
+                    Long(a, "balance-date"), holdings));
             }
         }
 
