@@ -195,7 +195,7 @@ export default function BankSyncTab() {
         {status.lastSyncAt ? <> · last synced {formatDateTime(status.lastSyncAt, user?.timeZoneId)}</> : <> · not synced yet</>}.
         Choose which Money Tracker account each bank account syncs into, then sync from the{' '}
         <Link to="/bank-sync">Bank Sync</Link> screen. Each sync fetches posted transactions since the last
-        one you imported (re-checking the previous week, since banks often post late), skips any already in
+        one you imported (re-checking the previous two weeks, since banks often post late), skips any already in
         the register, and stages the rest for review. Pending transactions are left until they post.
       </p>
 
@@ -216,7 +216,7 @@ export default function BankSyncTab() {
             <th style={{ textAlign: 'right' }}>Bank balance</th>
             <th>Sync into</th>
             <th>Records</th>
-            <th>Imported through</th>
+            <th>Synced through</th>
             <th></th>
           </tr>
         </thead>

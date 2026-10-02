@@ -179,7 +179,7 @@ export default function BankSync() {
                 <th>Bank account</th>
                 <th>Syncs into</th>
                 <th style={{ textAlign: 'right' }}>Bank balance</th>
-                <th>Imported through / value</th>
+                <th>Synced through / value</th>
                 <th></th>
               </tr>
             </thead>

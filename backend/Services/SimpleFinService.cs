@@ -33,10 +33,12 @@ public class SimpleFinService(
     IAuditService audit)
 {
     // Re-fetch this far behind the cursor on every sync: transactions often post
-    // a few days after they happen, so without an overlap a late-posting charge
-    // dated before the cursor would never be picked up. Rows already in the
+    // days after they happen, so without an overlap a late-posting charge dated
+    // before the cursor would never be picked up. Two weeks, because a sync with
+    // nothing new moves the cursor to today, so the overlap is all that covers
+    // a charge that happened before then and posts after. Rows already in the
     // register are filtered out, so the overlap never duplicates anything.
-    public const int OverlapDays = 7;
+    public const int OverlapDays = 14;
     // First sync of an account with no transactions at all.
     public const int FirstSyncDays = 30;
     // Hard cap on how far back one sync reaches, to stay within what SimpleFIN
@@ -321,6 +323,10 @@ public class SimpleFinService(
                 continue;
             }
 
+            // Windowed by the date each row happened — the same date it's matched
+            // against the register by — so every row that could pair with an
+            // existing transaction is in view together. A charge that posts late
+            // is still caught as long as it happened within OverlapDays of the cursor.
             var rows = sf.Transactions
                 .Where(t => !t.Pending && t.Posted > 0)
                 .Select(t => (Tx: t, Date: UserClock.ToLocalDate(
@@ -352,10 +358,14 @@ public class SimpleFinService(
 
             if (fresh.Count == 0)
             {
-                // Everything fetched is already in the register — safe to move the
-                // cursor forward now, since there's nothing left to review.
-                if (rows.Count > 0 && (a.SyncedThrough is null || rows[^1].Date > a.SyncedThrough))
-                    a.SyncedThrough = rows[^1].Date;
+                // Nothing new: a successful sync, so the account is up to date
+                // through today. The next sync still re-checks the previous week
+                // (OverlapDays) for late-posting charges. While an unreviewed sync
+                // draft is waiting, the cursor only moves when it's committed, so
+                // its rows are refetched until then.
+                var upTo = existingDraft is null ? today : rows.Count > 0 ? rows[^1].Date : (DateOnly?)null;
+                if (upTo is DateOnly u && (a.SyncedThrough is null || u > a.SyncedThrough))
+                    a.SyncedThrough = u;
                 results.Add(Result(0, existingDraft?.Id, capped ? CappedNote() : null));
                 continue;
             }
