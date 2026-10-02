@@ -32,8 +32,8 @@ public class SimpleFinConnection
     public string? LastErrorsEncrypted { get; set; }
 
     // Daily automatic balance update for balance-only accounts: the hour (0-23,
-    // in the user's own time zone) after which it runs each day, or null when
-    // turned off. LastAutoUpdateDate is the user-local day it last succeeded;
+    // Pacific Time for every user) after which it runs each day, or null when
+    // turned off. LastAutoUpdateDate is the Pacific day it last succeeded;
     // LastAutoAttemptAt spaces out retries after a failure.
     public int? DailyUpdateHour { get; set; } = 20;
     public DateOnly? LastAutoUpdateDate { get; set; }

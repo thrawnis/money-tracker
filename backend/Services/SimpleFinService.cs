@@ -110,7 +110,23 @@ public class SimpleFinService(
         };
     }
 
-    public async Task ConnectAsync(ApplicationUser user, string setupToken, CancellationToken ct)
+    // One SimpleFIN request at a time across the whole app — every user's
+    // manual syncs, the daily update, and connecting all queue here and run in
+    // turn, so a busy evening can't pile parallel bank fetches (and their
+    // database work) onto the server or trip SimpleFIN's rate limits.
+    private static readonly SemaphoreSlim Gate = new(1, 1);
+
+    private static async Task<T> OneAtATimeAsync<T>(Func<Task<T>> work, CancellationToken ct)
+    {
+        await Gate.WaitAsync(ct);
+        try { return await work(); }
+        finally { Gate.Release(); }
+    }
+
+    public Task ConnectAsync(ApplicationUser user, string setupToken, CancellationToken ct) =>
+        OneAtATimeAsync(async () => { await ConnectCoreAsync(user, setupToken, ct); return 0; }, ct);
+
+    private async Task ConnectCoreAsync(ApplicationUser user, string setupToken, CancellationToken ct)
     {
         if (await db.SimpleFinConnections.AnyAsync(c => c.UserId == user.Id, ct))
             throw new SimpleFinConflictException("SimpleFIN is already connected. Disconnect first to use a different setup token.");
@@ -199,7 +215,11 @@ public class SimpleFinService(
     /// account. Leaving an account out only skips it for this run — its link
     /// and cursor are untouched, so a later sync picks up where it left off.
     /// </param>
-    public async Task<SimpleFinSyncResult> SyncAsync(
+    public Task<SimpleFinSyncResult> SyncAsync(
+        ApplicationUser user, IReadOnlyCollection<int>? onlyAccountIds, CancellationToken ct) =>
+        OneAtATimeAsync(() => SyncCoreAsync(user, onlyAccountIds, ct), ct);
+
+    private async Task<SimpleFinSyncResult> SyncCoreAsync(
         ApplicationUser user, IReadOnlyCollection<int>? onlyAccountIds, CancellationToken ct)
     {
         var conn = await db.SimpleFinConnections
@@ -427,7 +447,10 @@ public class SimpleFinService(
     /// Records today's value (and holdings, when reported) for every linked
     /// balance-only account. Used by the daily automatic update.
     /// </summary>
-    public async Task<int> UpdateBalancesAsync(ApplicationUser user, CancellationToken ct)
+    public Task<int> UpdateBalancesAsync(ApplicationUser user, CancellationToken ct) =>
+        OneAtATimeAsync(() => UpdateBalancesCoreAsync(user, ct), ct);
+
+    private async Task<int> UpdateBalancesCoreAsync(ApplicationUser user, CancellationToken ct)
     {
         var conn = await db.SimpleFinConnections
             .Include(c => c.Accounts).ThenInclude(a => a.LinkedAccount)

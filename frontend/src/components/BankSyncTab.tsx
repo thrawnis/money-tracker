@@ -289,7 +289,7 @@ export default function BankSyncTab() {
         <p className={styles.prefGroupTitle}>Daily balance update</p>
         <p className={styles.hint} style={{ marginBottom: 8 }}>
           Records the value of every balance-only account once a day, without you having to sync, so its
-          history has no gaps. Runs in your time zone; if the server is down at that time, it catches up
+          history has no gaps. Times are Pacific Time; if the server is down at that time, it catches up
           before midnight.
         </p>
         <select
@@ -300,7 +300,7 @@ export default function BankSyncTab() {
           <option value="">Off</option>
           {Array.from({ length: 24 }, (_, h) => (
             <option key={h} value={h}>
-              Every day after {h === 0 ? '12 am' : h < 12 ? `${h} am` : h === 12 ? '12 pm' : `${h - 12} pm`}
+              Every day after {h === 0 ? '12 am' : h < 12 ? `${h} am` : h === 12 ? '12 pm' : `${h - 12} pm`} Pacific
             </option>
           ))}
         </select>

@@ -8,8 +8,12 @@ namespace MoneyTracker.Services;
 /// <summary>
 /// Records the value of every balance-only bank account once a day, so the app
 /// builds a history of investment and retirement balances without anyone
-/// pressing Sync. Each user's update runs after their chosen hour
-/// (SimpleFinConnection.DailyUpdateHour, default 8 pm) in their own time zone.
+/// pressing Sync. Updates run after the chosen hour (SimpleFinConnection.
+/// DailyUpdateHour, default 8 pm) in Pacific Time, for every user.
+///
+/// Users are processed one after another, never in parallel, and each fetch
+/// also goes through SimpleFinService's app-wide one-at-a-time gate, so the
+/// daily run never overlaps a manual sync either.
 ///
 /// Checks every 10 minutes. A user is due when it's past their hour today and
 /// today's update hasn't succeeded yet. After a failure it waits an hour before
@@ -25,6 +29,7 @@ public class SimpleFinDailyUpdateService(
     // Overridable (SimpleFin:DailyUpdateCheckSeconds) only so tests needn't wait.
     private TimeSpan Interval => TimeSpan.FromSeconds(config.GetValue("SimpleFin:DailyUpdateCheckSeconds", 600));
     private static readonly TimeSpan RetryAfter = TimeSpan.FromHours(1);
+    public const string ScheduleTimeZone = "America/Los_Angeles";
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -67,7 +72,9 @@ public class SimpleFinDailyUpdateService(
             var user = await users.FindByIdAsync(c.UserId);
             if (user is null || string.IsNullOrWhiteSpace(user.TimeZoneId)) continue;
 
-            var now = UserClock.Now(user.TimeZoneId);
+            // The schedule runs on Pacific Time for everyone, whatever the
+            // user's own time zone (values are still dated in theirs).
+            var now = UserClock.Now(ScheduleTimeZone);
             var today = DateOnly.FromDateTime(now);
             if (now.Hour < c.DailyUpdateHour) continue;
             if (c.LastAutoUpdateDate == today) continue;
