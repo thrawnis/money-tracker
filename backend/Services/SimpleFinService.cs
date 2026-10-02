@@ -206,6 +206,12 @@ public class SimpleFinService(
 
         if (sfAccount.LinkedAccountId == localAccountId) return;
 
+        // A link, once made, is fixed: moving it straight to another account
+        // is refused. Unlinking (localAccountId null) is the only change, after
+        // which it can be linked anew — two deliberate, confirmed steps.
+        if (sfAccount.LinkedAccountId != null && localAccountId != null)
+            throw new SimpleFinConflictException("This bank account is already linked. Unlink it first, then link it to a different account.");
+
         // Investment accounts default to balance-only (their value moves with
         // the market, not through transactions); everything else to transactions.
         if (localAccountId.HasValue)

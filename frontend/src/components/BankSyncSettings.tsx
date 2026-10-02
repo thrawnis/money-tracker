@@ -220,24 +220,43 @@ export default function BankSyncSettings({ status, onStatus: setStatus, accounts
               </td>
               <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{formatMoney(sf.balance, sf.currency)}</td>
               <td>
-                <select
-                  value={sf.linkedAccountId ?? ''}
-                  onChange={e => handleLink(sf, e.target.value)}
-                  disabled={busy !== null}
-                >
-                  <option value="">— Don't sync —</option>
-                  {accounts
-                    .filter(a => a.isActive || a.id === sf.linkedAccountId)
-                    .sort((a, b) => a.name.localeCompare(b.name))
-                    .map(a => {
-                      const taken = takenBy.has(a.id) && takenBy.get(a.id) !== sf.id;
-                      return (
-                        <option key={a.id} value={a.id} disabled={taken}>
-                          {a.name}{taken ? ' (already linked)' : ''}
-                        </option>
-                      );
-                    })}
-                </select>
+                {/* Once linked, the link is fixed: to send this bank account
+                    somewhere else, unlink it first, then link it again. */}
+                {sf.linkedAccountId != null ? (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                    <span><span aria-hidden="true">🔗</span> {sf.linkedAccountName}</span>
+                    <button
+                      type="button"
+                      className={styles.btnLink}
+                      style={{ color: 'var(--c-cc0000)' }}
+                      onClick={() => handleLink(sf, '')}
+                      disabled={busy !== null}
+                      aria-label={`Unlink ${sf.name} from ${sf.linkedAccountName}`}
+                    >
+                      Unlink
+                    </button>
+                  </span>
+                ) : (
+                  <select
+                    value=""
+                    onChange={e => handleLink(sf, e.target.value)}
+                    disabled={busy !== null}
+                    aria-label={`Account to sync ${sf.name} into`}
+                  >
+                    <option value="">— Don't sync —</option>
+                    {accounts
+                      .filter(a => a.isActive)
+                      .sort((a, b) => a.name.localeCompare(b.name))
+                      .map(a => {
+                        const taken = takenBy.has(a.id);
+                        return (
+                          <option key={a.id} value={a.id} disabled={taken}>
+                            {a.name}{taken ? ' (already linked)' : ''}
+                          </option>
+                        );
+                      })}
+                  </select>
+                )}
               </td>
               <td>
                 {sf.linkedAccountId != null && (

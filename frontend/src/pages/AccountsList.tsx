@@ -2,10 +2,9 @@ import { Fragment, useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { getAccounts } from '../api/accounts';
-import { getSimpleFinStatus, linkSimpleFinAccount, type SimpleFinAccount, type SimpleFinStatus } from '../api/simplefin';
+import { getSimpleFinStatus, type SimpleFinAccount, type SimpleFinStatus } from '../api/simplefin';
 import InfoIcon from '../components/InfoIcon';
 import BankSyncSettings from '../components/BankSyncSettings';
-import { confirmLinkChange } from '../utils/bankLinks';
 import type { Account, AccountType } from '../types';
 import styles from './AccountsList.module.css';
 
@@ -71,7 +70,6 @@ export default function AccountsList() {
   const [error, setError] = useState('');
   const [showInactive, setShowInactive] = useState(false);
   const [syncStatus, setSyncStatus] = useState<SimpleFinStatus | null>(null);
-  const [linkError, setLinkError] = useState('');
   const location = useLocation();
 
   useEffect(() => {
@@ -93,15 +91,6 @@ export default function AccountsList() {
   if (syncStatus?.connected)
     for (const sf of syncStatus.accounts) if (sf.linkedAccountId != null) bankLinks.set(sf.linkedAccountId, sf);
 
-  const unlink = async (sf: SimpleFinAccount) => {
-    if (!confirmLinkChange(sf, null)) return;
-    setLinkError('');
-    try {
-      setSyncStatus(await linkSimpleFinAccount(sf.id, null));
-    } catch {
-      setLinkError(`Failed to unlink "${sf.name}".`);
-    }
-  };
 
   const active   = accounts.filter(a =>  a.isActive);
   const inactive = accounts.filter(a => !a.isActive).sort((a, b) => a.name.localeCompare(b.name));
@@ -146,7 +135,7 @@ export default function AccountsList() {
                 )}
                 {items.map(acc => (
                   <AccountRow key={acc.id} acc={acc} onClick={() => navigate(`/accounts/${acc.id}`)}
-                    bankLink={bankLinks.get(acc.id)} onUnlink={unlink} />
+                    bankLink={bankLinks.get(acc.id)} />
                 ))}
               </Fragment>
             ))}
@@ -170,15 +159,13 @@ export default function AccountsList() {
               <tbody>
                 {inactive.map(acc => (
                   <AccountRow key={acc.id} acc={acc} onClick={() => navigate(`/accounts/${acc.id}`)} inactive
-                    bankLink={bankLinks.get(acc.id)} onUnlink={unlink} />
+                    bankLink={bankLinks.get(acc.id)} />
                 ))}
               </tbody>
             </table>
           )}
         </div>
       )}
-
-      {linkError && <p className={styles.errorMsg}>{linkError}</p>}
 
       <section id="bank-sync" className={styles.bankSync}>
         <h3 className={styles.sectionTitle}>Bank Sync</h3>
@@ -194,27 +181,21 @@ interface RowProps {
   inactive?: boolean;
   /** The bank account syncing into this account, if any. */
   bankLink?: SimpleFinAccount;
-  onUnlink: (sf: SimpleFinAccount) => void;
 }
 
 /**
  * Which bank account feeds this one. Larger screens spell it out under the
- * name with an Unlink button; small screens show just 🔗, which opens the
- * same details (and Unlink) when tapped.
+ * name; small screens show just 🔗, which reveals the same when tapped.
+ * Unlinking is done in the Bank Sync section below.
  */
-function BankLinkInfo({ sf, onUnlink }: { sf: SimpleFinAccount; onUnlink: (sf: SimpleFinAccount) => void }) {
+function BankLinkInfo({ sf }: { sf: SimpleFinAccount }) {
   const [open, setOpen] = useState(false);
   const label = `${sf.orgName ? `${sf.orgName} · ` : ''}${sf.name}${sf.balanceOnly ? ' (balance only)' : ''}`;
-  const unlinkBtn = (
-    <button type="button" className={styles.unlinkBtn} onClick={e => { e.stopPropagation(); setOpen(false); onUnlink(sf); }}>
-      Unlink
-    </button>
-  );
   return (
-    // Clicks here manage the link, not open the register.
+    // Clicks here show the link details, not open the register.
     <span onClick={e => e.stopPropagation()}>
       <span className={styles.linkInfo}>
-        <span aria-hidden="true">🔗</span> Synced from {label} {unlinkBtn}
+        <span aria-hidden="true">🔗</span> Synced from {label}
       </span>
       <span
         className={styles.linkIconOnly}
@@ -233,7 +214,6 @@ function BankLinkInfo({ sf, onUnlink }: { sf: SimpleFinAccount; onUnlink: (sf: S
         {open && (
           <span role="tooltip" className={styles.linkPop}>
             Synced from <strong>{label}</strong>
-            {unlinkBtn}
           </span>
         )}
       </span>
@@ -241,7 +221,7 @@ function BankLinkInfo({ sf, onUnlink }: { sf: SimpleFinAccount; onUnlink: (sf: S
   );
 }
 
-function AccountRow({ acc, onClick, inactive = false, bankLink, onUnlink }: RowProps) {
+function AccountRow({ acc, onClick, inactive = false, bankLink }: RowProps) {
   return (
     <tr
       className={`${styles.row} ${inactive ? styles.rowInactive : ''}`}
@@ -249,7 +229,7 @@ function AccountRow({ acc, onClick, inactive = false, bankLink, onUnlink }: RowP
     >
       <td className={styles.tdName}>
         {acc.name}
-        {bankLink && <BankLinkInfo sf={bankLink} onUnlink={onUnlink} />}
+        {bankLink && <BankLinkInfo sf={bankLink} />}
       </td>
       <td className={styles.tdInst}>{acc.institution?.name ?? <span className={styles.none}>—</span>}</td>
       <td className={`${styles.tdDate} ${styles.narrowOnly}`}>
