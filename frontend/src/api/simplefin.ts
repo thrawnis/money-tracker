@@ -38,6 +38,11 @@ export type SimpleFinStatus =
       lastErrors: string[];
       /** Hour (0-23, user's time zone) of the daily automatic balance update; null when off. */
       dailyUpdateHour?: number | null;
+      /** Requests to SimpleFIN today (Pacific day) and the cap for manual syncs. */
+      requestsToday: number;
+      dailyRequestLimit: number;
+      /** When a manual sync is next allowed (UTC), if it's held back now. */
+      nextManualSyncAt?: string | null;
       lastAutoUpdateDate?: string | null;
       accounts: SimpleFinAccount[];
     };

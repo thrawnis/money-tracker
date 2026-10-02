@@ -132,6 +132,12 @@ public class SimpleFinController(
         catch (KeyNotFoundException) { return NotFound(new { message = "SimpleFIN isn't connected." }); }
         catch (SimpleFinConflictException ex) { return Conflict(new { message = ex.Message }); }
         catch (SimpleFinException ex) { return StatusCode(StatusCodes.Status502BadGateway, new { message = ex.Message }); }
+        catch (SimpleFinRateLimitException ex)
+        {
+            if (ex.RetryAt is DateTime at)
+                Response.Headers.RetryAfter = Math.Max(1, (int)Math.Ceiling((at - DateTime.UtcNow).TotalSeconds)).ToString();
+            return StatusCode(StatusCodes.Status429TooManyRequests, new { message = ex.Message, retryAt = ex.RetryAt });
+        }
     }
 
     // Forget that a transaction was skipped, so the next sync offers it again.

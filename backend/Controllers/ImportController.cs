@@ -866,6 +866,12 @@ public class ImportController(
                 fileName = d.FileName,
                 rowCount = d.RowCount,
                 fromBankSync = d.SimpleFinAccountId != null,
+                // For bank-sync drafts: the day the account was last approved
+                // through (or, before any approval, when the draft was first
+                // staged). Each sync reaches back at most 90 days from there,
+                // so the banner warns as an unreviewed backlog gets old.
+                syncPendingSince = d.SimpleFinAccount == null ? (DateOnly?)null
+                    : d.SimpleFinAccount.SyncedThrough ?? DateOnly.FromDateTime(d.CreatedAt),
                 createdAt = d.CreatedAt,
                 updatedAt = d.UpdatedAt,
             })

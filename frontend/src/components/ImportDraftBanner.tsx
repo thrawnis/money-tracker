@@ -11,12 +11,21 @@ export default function ImportDraftBanner() {
   const navigate = useNavigate();
   const [drafts, setDrafts] = useState<ImportDraftSummary[]>([]);
   const [dismissedIds, setDismissedIds] = useState<Set<number>>(new Set());
+  // When the list was fetched — the "now" that backlog ages are measured from.
+  const [loadedAt, setLoadedAt] = useState(0);
 
   useEffect(() => {
-    getImportDrafts().then(setDrafts).catch(() => {});
+    getImportDrafts().then(d => { setDrafts(d); setLoadedAt(Date.now()); }).catch(() => {});
   }, [location.pathname]);
 
   const visible = drafts.filter(d => !dismissedIds.has(d.id));
+
+  // Each sync reaches back at most 90 days from the last approval, so an
+  // unreviewed bank-sync backlog gets a warning well before then.
+  const backlogDays = (d: ImportDraftSummary) =>
+    d.syncPendingSince
+      ? Math.floor((loadedAt - new Date(d.syncPendingSince + 'T00:00:00').getTime()) / 864e5)
+      : 0;
   if (visible.length === 0) return null;
 
   const handleResume = (d: ImportDraftSummary) => {
@@ -46,6 +55,10 @@ export default function ImportDraftBanner() {
               <>
                 Bank sync found <strong>{d.rowCount} new transaction{d.rowCount === 1 ? '' : 's'}</strong> for{' '}
                 <strong>{d.accountName}</strong> waiting for your review.
+                {backlogDays(d) >= 60 && (
+                  <> <strong>Not reviewed for {backlogDays(d)} days</strong> — syncs only reach back 90 days, so
+                    please review soon or older transactions will need importing from a bank file.</>
+                )}
               </>
             ) : (
               <>

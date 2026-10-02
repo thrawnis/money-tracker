@@ -278,16 +278,18 @@ export default function BankSyncSettings({ status, onStatus: setStatus, accounts
       </p>
 
       <div className={styles.prefGroup}>
-        <p className={styles.prefGroupTitle}>Daily balance update</p>
+        <p className={styles.prefGroupTitle}>Nightly sync</p>
         <p className={styles.hint} style={{ marginBottom: 8 }}>
-          Records the value of every balance-only account once a day, without you having to sync, so its
-          history has no gaps. Times are Pacific Time; if the server is down at that time, it catches up
-          before midnight.
+          Syncs every linked account once a day without you pressing Sync. New transactions wait on the Bank Sync
+          screen for your approval; if you don't get to them, the next nights add to the same review (keeping the
+          choices you've made) rather than starting over. Balance-only accounts get the day's value recorded. A
+          review you've worked on in the last hour is left alone until the next night. Times are Pacific Time; if
+          the server is down then, it catches up before midnight.
         </p>
         <select
           value={status.dailyUpdateHour ?? ''}
           onChange={e => handleDailyHour(e.target.value)}
-          aria-label="Daily balance update time"
+          aria-label="Nightly sync time"
         >
           <option value="">Off</option>
           {Array.from({ length: 24 }, (_, h) => (

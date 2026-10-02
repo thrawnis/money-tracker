@@ -102,6 +102,8 @@ export interface ImportDraftSummary {
   rowCount: number;
   /** Staged by a SimpleFIN bank sync rather than a file upload. */
   fromBankSync?: boolean;
+  /** Bank sync: the day this account was last approved through (YYYY-MM-DD). */
+  syncPendingSince?: string | null;
   createdAt: string;
   updatedAt: string;
 }

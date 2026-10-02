@@ -39,6 +39,13 @@ public class SimpleFinConnection
     public DateOnly? LastAutoUpdateDate { get; set; }
     public DateTime? LastAutoAttemptAt { get; set; }
 
+    // Rate limiting (SimpleFIN Bridge allows roughly 24 requests a day per
+    // connection). RequestDay is the Pacific-time day RequestCount covers;
+    // LastManualSyncAt drives the short cooldown between manual syncs.
+    public DateOnly? RequestDay { get; set; }
+    public int RequestCount { get; set; }
+    public DateTime? LastManualSyncAt { get; set; }
+
     public ICollection<SimpleFinAccount> Accounts { get; set; } = [];
 }
 

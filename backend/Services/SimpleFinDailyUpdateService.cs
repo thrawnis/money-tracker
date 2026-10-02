@@ -6,20 +6,28 @@ using MoneyTracker.Models;
 namespace MoneyTracker.Services;
 
 /// <summary>
-/// Records the value of every balance-only bank account once a day, so the app
-/// builds a history of investment and retirement balances without anyone
-/// pressing Sync. Updates run after the chosen hour (SimpleFinConnection.
-/// DailyUpdateHour, default 8 pm) in Pacific Time, for every user.
+/// The nightly sync: once a day, after the chosen hour (SimpleFinConnection.
+/// DailyUpdateHour, default 8 pm) in Pacific Time for every user, syncs every
+/// linked bank account without anyone pressing Sync. Transaction accounts
+/// get their new transactions staged for review (a waiting review grows to
+/// cover every day not yet approved, keeping the choices already made);
+/// balance-only accounts get the day's value recorded, building their history.
 ///
 /// Users are processed one after another, never in parallel, and each fetch
 /// also goes through SimpleFinService's app-wide one-at-a-time gate, so the
 /// daily run never overlaps a manual sync either.
 ///
 /// Checks every 10 minutes. A user is due when it's past their hour today and
-/// today's update hasn't succeeded yet. After a failure it waits an hour before
-/// trying again, and stops at midnight: a missed day stays missed, since SimpleFIN
-/// only reports today's balance. A server that was down at 8 pm catches up
-/// as soon as it starts, any time before midnight.
+/// today's sync hasn't succeeded yet. After a temporary failure (timeout,
+/// outage) it waits an hour before trying again, so a night gets at most a
+/// handful of tries (four from 8 pm) before stopping at midnight; each one
+/// counts toward the connection's daily request limit. A permanent failure
+/// (access revoked, subscription inactive) isn't retried that night at all —
+/// it needs the user to act, and is shown in Bank Sync. A missed night costs nothing for
+/// transaction accounts (the next sync fetches everything since the last
+/// approval), but a balance-only account's value for that day stays missing,
+/// since SimpleFIN only reports today's balance. A server that was down at
+/// 8 pm catches up as soon as it starts, any time before midnight.
 /// </summary>
 public class SimpleFinDailyUpdateService(
     IServiceScopeFactory scopeFactory,
@@ -54,11 +62,11 @@ public class SimpleFinDailyUpdateService(
         using var scope = scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        // Connections with the daily update on and at least one active
-        // balance-only account linked; the time-of-day check is per user below.
+        // Connections with the nightly sync on and at least one active account
+        // linked; the time-of-day check is below.
         var candidates = await db.SimpleFinConnections
             .Where(c => c.DailyUpdateHour != null
-                && c.Accounts.Any(a => a.BalanceOnly && a.LinkedAccount != null && a.LinkedAccount.IsActive))
+                && c.Accounts.Any(a => a.LinkedAccount != null && a.LinkedAccount.IsActive))
             .Select(c => new { c.Id, c.UserId, c.DailyUpdateHour, c.LastAutoUpdateDate, c.LastAutoAttemptAt })
             .ToListAsync(ct);
 
@@ -87,12 +95,21 @@ public class SimpleFinDailyUpdateService(
             try
             {
                 var service = userScope.ServiceProvider.GetRequiredService<SimpleFinService>();
-                var recorded = await service.UpdateBalancesAsync(user, ct);
+                var result = await service.SyncAsync(user, null, ct, SyncTrigger.Nightly);
                 conn.LastAutoUpdateDate = today;
                 await userDb.SaveChangesAsync(ct);
-                logger.LogInformation("Daily SimpleFIN update recorded {Count} balance(s) for a user", recorded);
+                logger.LogInformation("Nightly SimpleFIN sync: {Accounts} account(s), {New} new transaction(s) for a user",
+                    result.Accounts.Count, result.Accounts.Sum(a => a.NewTransactions));
             }
-            catch (SimpleFinException ex)
+            catch (SimpleFinException ex) when (ex.Permanent)
+            {
+                // No retries tonight: they can't succeed until the user
+                // reconnects or renews. Tomorrow night tries once more.
+                conn.LastAutoUpdateDate = today;
+                await userDb.SaveChangesAsync(CancellationToken.None);
+                logger.LogWarning("Nightly SimpleFIN sync stopped for a user until they act: {Message}", ex.Message);
+            }
+            catch (Exception ex) when (ex is SimpleFinException or SimpleFinConflictException)
             {
                 // Already saved to the connection's errors for the user to see.
                 logger.LogWarning("Daily SimpleFIN update failed for a user: {Message}", ex.Message);

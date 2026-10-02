@@ -7,10 +7,16 @@ using System.Text.Json;
 
 namespace MoneyTracker.Services;
 
-public class SimpleFinException(string message, bool accessRevoked = false) : Exception(message)
+public class SimpleFinException(string message, bool accessRevoked = false, bool permanent = false) : Exception(message)
 {
     /// <summary>SimpleFIN rejected the credentials — the access URL was revoked or is invalid.</summary>
     public bool AccessRevoked { get; } = accessRevoked;
+
+    /// <summary>
+    /// Retrying won't help until the user acts (revoked access, lapsed
+    /// subscription), as opposed to a timeout or outage that may clear up.
+    /// </summary>
+    public bool Permanent { get; } = permanent || accessRevoked;
 }
 
 public record SfTransaction(
@@ -103,7 +109,7 @@ public class SimpleFinClient(IHttpClientFactory httpFactory, IConfiguration conf
         if (resp.StatusCode is HttpStatusCode.Forbidden or HttpStatusCode.Unauthorized)
             throw new SimpleFinException("SimpleFIN refused access. The connection may have been revoked — disconnect and connect again with a new setup token.", accessRevoked: true);
         if (resp.StatusCode == HttpStatusCode.PaymentRequired)
-            throw new SimpleFinException("SimpleFIN reports the subscription for this connection is inactive.");
+            throw new SimpleFinException("SimpleFIN reports the subscription for this connection is inactive.", permanent: true);
         if (!resp.IsSuccessStatusCode)
             throw new SimpleFinException($"SimpleFIN request failed ({(int)resp.StatusCode}). Try again later.");
 

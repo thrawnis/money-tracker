@@ -11,6 +11,15 @@ namespace MoneyTracker.Services;
 
 public class SimpleFinConflictException(string message) : Exception(message);
 
+/// <summary>A manual sync refused because of the cooldown or the daily cap.</summary>
+public class SimpleFinRateLimitException(string message, DateTime? retryAt) : Exception(message)
+{
+    public DateTime? RetryAt { get; } = retryAt;
+}
+
+/// <summary>Who asked for a sync: the user (rate-limited) or the nightly job.</summary>
+public enum SyncTrigger { Manual, Nightly }
+
 public record SimpleFinSyncAccountResult(
     int SimpleFinAccountId, string Name, int? LinkedAccountId, string? LinkedAccountName,
     DateOnly? From, int NewTransactions, int? DraftId, string? Note, bool Skipped = false,
@@ -30,7 +39,8 @@ public class SimpleFinService(
     AppDbContext db,
     IEncryptionService encryption,
     SimpleFinClient client,
-    IAuditService audit)
+    IAuditService audit,
+    IConfiguration config)
 {
     // Re-fetch this far behind the cursor on every sync: transactions often post
     // days after they happen, so without an overlap a late-posting charge dated
@@ -72,6 +82,9 @@ public class SimpleFinService(
             lastSyncAt = conn.LastSyncAt,
             lastErrors = DecryptErrors(conn.LastErrorsEncrypted, dek),
             dailyUpdateHour = conn.DailyUpdateHour,
+            requestsToday = RequestsTodayFor(conn),
+            dailyRequestLimit = DailyRequestLimit,
+            nextManualSyncAt = NextManualSyncAt(conn),
             lastAutoUpdateDate = conn.LastAutoUpdateDate,
             accounts = conn.Accounts
                 .Select(a =>
@@ -142,6 +155,7 @@ public class SimpleFinService(
             AccessUrlEncrypted = encryption.Encrypt(accessUrl, user.EncryptedDataKey)!,
             LastErrorsEncrypted = EncryptErrors(set.Errors, user.EncryptedDataKey),
         };
+        CountRequest(conn);
         db.SimpleFinConnections.Add(conn);
         await db.SaveChangesAsync(ct);
 
@@ -221,16 +235,63 @@ public class SimpleFinService(
     /// and cursor are untouched, so a later sync picks up where it left off.
     /// </param>
     public Task<SimpleFinSyncResult> SyncAsync(
-        ApplicationUser user, IReadOnlyCollection<int>? onlyAccountIds, CancellationToken ct) =>
-        OneAtATimeAsync(() => SyncCoreAsync(user, onlyAccountIds, ct), ct);
+        ApplicationUser user, IReadOnlyCollection<int>? onlyAccountIds, CancellationToken ct,
+        SyncTrigger trigger = SyncTrigger.Manual) =>
+        OneAtATimeAsync(() => SyncCoreAsync(user, onlyAccountIds, trigger, ct), ct);
+
+    // SimpleFIN Bridge allows about 24 requests a day per connection and only
+    // refreshes bank data about once a day, so manual syncs are kept well
+    // inside that: a short cooldown, and a daily cap that leaves room for the
+    // nightly sync (which always runs, and counts toward the total).
+    // Overridable (SimpleFin:ManualCooldownSeconds / SimpleFin:DailyRequestLimit)
+    // only so tests can sync repeatedly.
+    private TimeSpan ManualCooldown => TimeSpan.FromSeconds(config.GetValue("SimpleFin:ManualCooldownSeconds", 15 * 60));
+    private int DailyRequestLimit => config.GetValue("SimpleFin:DailyRequestLimit", 12);
+
+    // The rate-limit day runs on Pacific time, like the nightly sync.
+    private static DateOnly RequestDay() => UserClock.Today(SimpleFinDailyUpdateService.ScheduleTimeZone);
+
+    private static int RequestsTodayFor(SimpleFinConnection conn) =>
+        conn.RequestDay == RequestDay() ? conn.RequestCount : 0;
+
+    private static void CountRequest(SimpleFinConnection conn)
+    {
+        var day = RequestDay();
+        if (conn.RequestDay != day) { conn.RequestDay = day; conn.RequestCount = 0; }
+        conn.RequestCount++;
+    }
+
+    private DateTime? NextManualSyncAt(SimpleFinConnection conn)
+    {
+        if (RequestsTodayFor(conn) >= DailyRequestLimit)
+        {
+            // Midnight Pacific, in UTC.
+            var tz = TimeZoneInfo.FindSystemTimeZoneById(SimpleFinDailyUpdateService.ScheduleTimeZone);
+            var midnight = RequestDay().AddDays(1).ToDateTime(TimeOnly.MinValue);
+            return TimeZoneInfo.ConvertTimeToUtc(midnight, tz);
+        }
+        if (conn.LastManualSyncAt is DateTime last && DateTime.UtcNow - last < ManualCooldown)
+            return last + ManualCooldown;
+        return null;
+    }
 
     private async Task<SimpleFinSyncResult> SyncCoreAsync(
-        ApplicationUser user, IReadOnlyCollection<int>? onlyAccountIds, CancellationToken ct)
+        ApplicationUser user, IReadOnlyCollection<int>? onlyAccountIds, SyncTrigger trigger, CancellationToken ct)
     {
         var conn = await db.SimpleFinConnections
             .Include(c => c.Accounts).ThenInclude(a => a.LinkedAccount)
             .FirstOrDefaultAsync(c => c.UserId == user.Id, ct)
             ?? throw new KeyNotFoundException();
+
+        if (trigger == SyncTrigger.Manual && NextManualSyncAt(conn) is DateTime retryAt)
+        {
+            var minutes = (int)Math.Ceiling((retryAt - DateTime.UtcNow).TotalMinutes);
+            throw new SimpleFinRateLimitException(
+                RequestsTodayFor(conn) >= DailyRequestLimit
+                    ? $"Bank sync has reached today's limit of {DailyRequestLimit} requests to SimpleFIN. It resets at midnight Pacific time; the nightly sync still runs."
+                    : $"You synced a moment ago. Your bank's data only updates about once a day, so try again in {minutes} minute{(minutes == 1 ? "" : "s")}.",
+                retryAt);
+        }
 
         var dek = user.EncryptedDataKey;
         var today = UserClock.Today(user);
@@ -293,6 +354,8 @@ public class SimpleFinService(
         // just the current balances and holdings.
         var fetchFrom = starts.Count > 0 ? starts.Values.Min(s => s.Start).AddDays(-1) : today.AddDays(-1);
         SfAccountSet set;
+        CountRequest(conn);
+        if (trigger == SyncTrigger.Manual) conn.LastManualSyncAt = DateTime.UtcNow;
         try
         {
             set = await client.GetAccountsAsync(
@@ -345,6 +408,15 @@ public class SimpleFinService(
             if (existingDraft is not null && existingDraft.SimpleFinAccountId is null)
             {
                 results.Add(Result(0, null, "Skipped: there's an unfinished file import for this account. Finish or discard it first.", skipped: true));
+                continue;
+            }
+            // The nightly sync leaves alone a review the user touched within the
+            // last hour, rather than changing it under them; the next night
+            // picks the account up.
+            if (trigger == SyncTrigger.Nightly && existingDraft is not null
+                && DateTime.UtcNow - existingDraft.UpdatedAt < TimeSpan.FromHours(1))
+            {
+                results.Add(Result(0, existingDraft.Id, "Skipped tonight: its review was in progress.", skipped: true));
                 continue;
             }
 
@@ -426,8 +498,10 @@ public class SimpleFinService(
 
             // A newer sync supersedes an unreviewed older one for the same account:
             // its window starts at the same (unadvanced) cursor, so it's a superset.
-            // Rows already unticked in that older review stay unticked: row
-            // positions change in the rebuilt file, so carry them over by bank id.
+            // Review choices carry over: payee choices are keyed by the payee
+            // text and included duplicates by register transaction id, so both
+            // still apply as-is; unticked rows are carried over by bank id,
+            // since row positions change in the rebuilt file.
             var txIds = fresh.Select(r => r.Tx.Id).ToList();
             string? excludedJson = null;
             if (existingDraft is null)
@@ -448,8 +522,6 @@ public class SimpleFinService(
             existingDraft.FileName = fileName;
             existingDraft.FileContentEncrypted = encrypted;
             existingDraft.RowCount = fresh.Count;
-            existingDraft.IncludeDuplicateIdsJson = null;
-            existingDraft.PayeeOverridesJson = null;
             existingDraft.ExcludedRowsJson = excludedJson;
             existingDraft.SimpleFinAccountId = a.Id;
             existingDraft.SimpleFinSyncedThrough = fresh[^1].Date;
@@ -471,52 +543,6 @@ public class SimpleFinService(
         });
 
         return new SimpleFinSyncResult(results, set.Errors);
-    }
-
-    /// <summary>
-    /// Records today's value (and holdings, when reported) for every linked
-    /// balance-only account. Used by the daily automatic update.
-    /// </summary>
-    public Task<int> UpdateBalancesAsync(ApplicationUser user, CancellationToken ct) =>
-        OneAtATimeAsync(() => UpdateBalancesCoreAsync(user, ct), ct);
-
-    private async Task<int> UpdateBalancesCoreAsync(ApplicationUser user, CancellationToken ct)
-    {
-        var conn = await db.SimpleFinConnections
-            .Include(c => c.Accounts).ThenInclude(a => a.LinkedAccount)
-            .FirstOrDefaultAsync(c => c.UserId == user.Id, ct)
-            ?? throw new KeyNotFoundException();
-        var targets = conn.Accounts.Where(a => a.BalanceOnly && a.LinkedAccount is { IsActive: true }).ToList();
-        if (targets.Count == 0) return 0;
-
-        var dek = user.EncryptedDataKey;
-        SfAccountSet set;
-        try
-        {
-            // Not balances-only: holdings may only come with the full account
-            // payload. A start date of yesterday keeps the transaction list tiny.
-            set = await client.GetAccountsAsync(
-                encryption.Decrypt(conn.AccessUrlEncrypted, dek)!,
-                DateTimeOffset.UtcNow.AddDays(-1), balancesOnly: false, ct);
-        }
-        catch (SimpleFinException ex)
-        {
-            conn.LastErrorsEncrypted = EncryptErrors([ex.Message], dek);
-            await db.SaveChangesAsync(CancellationToken.None);
-            throw;
-        }
-
-        UpsertAccounts(user, conn, set);
-        var recorded = 0;
-        foreach (var a in targets)
-        {
-            var sf = set.Accounts.FirstOrDefault(x => x.Id == a.ExternalId);
-            if (sf is not null && await RecordValueAsync(user, a.LinkedAccountId!.Value, sf, ct) is not null)
-                recorded++;
-        }
-        conn.LastErrorsEncrypted = EncryptErrors(set.Errors, dek);
-        await db.SaveChangesAsync(ct);
-        return recorded;
     }
 
     /// <summary>

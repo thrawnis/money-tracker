@@ -46,11 +46,15 @@ export default function BankSync() {
   const [busy, setBusy] = useState<'sync' | number | null>(null);
   const [error, setError] = useState('');
   const [syncResult, setSyncResult] = useState<SimpleFinSyncResult | null>(null);
+  // Ticks so the "next sync available" wait counts down on its own.
+  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     getSimpleFinStatus()
       .then(setStatus)
       .catch(() => setError('Failed to load bank sync status.'));
+    const t = setInterval(() => setNow(Date.now()), 20_000);
+    return () => clearInterval(t);
   }, []);
 
   const review = (draftId: number) =>
@@ -86,6 +90,12 @@ export default function BankSync() {
   }
 
   const linked = status.accounts.filter(isLinked);
+
+  // Manual syncs are held back briefly after one another, and capped per day.
+  const heldUntil = status.nextManualSyncAt ? new Date(status.nextManualSyncAt).getTime() : 0;
+  const held = heldUntil > now;
+  const atDailyCap = status.requestsToday >= status.dailyRequestLimit;
+  const waitMinutes = Math.max(1, Math.ceil((heldUntil - now) / 60_000));
   const selected = linked.filter(a => !unticked.has(a.id));
   const allSelected = selected.length === linked.length;
 
@@ -268,7 +278,7 @@ export default function BankSync() {
         </div>
 
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          <button className={styles.btnPrimary} onClick={handleSync} disabled={busy !== null || selected.length === 0}>
+          <button className={styles.btnPrimary} onClick={handleSync} disabled={busy !== null || selected.length === 0 || held}>
             {busy === 'sync'
               ? 'Syncing…'
               : allSelected ? 'Sync all' : `Sync ${selected.length} account${selected.length === 1 ? '' : 's'}`}
@@ -282,10 +292,23 @@ export default function BankSync() {
           {linked.length > 0 && selected.length === 0 && (
             <span className={styles.hint}>Tick at least one account.</span>
           )}
+          {held && (
+            <span className={styles.hint}>
+              {atDailyCap
+                ? <>Today's {status.dailyRequestLimit} syncs are used up; more are available after midnight Pacific. The nightly sync still runs.</>
+                : <>Synced just now. You can sync again in {waitMinutes} minute{waitMinutes === 1 ? '' : 's'}.</>}
+            </span>
+          )}
         </div>
         <p className={styles.hint}>
-          SimpleFIN refreshes bank data about once a day and limits how often apps can ask for it, so
-          syncing more than a few times a day won't find anything new.
+          {status.dailyUpdateHour != null
+            ? <>Every linked account also syncs automatically each night after{' '}
+                {status.dailyUpdateHour === 0 ? '12 am' : status.dailyUpdateHour < 12 ? `${status.dailyUpdateHour} am` : status.dailyUpdateHour === 12 ? '12 pm' : `${status.dailyUpdateHour - 12} pm`} Pacific,
+                and new transactions wait here for your review. </>
+            : <>The nightly automatic sync is off. </>}
+          SimpleFIN refreshes bank data about once a day and limits how often apps can ask for it, so manual
+          syncs wait 15 minutes between them and are capped at {status.dailyRequestLimit} a day
+          ({status.requestsToday} used today).
         </p>
 
         {syncResult && (
