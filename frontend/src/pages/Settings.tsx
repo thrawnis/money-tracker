@@ -22,10 +22,9 @@ import type { Account, Payee } from '../types';
 import { getPayees } from '../api/payees';
 import ExportModal from '../components/ExportModal';
 import ReauthModal from '../components/ReauthModal';
-import BankSyncTab from '../components/BankSyncTab';
 import styles from './Settings.module.css';
 
-type Tab = 'preferences' | 'security' | 'export' | 'import' | 'banksync' | 'backups' | 'audit';
+type Tab = 'preferences' | 'security' | 'export' | 'import' | 'backups' | 'audit';
 
 // ── Change Password ──
 
@@ -1370,12 +1369,6 @@ export default function Settings() {
           Import Data
         </button>
         <button
-          className={`${styles.tab} ${tab === 'banksync' ? styles.tabActive : ''}`}
-          onClick={() => setTab('banksync')}
-        >
-          Bank Sync
-        </button>
-        <button
           className={`${styles.tab} ${tab === 'backups' ? styles.tabActive : ''}`}
           onClick={() => setTab('backups')}
         >
@@ -1393,7 +1386,6 @@ export default function Settings() {
         {tab === 'security' && <SecurityTab />}
         {tab === 'export' && <ExportTab />}
         {tab === 'import' && <ImportTab />}
-        {tab === 'banksync' && <BankSyncTab />}
         {tab === 'backups' && <BackupsTab />}
         {tab === 'audit' && <AuditLogTab />}
       </div>

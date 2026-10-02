@@ -1,6 +1,6 @@
 .page {
   padding: 24px;
-  max-width: 860px;
+  max-width: 1200px;
 }
 
 .pageHeader {
@@ -171,4 +171,87 @@
   .table th { white-space: normal; }
   .wideOnlyInline { display: none; }
   .page { padding: 16px 12px; }
+}
+
+/* Bank-linked marker next to an account name; clicking it offers to unlink. */
+.linkBadge {
+  margin-left: 6px;
+  padding: 0 4px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: none;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.linkBadge:hover,
+.linkBadge:focus-visible {
+  border-color: var(--c-c8d8e8);
+  background: var(--c-e8f0f8);
+}
+
+.bankSync {
+  margin-top: 32px;
+  scroll-margin-top: 16px;
+}
+
+.sectionTitle {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--c-003366);
+  margin: 0 0 10px;
+}
+
+/* Wide screens: "🔗 Synced from …" under the account name. */
+.linkInfo {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--c-555566);
+}
+
+.unlinkBtn {
+  margin-left: 6px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--c-cc0000);
+  font-size: 11px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Small screens: just the icon; tapping it shows the details. */
+.linkIconOnly { display: none; position: relative; }
+
+.linkPop {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 180px;
+  max-width: 240px;
+  margin-top: 4px;
+  padding: 8px 10px;
+  border: 1px solid var(--c-c8d8e8);
+  border-radius: 6px;
+  background: var(--c-ffffff);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--c-333344);
+  white-space: normal;
+}
+
+.linkPop .unlinkBtn { margin-left: 0; }
+
+@media (max-width: 768px) {
+  .linkInfo { display: none; }
+  .linkIconOnly { display: inline-block; }
 }

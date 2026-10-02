@@ -1,14 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
-  getSimpleFinStatus, connectSimpleFin, disconnectSimpleFin, linkSimpleFinAccount,
+  connectSimpleFin, disconnectSimpleFin, linkSimpleFinAccount,
   setSimpleFinBalanceOnly, setSimpleFinDailyUpdate,
   type SimpleFinStatus, type SimpleFinAccount,
 } from '../api/simplefin';
-import { getAccounts } from '../api/accounts';
 import { useAuth } from '../contexts/auth-context';
 import { formatDateTime } from '../utils/timezone';
 import type { Account } from '../types';
+import { confirmLinkChange } from '../utils/bankLinks';
 import styles from '../pages/Settings.module.css';
 
 type ApiError = { response?: { data?: { message?: string } } };
@@ -30,25 +30,25 @@ function formatDay(d?: string | null) {
 }
 
 /**
- * Settings → Bank Sync: connecting SimpleFIN Bridge and choosing which account
- * each bank account feeds. Syncing itself happens on the Bank Sync screen
+ * Bank sync settings, shown on the Accounts page: connecting SimpleFIN Bridge
+ * and choosing which account each bank account feeds. Syncing itself happens on the Bank Sync screen
  * (pages/BankSync.tsx), which stages new transactions as import drafts —
  * nothing reaches a register until it's reviewed and committed.
  */
-export default function BankSyncTab() {
+interface Props {
+  /** Bank sync status, owned by the page so its account list can show links too. */
+  status: SimpleFinStatus | null;
+  onStatus: (status: SimpleFinStatus) => void;
+  /** The user's accounts (active and inactive). */
+  accounts: Account[];
+}
+
+export default function BankSyncSettings({ status, onStatus: setStatus, accounts }: Props) {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [status, setStatus] = useState<SimpleFinStatus | null>(null);
-  const [accounts, setAccounts] = useState<Account[]>([]);
   const [token, setToken] = useState('');
   const [busy, setBusy] = useState<'connect' | 'disconnect' | number | null>(null);
   const [error, setError] = useState('');
-
-  useEffect(() => {
-    Promise.all([getSimpleFinStatus(), getAccounts()])
-      .then(([s, accs]) => { setStatus(s); setAccounts(accs); })
-      .catch(() => setError('Failed to load bank sync status.'));
-  }, []);
 
   const handleConnect = async () => {
     if (!token.trim()) return;
@@ -67,17 +67,7 @@ export default function BankSyncTab() {
   const handleLink = async (sf: SimpleFinAccount, value: string) => {
     const accountId = value ? Number(value) : null;
     if (accountId === (sf.linkedAccountId ?? null)) return;
-    // Re-pointing (or unlinking) resets this bank account's sync progress and
-    // discards any staged-but-unreviewed transactions for it.
-    if (sf.linkedAccountId != null || sf.pendingDraftId != null) {
-      const msg = accountId == null
-        ? `Stop syncing "${sf.name}"?`
-        : `Sync "${sf.name}" into a different account?`;
-      const detail = sf.pendingDraftId != null
-        ? ` Its ${sf.pendingDraftRows ?? ''} unreviewed transaction(s) will be discarded, and the next sync starts fresh for the new account.`
-        : ' The next sync starts fresh for the new account.';
-      if (!confirm(msg + detail)) return;
-    }
+    if (!confirmLinkChange(sf, accountId == null ? null : accounts.find(a => a.id === accountId) ?? null)) return;
     setBusy(sf.id);
     setError('');
     try {

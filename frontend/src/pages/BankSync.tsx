@@ -7,7 +7,7 @@ import {
 } from '../api/simplefin';
 import { useAuth } from '../contexts/auth-context';
 import { formatDateTime } from '../utils/timezone';
-// Same styling as Settings → Bank Sync, which this screen sits alongside.
+// Shares the Settings page styling (tables, hints, buttons).
 import styles from './Settings.module.css';
 
 type ApiError = { response?: { data?: { message?: string } } };
@@ -71,7 +71,7 @@ export default function BankSync() {
         <div className={styles.pageHeader}><h2 className={styles.pageTitle}>Bank Sync</h2></div>
         <p className={styles.hint}>
           Bank sync isn't set up yet. Connect SimpleFIN Bridge in{' '}
-          <Link to="/settings" state={{ tab: 'banksync' }}>Settings → Bank Sync</Link> first.
+          <Link to="/accounts#bank-sync">Accounts → Bank Sync</Link> first.
         </p>
       </div>
     );
@@ -155,7 +155,7 @@ export default function BankSync() {
           Untick any account to leave it out of this sync; it picks up where it left off next time.
           New transactions wait for your review before anything is imported.
           To change which account a bank account feeds, use{' '}
-          <Link to="/settings" state={{ tab: 'banksync' }}>Settings → Bank Sync</Link>.
+          <Link to="/accounts#bank-sync">Accounts → Bank Sync</Link>.
         </p>
 
         {status.lastErrors.length > 0 && (
@@ -210,7 +210,7 @@ export default function BankSync() {
                         <td>
                           {linkedHere
                             ? sf.linkedAccountName
-                            : <Link to="/settings" state={{ tab: 'banksync' }}>Not linked</Link>}
+                            : <Link to="/accounts#bank-sync">Not linked</Link>}
                         </td>
                         <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{formatMoney(sf.balance, sf.currency)}</td>
                         <td style={{ whiteSpace: 'nowrap' }}>
@@ -276,7 +276,7 @@ export default function BankSync() {
           {linked.length === 0 && (
             <span className={styles.hint}>
               No bank account is linked yet. Choose where each one syncs in{' '}
-              <Link to="/settings" state={{ tab: 'banksync' }}>Settings → Bank Sync</Link>.
+              <Link to="/accounts#bank-sync">Accounts → Bank Sync</Link>.
             </span>
           )}
           {linked.length > 0 && selected.length === 0 && (
