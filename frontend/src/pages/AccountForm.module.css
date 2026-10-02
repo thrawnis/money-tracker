@@ -32,7 +32,7 @@
 }
 
 .label {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--c-333333);
 }
@@ -41,7 +41,7 @@
   padding: 6px 8px;
   border: 1px solid var(--c-b0c4d8);
   border-radius: 2px;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--c-222222);
   background: var(--c-ffffff);
 }
@@ -55,7 +55,7 @@
   padding: 6px 8px;
   border: 1px solid var(--c-b0c4d8);
   border-radius: 2px;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--c-222222);
   background: var(--c-ffffff);
   resize: vertical;
@@ -81,7 +81,7 @@
   background: none;
   border: none;
   color: var(--c-006666);
-  font-size: 12px;
+  font-size: 13px;
   cursor: pointer;
   padding: 0 4px;
   white-space: nowrap;
@@ -95,7 +95,7 @@
   color: var(--c-ffffff);
   border: none;
   border-radius: 2px;
-  font-size: 13px;
+  font-size: 14px;
   cursor: pointer;
 }
 
@@ -108,7 +108,7 @@
   color: var(--c-333333);
   border: 1px solid var(--c-b0b0b0);
   border-radius: 2px;
-  font-size: 12px;
+  font-size: 13px;
   cursor: pointer;
 }
 
@@ -122,7 +122,7 @@
 
 .error {
   color: var(--c-cc0000);
-  font-size: 12px;
+  font-size: 13px;
   padding: 8px;
   background: var(--c-fff0f0);
   border: 1px solid var(--c-f0c0c0);

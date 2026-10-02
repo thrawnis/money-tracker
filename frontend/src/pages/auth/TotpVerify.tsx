@@ -42,7 +42,7 @@ export default function TotpVerify() {
     <div className={styles.page}>
       <div className={styles.card}>
         <h1 className={styles.title}>Two-Factor Authentication</h1>
-        <p style={{ fontSize: 13, color: '#333', marginBottom: 16 }}>
+        <p style={{ fontSize: 14, color: '#333', marginBottom: 16 }}>
           Enter the 6-digit code from your authenticator app.
         </p>
         <form onSubmit={handleSubmit} noValidate>

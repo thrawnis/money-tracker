@@ -32,7 +32,7 @@
 
 .modalTitle {
   margin: 0;
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 700;
 }
 
@@ -62,7 +62,7 @@
 }
 
 .label {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--c-333333);
 }
@@ -71,7 +71,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--c-333333);
   cursor: pointer;
 }
@@ -82,7 +82,7 @@
   padding: 7px 9px;
   border: 1px solid var(--c-c0c0c0);
   border-radius: 3px;
-  font-size: 13px;
+  font-size: 14px;
   font-family: inherit;
   box-sizing: border-box;
   width: 100%;
@@ -110,7 +110,7 @@
 
 .error {
   color: var(--c-cc0000);
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .actions {
@@ -126,7 +126,7 @@
   color: var(--c-ffffff);
   border: none;
   border-radius: 4px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
 }
@@ -140,7 +140,7 @@
   color: var(--c-336699);
   border: 1px solid var(--c-b0c0d0);
   border-radius: 4px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
 }
@@ -155,7 +155,7 @@
   color: var(--c-c0392b);
   border: 1px solid var(--c-c0392b);
   border-radius: 4px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
 }
@@ -168,7 +168,7 @@
   border: none;
   color: var(--c-006666);
   cursor: pointer;
-  font-size: 12px;
+  font-size: 13px;
   text-decoration: underline;
   padding: 0;
   white-space: nowrap;

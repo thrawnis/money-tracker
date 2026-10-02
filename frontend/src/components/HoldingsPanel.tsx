@@ -49,7 +49,7 @@ export default function HoldingsPanel({ accountId }: { accountId: number }) {
   return (
     <div className={styles.prefGroup} style={{ margin: '0 0 16px' }}>
       <p className={styles.prefGroupTitle}>Holdings as of {fmtDay(data.asOf)}</p>
-      <p style={{ margin: '0 0 10px', fontSize: 13 }}>
+      <p style={{ margin: '0 0 10px', fontSize: 14 }}>
         Value <strong>{money(data.totals.marketValue)}</strong>
         {data.totals.gain != null && (
           <> · {data.totals.gain >= 0 ? 'up' : 'down'} vs. what you paid: <Gain value={data.totals.gain} pct={data.totals.gainPct} /></>

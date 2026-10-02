@@ -621,6 +621,8 @@ export default function BillsReminders() {
       {loading ? (
         <p>Loading…</p>
       ) : (
+        <div style={{ overflowX: 'auto' }}>
+        {/* Scrolls sideways on phones rather than cutting off columns. */}
         <table className={styles.table}>
           <thead>
             <tr>
@@ -667,6 +669,7 @@ export default function BillsReminders() {
             )}
           </tbody>
         </table>
+        </div>
       )}
     </div>
   );

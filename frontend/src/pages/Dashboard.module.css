@@ -60,7 +60,7 @@
 }
 
 .sectionTitle {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--c-002a52);
   margin: 0 0 12px;
@@ -80,7 +80,7 @@
 .balanceToggle {
   text-transform: none;
   letter-spacing: normal;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--c-005f5f);
   background: var(--c-e6f4f4);
@@ -99,7 +99,7 @@
 }
 
 .accountGroupHeader {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.8px;
@@ -115,7 +115,7 @@
   padding: 5px 6px;
   text-decoration: none;
   color: var(--c-1a1a2e);
-  font-size: 12.5px;
+  font-size: 13.5px;
   border-radius: 5px;
   transition: background 0.12s;
 }
@@ -133,7 +133,7 @@
 }
 
 .accountGroupTotal {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--c-002a52);
   text-align: right;
@@ -171,7 +171,7 @@
   align-items: center;
   gap: 7px;
   margin-bottom: 6px;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .pieDot {
@@ -182,7 +182,7 @@
 }
 
 .pieLegendType { flex: 1; color: var(--c-333344); }
-.pieLegendPct  { color: var(--c-888888); font-size: 11px; font-variant-numeric: tabular-nums; }
+.pieLegendPct  { color: var(--c-888888); font-size: 12px; font-variant-numeric: tabular-nums; }
 
 /* ── Bills ────────────────────────────────────────────────────────────────── */
 
@@ -191,7 +191,7 @@
 .billsTable, .uncatTable {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .billsTable th, .uncatTable th {
@@ -201,7 +201,7 @@
   color: var(--c-333344);
   font-weight: 700;
   border-bottom: 1.5px solid var(--c-c5d4e0);
-  font-size: 11px;
+  font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.3px;
 }
@@ -228,7 +228,7 @@
 
 .emptyMsg {
   color: var(--c-aaaaaa);
-  font-size: 12px;
+  font-size: 13px;
   font-style: italic;
   padding: 8px 0;
 }
@@ -258,12 +258,12 @@
   color: var(--c-ffffff);
   border-radius: 10px;
   padding: 1px 9px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
 }
 
 .uncatHint {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--c-777788);
   margin-bottom: 8px;
 }

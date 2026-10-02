@@ -24,7 +24,7 @@
 .text {
   flex: 1;
   min-width: 240px;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--c-5c4400);
 }
 
@@ -34,7 +34,7 @@
   color: var(--c-ffffff);
   border: none;
   border-radius: 3px;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -46,7 +46,7 @@
   color: var(--c-aa3333);
   border: 1px solid var(--c-aa3333);
   border-radius: 3px;
-  font-size: 12px;
+  font-size: 13px;
   cursor: pointer;
 }
 .discardBtn:hover { background: var(--c-fdf0ef); }
@@ -56,6 +56,6 @@
   border: none;
   color: var(--c-806000);
   cursor: pointer;
-  font-size: 14px;
+  font-size: 15px;
   padding: 2px 4px;
 }

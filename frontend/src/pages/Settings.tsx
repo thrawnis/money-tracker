@@ -292,13 +292,13 @@ function PreferencesTab() {
         </p>
         <div style={{ display: 'flex', gap: 20, alignItems: 'flex-end' }}>
           <div>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 4 }}>Sort field</label>
+            <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Sort field</label>
             <select value={sortBy} onChange={e => { setSortBy(e.target.value); setSaved(false); }}>
               {SORT_FIELD_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           </div>
           <div>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 4 }}>Sort direction</label>
+            <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Sort direction</label>
             <select value={sortDir} onChange={e => { setSortDir(e.target.value as 'asc' | 'desc'); setSaved(false); }}>
               <option value="desc">Descending (newest / highest first)</option>
               <option value="asc">Ascending (oldest / lowest first)</option>
@@ -315,7 +315,7 @@ function PreferencesTab() {
           roll over at UTC midnight rather than yours.
         </p>
         <div>
-          <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 4 }}>Time zone</label>
+          <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Time zone</label>
           <TimeZoneSelect
             value={timeZoneId}
             onChange={id => { setTimeZoneId(id); setSaved(false); }}
@@ -330,7 +330,7 @@ function PreferencesTab() {
           just a projected preview, not real transactions, until they're actually due.
         </p>
         <div>
-          <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 4 }}>Days ahead (preview)</label>
+          <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Days ahead (preview)</label>
           <input
             type="number"
             min={1}
@@ -350,7 +350,7 @@ function PreferencesTab() {
             checked={autoCreate}
             onChange={e => { setAutoCreate(e.target.checked); setSaved(false); }}
           />
-          <span style={{ fontSize: 13, fontWeight: 700 }}>Enable auto-create</span>
+          <span style={{ fontSize: 14, fontWeight: 700 }}>Enable auto-create</span>
         </label>
         <p className={styles.hint}>
           When enabled, recurring transactions are created as real, future-dated transactions — editable in the
@@ -359,7 +359,7 @@ function PreferencesTab() {
           auto-created, or auto-create can be set further out than the preview shows.
         </p>
         <div>
-          <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 4 }}>Days ahead (auto-create)</label>
+          <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Days ahead (auto-create)</label>
           <input
             type="number"
             min={1}
@@ -379,7 +379,7 @@ function PreferencesTab() {
         <button className={styles.btnSecondary} onClick={handleReset} disabled={saving}>
           Reset to Default
         </button>
-        {saved && <span style={{ color: '#1a7a40', fontSize: 12 }}>Saved.</span>}
+        {saved && <span style={{ color: '#1a7a40', fontSize: 13 }}>Saved.</span>}
       </div>
     </div>
   );
@@ -469,7 +469,7 @@ function SecurityTab() {
       )}
 
       {error && <div className={styles.error}>{error}</div>}
-      {success && <p style={{ color: '#1a7a40', fontSize: 12 }}>Authenticator reset. Your new code is now active.</p>}
+      {success && <p style={{ color: '#1a7a40', fontSize: 13 }}>Authenticator reset. Your new code is now active.</p>}
 
       {!inProgress && (
         <>

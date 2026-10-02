@@ -19,7 +19,7 @@
 
 .loading, .errorMsg {
   color: var(--c-666677);
-  font-size: 13px;
+  font-size: 14px;
   padding: 24px 0;
 }
 
@@ -31,7 +31,7 @@
   color: var(--c-ffffff);
   border: none;
   border-radius: 4px;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
 }
@@ -43,7 +43,7 @@
   border: none;
   color: var(--c-006666);
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
   text-decoration: underline;
   padding: 0;
 }
@@ -52,7 +52,7 @@
 
 .groupHeaderCell {
   padding: 14px 12px 4px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.8px;
@@ -66,7 +66,7 @@
 .table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .table th {
@@ -107,12 +107,12 @@
 
 .tdInst {
   color: var(--c-555566);
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .tdDate {
   color: var(--c-666677);
-  font-size: 12px;
+  font-size: 13px;
   white-space: nowrap;
   text-align: center;
 }
@@ -120,7 +120,7 @@
 .tdCount {
   text-align: center;
   color: var(--c-666677);
-  font-size: 12px;
+  font-size: 13px;
   font-variant-numeric: tabular-nums;
 }
 
@@ -138,7 +138,7 @@
 .empty {
   padding: 20px 12px;
   color: var(--c-999999);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 /* ── Inactive section ── */
@@ -151,7 +151,7 @@
   background: none;
   border: none;
   color: var(--c-336699);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   padding: 4px 0;
@@ -167,7 +167,7 @@
 @media (max-width: 768px) {
   .thInst, .tdInst, .wideOnly { display: none; }
   .narrowOnly { display: table-cell; }
-  .table th, .table td { padding-left: 6px; padding-right: 6px; }
+  .table th, .table td { padding-left: 4px; padding-right: 4px; }
   .table th { white-space: normal; }
   .wideOnlyInline { display: none; }
   .page { padding: 16px 12px; }
@@ -181,7 +181,7 @@
   border-radius: 4px;
   background: none;
   cursor: pointer;
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.4;
 }
 
@@ -197,7 +197,7 @@
 }
 
 .sectionTitle {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 700;
   color: var(--c-003366);
   margin: 0 0 10px;
@@ -207,7 +207,7 @@
 .linkInfo {
   display: block;
   margin-top: 2px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 400;
   color: var(--c-555566);
 }
@@ -218,7 +218,7 @@
   border: none;
   background: none;
   color: var(--c-cc0000);
-  font-size: 11px;
+  font-size: 12px;
   text-decoration: underline;
   cursor: pointer;
 }
@@ -243,7 +243,7 @@
   border-radius: 6px;
   background: var(--c-ffffff);
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 400;
   color: var(--c-333344);
   white-space: normal;

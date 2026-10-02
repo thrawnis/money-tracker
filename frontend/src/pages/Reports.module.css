@@ -38,7 +38,7 @@
 .sidebarSection:last-child { border-bottom: none; }
 
 .sidebarHeading {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.8px;
@@ -54,7 +54,7 @@
   background: none;
   border: none;
   border-left: 3px solid transparent;
-  font-size: 12.5px;
+  font-size: 13.5px;
   color: var(--c-333344);
   cursor: pointer;
   transition: background 0.12s, border-color 0.12s;
@@ -92,7 +92,7 @@
   padding: 7px 4px 7px 12px;
   background: none;
   border: none;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--c-333344);
   cursor: pointer;
   overflow: hidden;
@@ -108,7 +108,7 @@
   border: none;
   color: var(--c-aaaaaa);
   cursor: pointer;
-  font-size: 11px;
+  font-size: 12px;
   flex-shrink: 0;
 }
 
@@ -160,7 +160,7 @@
 }
 
 .controlLabel {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--c-555566);
   white-space: nowrap;
@@ -172,7 +172,7 @@
   padding: 4px 6px;
   border: 1.5px solid var(--c-c5d4e0);
   border-radius: 4px;
-  font-size: 12px;
+  font-size: 13px;
   height: 26px;
   background: var(--c-fafbfc);
   transition: border-color 0.15s;
@@ -196,7 +196,7 @@
   color: var(--c-002a52);
   border: 1.5px solid var(--c-c5d4e0);
   border-radius: 4px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   cursor: pointer;
   transition: background 0.12s;
@@ -215,7 +215,7 @@
   padding: 4px 8px;
   border: 1.5px solid var(--c-c5d4e0);
   border-radius: 4px;
-  font-size: 12px;
+  font-size: 13px;
   height: 26px;
   width: 160px;
   background: var(--c-fafbfc);
@@ -233,7 +233,7 @@
   color: var(--c-ffffff);
   border: none;
   border-radius: 5px;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   box-shadow: 0 2px 6px rgba(0,42,82,0.2);
@@ -249,7 +249,7 @@
   color: var(--c-333344);
   border: 1.5px solid var(--c-c5d4e0);
   border-radius: 5px;
-  font-size: 12px;
+  font-size: 13px;
   cursor: pointer;
   transition: background 0.15s;
 }
@@ -262,7 +262,7 @@
   color: var(--c-ffffff);
   border: none;
   border-radius: 5px;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   transition: opacity 0.15s;
@@ -272,7 +272,7 @@
 .btnSave:disabled { background: var(--c-aaaaaa); cursor: not-allowed; }
 
 .colToggle {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--c-333344);
   display: flex;
   align-items: center;
@@ -284,7 +284,7 @@
 
 .errorMsg {
   color: var(--c-c0392b);
-  font-size: 12px;
+  font-size: 13px;
   margin-bottom: 8px;
 }
 
@@ -301,7 +301,7 @@
 .reportTable {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .reportTable th {
@@ -315,7 +315,7 @@
   position: sticky;
   top: 0;
   z-index: 1;
-  font-size: 11px;
+  font-size: 12px;
   letter-spacing: 0.2px;
 }
 
@@ -337,7 +337,7 @@
 }
 
 .catSummary {
-  font-size: 12.5px;
+  font-size: 13.5px;
   color: var(--c-333344);
   margin-bottom: 8px;
   flex-shrink: 0;

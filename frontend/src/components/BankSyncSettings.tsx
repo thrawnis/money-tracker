@@ -159,7 +159,7 @@ export default function BankSyncSettings({ status, onStatus: setStatus, accounts
             rows={3}
             spellCheck={false}
             autoComplete="off"
-            style={{ width: '100%', fontFamily: 'monospace', fontSize: 12 }}
+            style={{ width: '100%', fontFamily: 'monospace', fontSize: 13 }}
           />
           {error && <div className={styles.error}>{error}</div>}
           <div style={{ marginTop: 10 }}>
@@ -199,6 +199,7 @@ export default function BankSyncSettings({ status, onStatus: setStatus, accounts
       )}
       {error && <div className={styles.error}>{error}</div>}
 
+      <div style={{ overflowX: 'auto' }}>
       <table className={styles.dupTable}>
         <thead>
           <tr>
@@ -268,6 +269,7 @@ export default function BankSyncSettings({ status, onStatus: setStatus, accounts
           ))}
         </tbody>
       </table>
+      </div>
 
       <p className={styles.hint}>
         <strong>Balance only</strong> suits investment and retirement accounts: no transactions are imported,

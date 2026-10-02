@@ -121,7 +121,7 @@ export default function BalanceHistoryReport({ accountId, compact = false, defau
       {loading && !data && <p>Loading…</p>}
 
       {data && headline && end != null && (
-        <p style={{ margin: '4px 0 10px', fontSize: 13 }}>
+        <p style={{ margin: '4px 0 10px', fontSize: 14 }}>
           <strong style={{ fontSize: 18 }}>{money(end)}</strong>
           {change != null && firstIdx < data.dates.length - 1 && (
             <> &nbsp;{change >= 0 ? 'up' : 'down'} <strong>{money(Math.abs(change))}</strong>
@@ -140,7 +140,7 @@ export default function BalanceHistoryReport({ accountId, compact = false, defau
       )}
 
       {lateStarters.length > 0 && (
-        <p style={{ fontSize: 12, opacity: 0.8, margin: '8px 0 0' }}>
+        <p style={{ fontSize: 13, opacity: 0.8, margin: '8px 0 0' }}>
           {lateStarters.map(a => a.name).join(', ')}: value history starts {fmtDay(lateStarters[0].since!)}
           {lateStarters.length > 1 && ' or later'}, when daily recording from your bank began
           {selected === '' && ' — net worth before that leaves out these accounts'}.

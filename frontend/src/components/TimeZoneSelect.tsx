@@ -57,7 +57,7 @@ export default function TimeZoneSelect({
         ))}
       </select>
       {failed && zones.length === 0 && (
-        <div style={{ fontSize: 11, color: '#b8860b', marginTop: 4 }}>
+        <div style={{ fontSize: 12, color: '#b8860b', marginTop: 4 }}>
           Couldn't load the full zone list — only your detected zone is available.
         </div>
       )}

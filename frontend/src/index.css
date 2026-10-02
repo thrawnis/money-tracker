@@ -8,7 +8,7 @@ body {
   margin: 0;
   padding: 0;
   font-family: 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
-  font-size: 13px;
+  font-size: 14px;
   background: var(--c-eef2f7);
   color: var(--c-1a1a2e);
   /* Prevent any overflowing child from expanding the viewport width on mobile */

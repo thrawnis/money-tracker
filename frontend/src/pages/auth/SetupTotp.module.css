@@ -1,5 +1,5 @@
 .instructions {
-  font-size: 13px;
+  font-size: 14px;
   color: var(--c-555555);
   margin-bottom: 18px;
   line-height: 1.5;
@@ -25,7 +25,7 @@
 }
 
 .keyLabel {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
   color: var(--c-888899);
   text-transform: uppercase;
@@ -35,7 +35,7 @@
 
 .keyValue {
   font-family: 'SF Mono', 'Consolas', monospace;
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 700;
   color: var(--c-002a52);
   letter-spacing: 3px;

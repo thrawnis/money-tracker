@@ -115,7 +115,7 @@ export default function Register() {
               value={timeZoneId}
               onChange={setTimeZoneId}
             />
-            <div style={{ fontSize: 11, color: '#666', marginTop: 4 }}>
+            <div style={{ fontSize: 12, color: '#666', marginTop: 4 }}>
               Sets what counts as "today" for balances, reports, and scheduled bills.
             </div>
             {errors.timeZoneId && <div className={styles.error}>{errors.timeZoneId}</div>}

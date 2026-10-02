@@ -45,7 +45,7 @@
   height: 100vh;
   overflow: hidden;
   font-family: 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
-  font-size: 13px;
+  font-size: 14px;
   position: relative;
 }
 
@@ -66,7 +66,7 @@
 
 .logo {
   padding: 14px 16px 12px;
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 700;
   color: #fff;
   letter-spacing: 0.4px;
@@ -100,7 +100,7 @@
   text-overflow: ellipsis;
   border-left: 3px solid transparent;
   transition: background var(--transition), color var(--transition), border-color var(--transition);
-  font-size: 12.5px;
+  font-size: 13.5px;
 }
 
 .navItem:hover {
@@ -133,7 +133,7 @@
   border: 1px solid rgba(200,223,240,0.25);
   color: rgba(200,223,240,0.75);
   border-radius: 4px;
-  font-size: 12px;
+  font-size: 13px;
   cursor: pointer;
   transition: background var(--transition), color var(--transition), border-color var(--transition);
 }
@@ -151,7 +151,7 @@
   background: transparent;
   border: none;
   color: rgba(200,223,240,0.6);
-  font-size: 11px;
+  font-size: 12px;
   text-decoration: underline;
   cursor: pointer;
   transition: color var(--transition);

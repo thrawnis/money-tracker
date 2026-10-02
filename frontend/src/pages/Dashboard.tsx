@@ -163,7 +163,7 @@ export default function Dashboard() {
             {/* Follows the balance toggle: hidden balances stay hidden here too. */}
             {showBalances
               ? <BalanceHistoryReport compact defaultRange="1y" />
-              : <p style={{ fontSize: 12, opacity: 0.75, margin: 0 }}>Show balances to see your net worth over time.</p>}
+              : <p style={{ fontSize: 13, opacity: 0.75, margin: 0 }}>Show balances to see your net worth over time.</p>}
           </div>
           <div className={styles.billsSection}>
             <h3 className={styles.sectionTitle}>Upcoming Bills (Next 14 Days)</h3>

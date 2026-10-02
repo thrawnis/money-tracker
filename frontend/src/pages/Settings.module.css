@@ -31,7 +31,7 @@
   border: none;
   border-bottom: 3px solid transparent;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 14px;
   color: var(--c-336699);
   margin-bottom: -2px;
 }
@@ -64,7 +64,7 @@
 }
 
 .prefGroupTitle {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--c-003366);
   margin: 0 0 8px 0;
@@ -84,7 +84,7 @@
 }
 
 .label {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--c-336699);
 }
@@ -93,7 +93,7 @@
   padding: 6px 8px;
   border: 1px solid var(--c-b0c4d8);
   border-radius: 3px;
-  font-size: 13px;
+  font-size: 14px;
   width: 100%;
 }
 
@@ -103,19 +103,19 @@
 }
 
 .hint {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--c-666666);
   margin: 0;
 }
 
 .error {
   color: var(--c-cc0000);
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .success {
   color: var(--c-006600);
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .btnPrimary {
@@ -124,7 +124,7 @@
   color: var(--c-ffffff);
   border: none;
   border-radius: 3px;
-  font-size: 13px;
+  font-size: 14px;
   cursor: pointer;
   align-self: flex-start;
 }
@@ -144,7 +144,7 @@
   color: var(--c-ffffff);
   border: none;
   border-radius: 3px;
-  font-size: 13px;
+  font-size: 14px;
   cursor: pointer;
   align-self: flex-start;
 }
@@ -170,7 +170,7 @@
   color: var(--c-336699);
   border: 1px solid var(--c-b0c4d8);
   border-radius: 3px;
-  font-size: 13px;
+  font-size: 14px;
   cursor: pointer;
 }
 
@@ -183,7 +183,7 @@
   border: none;
   color: var(--c-006666);
   cursor: pointer;
-  font-size: 12px;
+  font-size: 13px;
   padding: 0;
   text-decoration: underline;
   align-self: flex-start;
@@ -199,7 +199,7 @@
   background: transparent;
   border: 1px solid var(--c-b0c4d8);
   border-radius: 3px;
-  font-size: 12px;
+  font-size: 13px;
   cursor: pointer;
   color: var(--c-336699);
 }
@@ -222,7 +222,7 @@
   color: var(--c-ffffff);
   border: none;
   border-radius: 3px;
-  font-size: 13px;
+  font-size: 14px;
   cursor: pointer;
 }
 
@@ -264,14 +264,14 @@
 }
 
 .fileSize {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--c-888888);
 }
 
 .dupTable {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .dupTable th, .dupTable td {
@@ -308,7 +308,7 @@
   border-radius: 10px;
   background: var(--c-d8dee3);
   color: var(--c-444455);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.3px;
@@ -357,7 +357,7 @@
 }
 
 .sectionTitle {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--c-336699);
   margin-bottom: 8px;
@@ -390,7 +390,7 @@
 .auditTable {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: 13px;
   min-width: 640px;
 }
 
@@ -413,7 +413,7 @@
   display: inline-block;
   padding: 1px 6px;
   border-radius: 3px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   white-space: nowrap;
 }
@@ -448,14 +448,14 @@
   background: var(--c-f0e8ff);
   color: var(--c-6600cc);
   border-radius: 3px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
 }
 
 .auditIp {
   white-space: nowrap;
   color: var(--c-888888);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 /* ── Accounts tab ── */
@@ -485,7 +485,7 @@
 }
 
 .accountName {
-  font-size: 13.5px;
+  font-size: 14.5px;
   font-weight: 600;
   color: var(--c-002a52);
   display: flex;
@@ -494,13 +494,13 @@
 }
 
 .accountMeta {
-  font-size: 11.5px;
+  font-size: 12.5px;
   color: var(--c-777788);
   margin-top: 2px;
 }
 
 .inactiveBadge {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 500;
   background: var(--c-eeeeee);
   color: var(--c-888888);
@@ -520,7 +520,7 @@
   color: var(--c-c0392b);
   border: 1px solid var(--c-e0a0a0);
   border-radius: 3px;
-  font-size: 12px;
+  font-size: 13px;
   cursor: pointer;
   transition: background 0.12s;
 }
@@ -552,7 +552,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 12.5px;
+  font-size: 13.5px;
   color: var(--c-333344);
   cursor: pointer;
 }
@@ -563,7 +563,7 @@
 }
 
 .addFormTitle {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--c-002a52);
   margin-bottom: 10px;
@@ -576,7 +576,7 @@
 }
 
 .sectionTitle {
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--c-003366);
   margin-bottom: 6px;

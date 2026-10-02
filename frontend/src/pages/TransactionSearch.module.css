@@ -21,7 +21,7 @@
   background: none;
   border: none;
   color: var(--c-005f5f);
-  font-size: 12px;
+  font-size: 13px;
   cursor: pointer;
   padding: 0 0 4px;
   font-weight: 600;
@@ -36,13 +36,13 @@
 }
 
 .meta {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--c-777788);
   margin-top: 2px;
 }
 
-.error { color: var(--c-c0392b); font-size: 12px; margin-bottom: 8px; }
-.loading { color: var(--c-777788); font-size: 12px; padding: 16px 0; }
+.error { color: var(--c-c0392b); font-size: 13px; margin-bottom: 8px; }
+.loading { color: var(--c-777788); font-size: 13px; padding: 16px 0; }
 .empty { text-align: center; color: var(--c-aaaaaa); font-style: italic; padding: 24px; }
 
 .tableWrapper {
@@ -58,7 +58,7 @@
 .table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12.5px;
+  font-size: 13.5px;
 }
 
 .table th {
@@ -72,7 +72,7 @@
   position: sticky;
   top: 0;
   z-index: 1;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .table td {
@@ -92,7 +92,7 @@
   background: var(--c-ffffff);
   border: 1.5px solid var(--c-c5d4e0);
   border-radius: 5px;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--c-333344);
   cursor: pointer;
   align-self: center;

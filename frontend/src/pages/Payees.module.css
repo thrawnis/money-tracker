@@ -34,9 +34,9 @@
   color: var(--c-002a52);
 }
 
-.hint { font-size: 11px; color: var(--c-9999aa); font-style: italic; }
+.hint { font-size: 12px; color: var(--c-9999aa); font-style: italic; }
 .loading { color: var(--c-777777); }
-.errorMsg { color: var(--c-c0392b); font-size: 12px; margin-bottom: 10px; }
+.errorMsg { color: var(--c-c0392b); font-size: 13px; margin-bottom: 10px; }
 .empty { text-align: center; color: var(--c-aaaaaa); font-style: italic; padding: 24px; }
 
 .tableWrapper {
@@ -52,7 +52,7 @@
 .table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12.5px;
+  font-size: 13.5px;
 }
 
 .table th {
@@ -66,7 +66,7 @@
   position: sticky;
   top: 0;
   z-index: 1;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .table td {
@@ -79,8 +79,8 @@
 .row:hover { background: var(--c-f2f7fd); }
 
 .payeeName { font-weight: 500; }
-.catLabel { color: var(--c-555566); font-size: 12px; }
-.lastUsed { color: var(--c-9999aa); font-size: 11.5px; white-space: nowrap; }
+.catLabel { color: var(--c-555566); font-size: 13px; }
+.lastUsed { color: var(--c-9999aa); font-size: 12.5px; white-space: nowrap; }
 
 .inlineEdit {
   display: flex;
@@ -98,7 +98,7 @@
   padding: 4px 7px;
   border: 1.5px solid var(--c-c5d4e0);
   border-radius: 4px;
-  font-size: 12px;
+  font-size: 13px;
   background: var(--c-ffffff);
   flex: 1;
   min-width: 100px;
@@ -109,7 +109,7 @@
   padding: 4px 7px;
   border: 1.5px solid var(--c-c5d4e0);
   border-radius: 4px;
-  font-size: 12px;
+  font-size: 13px;
   background: var(--c-fafbfc);
 }
 .select:disabled { background: var(--c-eef1f4); color: var(--c-999999); }
@@ -126,7 +126,7 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--c-555555);
   white-space: nowrap;
   cursor: pointer;
@@ -134,7 +134,7 @@
 
 .blockedBadge {
   display: inline-block;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--c-8a6d00);
   background: var(--c-fdf1cd);
@@ -149,7 +149,7 @@
   color: var(--c-002a52);
   border: 1.5px solid var(--c-c5d4e0);
   border-radius: 4px;
-  font-size: 11px;
+  font-size: 12px;
   cursor: pointer;
   white-space: nowrap;
   transition: background 0.12s;
@@ -162,7 +162,7 @@
   color: var(--c-555566);
   border: 1.5px solid var(--c-dddddd);
   border-radius: 4px;
-  font-size: 11px;
+  font-size: 12px;
   cursor: pointer;
   white-space: nowrap;
 }
@@ -174,7 +174,7 @@
   color: var(--c-c0392b);
   border: 1.5px solid var(--c-f0c8c4);
   border-radius: 4px;
-  font-size: 11px;
+  font-size: 12px;
   cursor: pointer;
   white-space: nowrap;
   transition: background 0.12s;

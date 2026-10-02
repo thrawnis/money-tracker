@@ -43,13 +43,13 @@ export default function RequireTimeZone() {
     <div className={styles.page}>
       <div className={styles.card}>
         <h1 className={styles.title}>Set your time zone</h1>
-        <p style={{ fontSize: 12, color: '#555', lineHeight: 1.5, marginBottom: 16 }}>
+        <p style={{ fontSize: 13, color: '#555', lineHeight: 1.5, marginBottom: 16 }}>
           Money Tracker needs to know your time zone before you continue. It decides what counts
           as "today" — your account balances as of today, the date ranges reports default to, and
           the moment a scheduled bill posts. Until it's set, those are calculated in UTC, which
           shifts them for anyone not living there.
         </p>
-        <p style={{ fontSize: 12, color: '#555', lineHeight: 1.5, marginBottom: 16 }}>
+        <p style={{ fontSize: 13, color: '#555', lineHeight: 1.5, marginBottom: 16 }}>
           You can change it later in Settings → Preferences.
         </p>
 
@@ -69,7 +69,7 @@ export default function RequireTimeZone() {
           <button
             type="button"
             onClick={logout}
-            style={{ background: 'none', border: 'none', color: '#005f5f', cursor: 'pointer', textDecoration: 'underline', fontSize: 12 }}
+            style={{ background: 'none', border: 'none', color: '#005f5f', cursor: 'pointer', textDecoration: 'underline', fontSize: 13 }}
           >
             Sign out instead
           </button>

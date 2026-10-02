@@ -503,7 +503,7 @@ function PayeeMappingRulesTab() {
 
       <form onSubmit={handleCreate} style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: 16 }}>
         <div>
-          <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 4 }}>Pattern</label>
+          <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Pattern</label>
           <input
             type="text"
             value={pattern}
@@ -517,7 +517,7 @@ function PayeeMappingRulesTab() {
           Regex
         </label>
         <div>
-          <label style={{ display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 4 }}>Maps to payee</label>
+          <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Maps to payee</label>
           <select value={targetPayeeId} onChange={e => setTargetPayeeId(e.target.value ? Number(e.target.value) : '')}>
             <option value="">Select…</option>
             {payees.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
