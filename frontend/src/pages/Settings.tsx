@@ -1,3 +1,4 @@
+import PayeeResolveInput, { type PayeeChoice } from '../components/PayeeResolveInput';
 import { useState, useEffect, type FormEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
@@ -17,7 +18,8 @@ import { getAccounts } from '../api/accounts';
 import { listAccountBackups, downloadAccountBackup, type AccountBackupSummary } from '../api/accountBackups';
 import { getPreferences, updatePreferences } from '../api/preferences';
 import TimeZoneSelect from '../components/TimeZoneSelect';
-import type { Account } from '../types';
+import type { Account, Payee } from '../types';
+import { getPayees } from '../api/payees';
 import ExportModal from '../components/ExportModal';
 import ReauthModal from '../components/ReauthModal';
 import BankSyncTab from '../components/BankSyncTab';
@@ -547,9 +549,14 @@ function ExportTab() {
 
 // ── Import Data ──
 
-interface PayeeChoice {
-  payeeId?: number; // set => use this existing payee instead of creating one
-  remember: boolean;
+// Splits review choices into the three things the import API takes.
+function payeeChoicePayload(choices: Record<string, PayeeChoice>) {
+  const entries = Object.entries(choices);
+  return {
+    payeeOverrides: Object.fromEntries(entries.flatMap(([raw, c]) => c.mode === 'existing' ? [[raw, c.payeeId]] : [])),
+    payeeNewNames: Object.fromEntries(entries.flatMap(([raw, c]) => c.mode === 'new' ? [[raw, c.name]] : [])),
+    rememberPayeeMappings: entries.filter(([, c]) => c.mode !== 'file' && c.remember).map(([raw]) => raw),
+  };
 }
 
 function ImportTab() {
@@ -569,6 +576,8 @@ function ImportTab() {
   const [result, setResult] = useState<{ imported: number; transfersLinked: number; errors?: string[] } | null>(null);
   const [draftId, setDraftId] = useState<number | null>(null);
   const [payeeChoices, setPayeeChoices] = useState<Record<string, PayeeChoice>>({});
+  // Every payee, for searching in the payee picker.
+  const [payees, setPayees] = useState<Payee[]>([]);
 
   // QIF files often don't embed an account name (Money Sunset exports one
   // account at a time) — the user picks the destination account up front.
@@ -580,6 +589,7 @@ function ImportTab() {
 
   useEffect(() => {
     getAccounts().then(setAccounts).catch(() => {});
+    getPayees().then(setPayees).catch(() => {});
   }, []);
 
   // Arriving from the "unfinished import" banner's Resume action.
@@ -599,7 +609,8 @@ function ImportTab() {
         setExcludedRows(new Set(res.excludedRows ?? []));
         setFromBankSync(!!res.fromBankSync);
         const choices: Record<string, PayeeChoice> = {};
-        for (const [raw, payeeId] of Object.entries(res.payeeOverrides)) choices[raw] = { payeeId, remember: true };
+        for (const [raw, payeeId] of Object.entries(res.payeeOverrides)) choices[raw] = { mode: 'existing', payeeId, remember: true };
+        for (const [raw, name] of Object.entries(res.payeeNewNames ?? {})) choices[raw] = { mode: 'new', name, remember: true };
         setPayeeChoices(choices);
         setStep('review');
       })
@@ -613,12 +624,11 @@ function ImportTab() {
   useEffect(() => {
     if (draftId == null || step !== 'review') return;
     const t = setTimeout(() => {
-      const payeeOverrides = Object.fromEntries(
-        Object.entries(payeeChoices).filter(([, c]) => c.payeeId != null).map(([raw, c]) => [raw, c.payeeId!])
-      );
+      const { payeeOverrides, payeeNewNames } = payeeChoicePayload(payeeChoices);
       updateImportDraft(draftId, {
         includeDuplicateIds: Array.from(checkedDups),
         payeeOverrides,
+        payeeNewNames,
         excludedRows: Array.from(excludedRows),
       }).catch(() => {});
     }, 600);
@@ -665,12 +675,7 @@ function ImportTab() {
     setError('');
     try {
       const includeDuplicateIds = includeChecked ? Array.from(checkedDups) : [];
-      const payeeOverrides = Object.fromEntries(
-        Object.entries(payeeChoices).filter(([, c]) => c.payeeId != null).map(([raw, c]) => [raw, c.payeeId!])
-      );
-      const rememberPayeeMappings = Object.entries(payeeChoices)
-        .filter(([, c]) => c.payeeId != null && c.remember)
-        .map(([raw]) => raw);
+      const { payeeOverrides, payeeNewNames, rememberPayeeMappings } = payeeChoicePayload(payeeChoices);
 
       const res = await importWithDuplicates({
         file: file ?? undefined,
@@ -678,6 +683,7 @@ function ImportTab() {
         accountId: effectiveAccountId,
         includeDuplicateIds,
         payeeOverrides,
+        payeeNewNames,
         rememberPayeeMappings,
         excludeRows: Array.from(excludedRows),
       });
@@ -735,12 +741,10 @@ function ImportTab() {
     });
   };
 
-  const setPayeeChoice = (rawText: string, payeeId: number | undefined) => {
-    setPayeeChoices(prev => ({ ...prev, [rawText]: { payeeId, remember: prev[rawText]?.remember ?? true } }));
-  };
+  const choiceFor = (rawText: string): PayeeChoice => payeeChoices[rawText] ?? { mode: 'file', remember: true };
 
-  const setPayeeRemember = (rawText: string, remember: boolean) => {
-    setPayeeChoices(prev => ({ ...prev, [rawText]: { payeeId: prev[rawText]?.payeeId, remember } }));
+  const setPayeeChoice = (rawText: string, choice: PayeeChoice) => {
+    setPayeeChoices(prev => ({ ...prev, [rawText]: choice }));
   };
 
   if (step === 'done' && result) {
@@ -790,8 +794,9 @@ function ImportTab() {
         {preview.unmatchedPayees && preview.unmatchedPayees.length > 0 && (
           <>
             <p className={styles.hint}>
-              These payee names in the file don't match an existing payee. Point them at an existing payee, or leave
-              as "Create new" — and optionally remember the mapping for future imports.
+              These payee names in the file don't match an existing payee. Type to search all your payees, create a new
+              payee with a name of your choosing, or leave the box empty to use the name from the file. Tick Remember
+              to apply the same choice automatically in future imports.
             </p>
             <table className={styles.dupTable}>
               <thead>
@@ -803,25 +808,31 @@ function ImportTab() {
               </thead>
               <tbody>
                 {preview.unmatchedPayees.map(u => {
-                  const choice = payeeChoices[u.rawText];
+                  const choice = choiceFor(u.rawText);
                   return (
                     <tr key={u.rawText}>
                       <td>{u.rawText}</td>
                       <td>
-                        <select
-                          value={choice?.payeeId ?? ''}
-                          onChange={e => setPayeeChoice(u.rawText, e.target.value ? Number(e.target.value) : undefined)}
-                        >
-                          <option value="">Create new: "{u.rawText}"</option>
-                          {u.suggestions.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                        </select>
+                        <PayeeResolveInput
+                          rawText={u.rawText}
+                          payees={payees}
+                          suggestions={u.suggestions}
+                          value={choice}
+                          onChange={c => setPayeeChoice(u.rawText, c)}
+                        />
+                        <span className={styles.hint}>
+                          {choice.mode === 'file' ? 'Uses the name from the file'
+                            : choice.mode === 'existing' ? 'Existing payee'
+                              : 'Will create this new payee'}
+                        </span>
                       </td>
                       <td>
                         <input
                           type="checkbox"
-                          disabled={choice?.payeeId == null}
-                          checked={!!choice?.remember && choice.payeeId != null}
-                          onChange={e => setPayeeRemember(u.rawText, e.target.checked)}
+                          aria-label={`Remember the choice for ${u.rawText}`}
+                          disabled={choice.mode === 'file'}
+                          checked={choice.mode !== 'file' && choice.remember}
+                          onChange={e => setPayeeChoice(u.rawText, { ...choice, remember: e.target.checked })}
                         />
                       </td>
                     </tr>

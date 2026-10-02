@@ -112,7 +112,8 @@ public class ImportController(
     // export glitch, so the within-file repeat check that protects hand-made
     // files must not drop the second one.
     private async Task<(IActionResult? Error, PreviewResponse? Response, List<CsvRow>? Rows)> BuildPreviewAsync(
-        string userId, string fileName, byte[] fileBytes, int? accountId, bool rowsAreDistinct = false)
+        string userId, string fileName, byte[] fileBytes, int? accountId, bool rowsAreDistinct = false,
+        IReadOnlySet<int>? notDuplicates = null)
     {
         var ext = Path.GetExtension(fileName).ToLowerInvariant();
         if (ext is ".ofx" or ".qfx")
@@ -206,7 +207,7 @@ public class ImportController(
                 .Where(t => t.AccountId == rowAccountId && t.Date == date && t.Amount == amount)
                 .OrderBy(t => t.Id)
                 .ToListAsync())
-                .FirstOrDefault(t => !claimedExistingDupIds.Contains(t.Id));
+                .FirstOrDefault(t => !claimedExistingDupIds.Contains(t.Id) && notDuplicates?.Contains(t.Id) != true);
 
             if (existing is not null)
             {
@@ -337,7 +338,8 @@ public class ImportController(
         [FromForm] int? draftId,
         [FromForm] string? payeeOverrides,
         [FromForm] string? rememberPayeeMappings,
-        [FromForm] string? excludeRows)
+        [FromForm] string? excludeRows,
+        [FromForm] string? payeeNewNames)
     {
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
@@ -378,8 +380,34 @@ public class ImportController(
             var fromSync = sourceDraft?.SimpleFinAccountId is not null;
             var excluded = ImportDraftJson.ReadInts(excludeRows).ToHashSet();
             var skippedRows = new List<(int Index, DateOnly Date, decimal Amount, string? Payee)>();
+            var outcomes = new List<(int Index, Transaction Tx)>();
+            var tied = fromSync ? await TiedTransactionIdsAsync(sourceDraft!.SimpleFinAccountId!.Value) : null;
             var result = await RunImportAsync(fileName, fileBytes, includeDuplicateIds, accountId, userId,
-                payeeOverrides, rememberPayeeMappings, rowsAreDistinct: fromSync, excluded, skippedRows);
+                payeeOverrides, rememberPayeeMappings, rowsAreDistinct: fromSync, excluded, skippedRows,
+                payeeNewNamesJson: payeeNewNames,
+                notDuplicates: tied, rowOutcomes: fromSync ? outcomes : null);
+
+            // Each bank row is recorded by its SimpleFIN id against the register
+            // transaction it became (or already was), so later syncs recognize it.
+            if (fromSync && result is OkObjectResult && outcomes.Count > 0)
+            {
+                var txIds = ImportDraftJson.ReadStrings(sourceDraft!.SimpleFinTxIdsJson);
+                var sfId = sourceDraft.SimpleFinAccountId!.Value;
+                var already = (await db.SimpleFinImportedTransactions
+                        .Where(i => i.SimpleFinAccountId == sfId)
+                        .Select(i => i.ExternalId)
+                        .ToListAsync())
+                    .ToHashSet(StringComparer.Ordinal);
+                foreach (var (index, tx) in outcomes)
+                {
+                    if (index >= txIds.Count || !already.Add(txIds[index])) continue;
+                    db.SimpleFinImportedTransactions.Add(new SimpleFinImportedTransaction
+                    {
+                        UserId = userId, SimpleFinAccountId = sfId, ExternalId = txIds[index], TransactionId = tx.Id,
+                    });
+                }
+                await db.SaveChangesAsync();
+            }
 
             // Bank rows the user unticked are remembered, so the next sync
             // doesn't offer them again (they can be restored from the Sync screen).
@@ -432,7 +460,10 @@ public class ImportController(
         string fileName, byte[] fileBytes, string? includeDuplicateIds, int? accountId, string userId,
         string? payeeOverridesJson, string? rememberPayeeMappingsJson, bool rowsAreDistinct = false,
         IReadOnlySet<int>? excludedRows = null,
-        List<(int Index, DateOnly Date, decimal Amount, string? Payee)>? skippedExcluded = null)
+        List<(int Index, DateOnly Date, decimal Amount, string? Payee)>? skippedExcluded = null,
+        IReadOnlySet<int>? notDuplicates = null,
+        List<(int Index, Transaction Tx)>? rowOutcomes = null,
+        string? payeeNewNamesJson = null)
     {
         var ext = Path.GetExtension(fileName).ToLowerInvariant();
         if (ext is ".ofx" or ".qfx")
@@ -478,6 +509,16 @@ public class ImportController(
             }
             catch { /* ignore parse errors */ }
         }
+
+        // Raw payee text -> a name for a new payee the user typed during review
+        // ("create new payee"), used instead of the raw text. If a payee with
+        // that name already exists it's used rather than duplicated.
+        var payeeNewNames = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (raw, name) in ParseStringMap(payeeNewNamesJson))
+            if (!string.IsNullOrWhiteSpace(name)) payeeNewNames[raw.Trim()] = name.Trim();
+        // Raw text -> the payee it resolved to through payeeNewNames, so a
+        // "remember" mapping rule can point at it.
+        var resolvedNewNames = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
         var rememberMappings = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         if (!string.IsNullOrWhiteSpace(rememberPayeeMappingsJson))
@@ -586,6 +627,22 @@ public class ImportController(
             if (payeeOverrides.TryGetValue(trimmed, out var overrideId))
                 return overrideId;
 
+            if (payeeNewNames.TryGetValue(trimmed, out var newName))
+            {
+                var named = allPayeesCache.FirstOrDefault(p =>
+                    string.Equals(encryption.Decrypt(p.NameEncrypted, dek), newName, StringComparison.OrdinalIgnoreCase));
+                if (named is null)
+                {
+                    named = new Payee { UserId = userId, NameEncrypted = encryption.Encrypt(newName, dek)! };
+                    db.Payees.Add(named);
+                    await db.SaveChangesAsync();
+                    allPayeesCache.Add(named);
+                    newPayeesCreated.Add(new { id = named.Id, name = newName, rawText = trimmed });
+                }
+                resolvedNewNames[trimmed] = named.Id;
+                return named.Id;
+            }
+
             var rule = PayeePatternMatcher.FindMatch(mappingRulesCache, trimmed,
                 r => encryption.Decrypt(r.PatternEncrypted, dek) ?? "", r => r.IsRegex);
             if (rule is not null) return rule.TargetPayeeId;
@@ -625,13 +682,18 @@ public class ImportController(
                         .Where(t => t.AccountId == rowAccountId && t.Date == date && t.Amount == amount)
                         .OrderBy(t => t.Id)
                         .ToListAsync())
-                        .FirstOrDefault(t => !addedThisRun.Contains(t) && !claimedExistingDupIds.Contains(t.Id));
+                        .FirstOrDefault(t => !addedThisRun.Contains(t) && !claimedExistingDupIds.Contains(t.Id)
+                            && notDuplicates?.Contains(t.Id) != true);
 
                     if (existing is not null)
                     {
                         claimedExistingDupIds.Add(existing.Id);
                         if (!includedIds.Contains(existing.Id))
+                        {
+                            // Already in the register: the row is accounted for by that transaction.
+                            rowOutcomes?.Add((rowIndex, existing));
                             continue; // skip duplicate not selected for inclusion
+                        }
                     }
                     else if (isExcluded)
                     {
@@ -719,6 +781,7 @@ public class ImportController(
 
                     db.Transactions.Add(tx);
                     addedThisRun.Add(tx);
+                    rowOutcomes?.Add((rowIndex, tx));
                     imported++;
                 }
                 catch (Exception ex)
@@ -753,7 +816,8 @@ public class ImportController(
             {
                 var trimmed = raw.Trim();
                 if (trimmed.Length == 0) continue;
-                if (!payeeOverrides.TryGetValue(trimmed, out var targetPayeeId)) continue;
+                if (!payeeOverrides.TryGetValue(trimmed, out var targetPayeeId)
+                    && !resolvedNewNames.TryGetValue(trimmed, out targetPayeeId)) continue;
 
                 var alreadyExists = mappingRulesCache.Any(r =>
                     !r.IsRegex && string.Equals(encryption.Decrypt(r.PatternEncrypted, dek), trimmed, StringComparison.OrdinalIgnoreCase));
@@ -828,7 +892,8 @@ public class ImportController(
 
         var fileBytes = Convert.FromBase64String(encryption.Decrypt(draft.FileContentEncrypted, user.EncryptedDataKey)!);
         var result = await BuildPreviewAsync(userId, draft.FileName, fileBytes, draft.AccountId,
-            rowsAreDistinct: draft.SimpleFinAccountId is not null);
+            rowsAreDistinct: draft.SimpleFinAccountId is not null,
+            notDuplicates: draft.SimpleFinAccountId is int sfId ? await TiedTransactionIdsAsync(sfId) : null);
         if (result.Error is not null) return result.Error;
 
         return Ok(new
@@ -842,13 +907,16 @@ public class ImportController(
             payeeOverrides = string.IsNullOrWhiteSpace(draft.PayeeOverridesJson)
                 ? new Dictionary<string, int>()
                 : JsonSerializer.Deserialize<Dictionary<string, int>>(draft.PayeeOverridesJson),
+            payeeNewNames = ParseStringMap(encryption.Decrypt(draft.PayeeNewNamesJson, user.EncryptedDataKey)),
             excludedRows = ImportDraftJson.ReadInts(draft.ExcludedRowsJson),
             fromBankSync = draft.SimpleFinAccountId is not null,
             preview = result.Response,
         });
     }
 
-    public record DraftReviewDto(int[]? IncludeDuplicateIds, Dictionary<string, int>? PayeeOverrides, int[]? ExcludedRows);
+    public record DraftReviewDto(
+        int[]? IncludeDuplicateIds, Dictionary<string, int>? PayeeOverrides, int[]? ExcludedRows,
+        Dictionary<string, string>? PayeeNewNames);
 
     // Saves in-progress review choices (which duplicates to include, payee
     // resolutions picked so far) without committing — called as the user works
@@ -869,6 +937,9 @@ public class ImportController(
             draft.PayeeOverridesJson = JsonSerializer.Serialize(dto.PayeeOverrides);
         if (dto.ExcludedRows is not null)
             draft.ExcludedRowsJson = JsonSerializer.Serialize(dto.ExcludedRows);
+        if (dto.PayeeNewNames is not null)
+            draft.PayeeNewNamesJson = encryption.Encrypt(JsonSerializer.Serialize(dto.PayeeNewNames),
+                (await userManager.FindByIdAsync(userId))!.EncryptedDataKey);
         draft.UpdatedAt = DateTime.UtcNow;
 
         await db.SaveChangesAsync();
@@ -888,6 +959,23 @@ public class ImportController(
         await db.SaveChangesAsync();
         return NoContent();
     }
+
+    // Register transactions already tied to a bank id for this SimpleFIN
+    // account. A row in a sync draft has a different bank id, so it's a
+    // different bank transaction and must never be taken as their duplicate.
+    private static Dictionary<string, string> ParseStringMap(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return [];
+        try { return JsonSerializer.Deserialize<Dictionary<string, string>>(json) ?? []; }
+        catch (JsonException) { return []; }
+    }
+
+    private async Task<HashSet<int>> TiedTransactionIdsAsync(int simpleFinAccountId) =>
+        (await db.SimpleFinImportedTransactions
+            .Where(i => i.SimpleFinAccountId == simpleFinAccountId && i.TransactionId != null)
+            .Select(i => i.TransactionId!.Value)
+            .ToListAsync())
+        .ToHashSet();
 
     private async Task<int?> SaveDraftAsync(string userId, int accountId, string fileName, byte[] fileBytes, int rowCount)
     {
@@ -919,6 +1007,7 @@ public class ImportController(
             draft.IncludeDuplicateIdsJson = null;
             draft.PayeeOverridesJson = null;
             draft.ExcludedRowsJson = null;
+            draft.PayeeNewNamesJson = null;
             // A manual upload replacing a sync-generated draft is no longer a
             // bank-feed draft — it must not inherit the distinct-rows handling
             // or move the SimpleFIN sync cursor when committed.

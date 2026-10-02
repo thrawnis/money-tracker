@@ -92,6 +92,36 @@ public class SimpleFinAccount
 }
 
 /// <summary>
+/// A bank transaction (by SimpleFIN's own id) that is already accounted for
+/// in the linked register: imported by a sync, or matched to a transaction
+/// that was already there. Later syncs recognize it by id instead of by
+/// date and amount, so a charge that posts weeks late is still found, and a
+/// genuinely new charge identical to an imported one isn't mistaken for it.
+/// </summary>
+public class SimpleFinImportedTransaction
+{
+    public int Id { get; set; }
+
+    [Required]
+    public string UserId { get; set; } = null!;
+
+    public int SimpleFinAccountId { get; set; }
+    public SimpleFinAccount SimpleFinAccount { get; set; } = null!;
+
+    // SimpleFIN's opaque transaction id (plaintext, like SimpleFinAccount.ExternalId).
+    [Required, MaxLength(200)]
+    public string ExternalId { get; set; } = string.Empty;
+
+    // The register transaction it became or was matched to. Null once that
+    // transaction is deleted — the bank id stays recorded, so a transaction
+    // deliberately deleted from the register isn't imported again.
+    public int? TransactionId { get; set; }
+    public Transaction? Transaction { get; set; }
+
+    public DateTime ImportedAt { get; set; } = DateTime.UtcNow;
+}
+
+/// <summary>
 /// A bank transaction the user unticked when reviewing a sync. Later syncs
 /// leave it out instead of offering it again every time. Restoring it deletes
 /// this row and rewinds the account's cursor so the next sync picks it up.

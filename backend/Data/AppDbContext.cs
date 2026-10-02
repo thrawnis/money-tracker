@@ -25,6 +25,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<SimpleFinConnection> SimpleFinConnections => Set<SimpleFinConnection>();
     public DbSet<SimpleFinAccount> SimpleFinAccounts => Set<SimpleFinAccount>();
     public DbSet<SimpleFinSkippedTransaction> SimpleFinSkippedTransactions => Set<SimpleFinSkippedTransaction>();
+    public DbSet<SimpleFinImportedTransaction> SimpleFinImportedTransactions => Set<SimpleFinImportedTransaction>();
     public DbSet<AccountValueSnapshot> AccountValueSnapshots => Set<AccountValueSnapshot>();
     public DbSet<HoldingSnapshot> HoldingSnapshots => Set<HoldingSnapshot>();
 
@@ -140,6 +141,15 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             e.HasOne(s => s.SimpleFinAccount).WithMany(a => a.SkippedTransactions)
                 .HasForeignKey(s => s.SimpleFinAccountId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(s => new { s.SimpleFinAccountId, s.ExternalId }).IsUnique();
+        });
+
+        modelBuilder.Entity<SimpleFinImportedTransaction>(e =>
+        {
+            e.HasOne(i => i.SimpleFinAccount).WithMany()
+                .HasForeignKey(i => i.SimpleFinAccountId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(i => i.Transaction).WithMany()
+                .HasForeignKey(i => i.TransactionId).OnDelete(DeleteBehavior.SetNull);
+            e.HasIndex(i => new { i.SimpleFinAccountId, i.ExternalId }).IsUnique();
         });
 
         modelBuilder.Entity<AccountValueSnapshot>(e =>

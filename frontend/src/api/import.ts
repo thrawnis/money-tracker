@@ -68,6 +68,8 @@ export interface ImportOptions {
   rememberPayeeMappings?: string[];
   /** Row positions (NewRow.row) the user unticked. */
   excludeRows?: number[];
+  /** Raw payee text -> name of a new payee to create for it ("create new payee"). */
+  payeeNewNames?: Record<string, string>;
 }
 
 export interface ImportResult {
@@ -86,6 +88,7 @@ export const importWithDuplicates = (opts: ImportOptions): Promise<ImportResult>
   if (opts.payeeOverrides) fd.append('payeeOverrides', JSON.stringify(opts.payeeOverrides));
   if (opts.rememberPayeeMappings) fd.append('rememberPayeeMappings', JSON.stringify(opts.rememberPayeeMappings));
   if (opts.excludeRows?.length) fd.append('excludeRows', JSON.stringify(opts.excludeRows));
+  if (opts.payeeNewNames) fd.append('payeeNewNames', JSON.stringify(opts.payeeNewNames));
   return api.post<ImportResult>('/import', fd).then(r => r.data);
 };
 
@@ -112,6 +115,7 @@ export interface ResumedImportDraft {
   fileName: string;
   includeDuplicateIds: number[];
   payeeOverrides: Record<string, number>;
+  payeeNewNames?: Record<string, string>;
   excludedRows: number[];
   fromBankSync: boolean;
   preview: PreviewResult;
@@ -122,7 +126,7 @@ export const resumeImportDraft = (id: number): Promise<ResumedImportDraft> =>
 
 export const updateImportDraft = (
   id: number,
-  data: { includeDuplicateIds?: number[]; payeeOverrides?: Record<string, number>; excludedRows?: number[] },
+  data: { includeDuplicateIds?: number[]; payeeOverrides?: Record<string, number>; excludedRows?: number[]; payeeNewNames?: Record<string, string> },
 ): Promise<void> =>
   api.put(`/import/drafts/${id}`, data).then(() => undefined);
 

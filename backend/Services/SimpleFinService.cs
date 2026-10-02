@@ -204,6 +204,11 @@ public class SimpleFinService(
         // longer applies, and any staged draft was built for the old target.
         sfAccount.LinkedAccountId = localAccountId;
         sfAccount.SyncedThrough = null;
+        // Bank ids recorded against the old account's register mean nothing
+        // for the new one.
+        await db.SimpleFinImportedTransactions
+            .Where(i => i.SimpleFinAccountId == sfAccount.Id)
+            .ExecuteDeleteAsync();
         await db.ImportDrafts
             .Where(d => d.UserId == user.Id && d.SimpleFinAccountId == sfAccount.Id)
             .ExecuteDeleteAsync();
@@ -343,38 +348,63 @@ public class SimpleFinService(
                 continue;
             }
 
-            // Windowed by the date each row happened — the same date it's matched
-            // against the register by — so every row that could pair with an
-            // existing transaction is in view together. A charge that posts late
-            // is still caught as long as it happened within OverlapDays of the cursor.
+            // A row is in the window if it happened *or posted* on or after the
+            // start: a charge from three weeks ago that only posted yesterday is
+            // new to us. Rows are dated (and matched) by when they happened.
             var rows = sf.Transactions
                 .Where(t => !t.Pending && t.Posted > 0)
-                .Select(t => (Tx: t, Date: UserClock.ToLocalDate(
-                    DateTimeOffset.FromUnixTimeSeconds(t.TransactedAt is > 0 ? t.TransactedAt.Value : t.Posted), user.TimeZoneId)))
-                .Where(r => r.Date >= start && r.Date <= today)
+                .Select(t => (
+                    Tx: t,
+                    Date: UserClock.ToLocalDate(
+                        DateTimeOffset.FromUnixTimeSeconds(t.TransactedAt is > 0 ? t.TransactedAt.Value : t.Posted), user.TimeZoneId),
+                    PostedOn: UserClock.ToLocalDate(DateTimeOffset.FromUnixTimeSeconds(t.Posted), user.TimeZoneId)))
+                .Where(r => (r.Date >= start || r.PostedOn >= start) && r.Date <= today)
                 .OrderBy(r => r.Date).ThenBy(r => r.Tx.Posted).ThenBy(r => r.Tx.Id, StringComparer.Ordinal)
+                .Select(r => (r.Tx, r.Date))
                 .ToList();
 
-            // Drop rows already in the register (the overlap window, or entered by
-            // hand), matching each existing transaction at most once so two real
-            // same-day, same-amount charges aren't collapsed into one.
-            // Rows the user skipped before are neither offered again nor allowed
-            // to claim an existing transaction, but still count toward the cursor.
+            // Bank ids already accounted for in this register, and the register
+            // transactions they're tied to.
+            var known = await db.SimpleFinImportedTransactions
+                .Where(i => i.SimpleFinAccountId == a.Id)
+                .Select(i => new { i.ExternalId, i.TransactionId })
+                .ToListAsync(ct);
+            var knownIds = known.Select(k => k.ExternalId).ToHashSet(StringComparer.Ordinal);
+            var tiedTxIds = known.Where(k => k.TransactionId != null).Select(k => k.TransactionId!.Value).ToHashSet();
+
+            // Candidates for date+amount matching: register transactions in the
+            // window that aren't already tied to a bank id. That covers rows
+            // imported before ids were tracked, from a file, or typed in by hand.
+            var minDate = rows.Count > 0 ? rows.Min(r => r.Date) : today;
+            var candidates = (await db.Transactions
+                    .Where(t => t.AccountId == localId && t.Date >= minDate)
+                    .OrderBy(t => t.Id)
+                    .Select(t => new { t.Id, t.Date, t.Amount })
+                    .ToListAsync(ct))
+                .Where(t => !tiedTxIds.Contains(t.Id))
+                .ToList();
+
+            // Rows known by id are already in the register. Rows the user skipped
+            // before are neither offered again nor allowed to claim a transaction.
+            // The rest match an untied register transaction by date and amount,
+            // each at most once (two real same-day, same-amount charges stay two);
+            // a match is recorded by id so the next sync knows it outright.
             var skipped = skippedIds[a.Id].ToHashSet(StringComparer.Ordinal);
             var claimed = new HashSet<int>();
             var fresh = new List<(SfTransaction Tx, DateOnly Date)>();
             foreach (var r in rows)
             {
-                if (skipped.Contains(r.Tx.Id)) continue;
-                var match = await db.Transactions
-                    .Where(t => t.AccountId == localId && t.Date == r.Date && t.Amount == r.Tx.Amount)
-                    .OrderBy(t => t.Id)
-                    .Select(t => t.Id)
-                    .ToListAsync(ct);
-                var hit = match.FirstOrDefault(id => !claimed.Contains(id));
-                if (hit != 0) claimed.Add(hit);
-                else fresh.Add(r);
+                if (knownIds.Contains(r.Tx.Id) || skipped.Contains(r.Tx.Id)) continue;
+                var hit = candidates.FirstOrDefault(t => t.Date == r.Date && t.Amount == r.Tx.Amount && !claimed.Contains(t.Id));
+                if (hit is null) { fresh.Add(r); continue; }
+                claimed.Add(hit.Id);
+                db.SimpleFinImportedTransactions.Add(new SimpleFinImportedTransaction
+                {
+                    UserId = user.Id, SimpleFinAccountId = a.Id, ExternalId = r.Tx.Id, TransactionId = hit.Id,
+                });
+                knownIds.Add(r.Tx.Id);
             }
+            await db.SaveChangesAsync(ct);
 
             if (fresh.Count == 0)
             {
