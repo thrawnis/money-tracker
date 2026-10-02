@@ -53,7 +53,7 @@ Update this file whenever requirements change or new features are defined.
 
 ---
 
-- **Bank Sync section** at the bottom of the Accounts page: connect/disconnect SimpleFIN with a setup token, choose which local account each bank account syncs into and whether it records transactions or balance only, the daily balance update time, a link to the Bank Sync screen (where syncing happens), and a Review button per account with transactions waiting. Pending sync drafts also appear in the global unfinished-import banner, labeled as bank sync
+- **Bank Sync section** at the bottom of the Accounts page: connect/disconnect SimpleFIN with a setup token, choose which local account each bank account syncs into and whether it records transactions or balance only, the daily balance update time, a link to the Bank Sync screen (where syncing happens), and a Review button per account with transactions waiting. Pending sync drafts also appear in the global unfinished-import banner as a single line totaling the transactions and accounts waiting, whose Review button opens the Bank Sync screen (unfinished file imports keep one line each)
 - An account fed by a bank account is marked with 🔗: on larger screens as "🔗 Synced from <bank> · <bank account>" under its name with an Unlink button; on small screens as just the icon, which shows the same details and Unlink when tapped
 - Every link change asks for confirmation first, spelling out the consequence: linking (where transactions or the balance will go), moving a link to another account, and unlinking (syncing stops, imported transactions stay, unreviewed synced transactions are discarded)
 

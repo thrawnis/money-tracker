@@ -3,7 +3,8 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { getImportDrafts, deleteImportDraft, type ImportDraftSummary } from '../api/import';
 import styles from './ImportDraftBanner.module.css';
 
-// Global, hard-to-miss notice that an import was started but not finished —
+// Global, hard-to-miss notice of imports waiting for the user: one summary
+// line for all bank-sync reviews, and one line per unfinished file import —
 // the upload and the user's review choices are safely staged server-side
 // (see ImportDraft), but nothing is imported until they resume and commit.
 export default function ImportDraftBanner() {
@@ -33,9 +34,7 @@ export default function ImportDraftBanner() {
   };
 
   const handleDiscard = async (d: ImportDraftSummary) => {
-    const msg = d.fromBankSync
-      ? `Discard the ${d.rowCount} synced transaction(s) for "${d.accountName}"? Nothing is lost — the next bank sync will fetch them again.`
-      : `Discard the unfinished import for "${d.accountName}" (${d.fileName})? This cannot be undone.`;
+    const msg = `Discard the unfinished import for "${d.accountName}" (${d.fileName})? This cannot be undone.`;
     if (!confirm(msg)) return;
     try {
       await deleteImportDraft(d.id);
@@ -45,29 +44,43 @@ export default function ImportDraftBanner() {
     }
   };
 
+  // Bank-sync reviews are summed into one line; each file import keeps its own.
+  const synced = visible.filter(d => d.fromBankSync);
+  const files = visible.filter(d => !d.fromBankSync);
+  const syncedTx = synced.reduce((n, d) => n + d.rowCount, 0);
+  const oldestDays = Math.max(0, ...synced.map(backlogDays));
+
   return (
     <div className={styles.banner}>
-      {visible.map(d => (
+      {synced.length > 0 && (
+        <div className={styles.row}>
+          <span className={styles.icon}>⚠</span>
+          <span className={styles.text}>
+            Bank sync: <strong>{syncedTx} new transaction{syncedTx === 1 ? '' : 's'}</strong> in{' '}
+            <strong>{synced.length} account{synced.length === 1 ? '' : 's'}</strong> waiting for your review.
+            {oldestDays >= 60 && (
+              <> <strong>The oldest hasn't been reviewed for {oldestDays} days</strong> — syncs only reach back 90 days,
+                so please review soon or older transactions will need importing from a bank file.</>
+            )}
+          </span>
+          <button className={styles.resumeBtn} onClick={() => navigate('/bank-sync')}>Review</button>
+          <button
+            className={styles.hideBtn}
+            onClick={() => setDismissedIds(prev => new Set([...prev, ...synced.map(d => d.id)]))}
+            title="Hide for this visit only"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+      {files.map(d => (
         <div key={d.id} className={styles.row}>
           <span className={styles.icon}>⚠</span>
           <span className={styles.text}>
-            {d.fromBankSync ? (
-              <>
-                Bank sync found <strong>{d.rowCount} new transaction{d.rowCount === 1 ? '' : 's'}</strong> for{' '}
-                <strong>{d.accountName}</strong> waiting for your review.
-                {backlogDays(d) >= 60 && (
-                  <> <strong>Not reviewed for {backlogDays(d)} days</strong> — syncs only reach back 90 days, so
-                    please review soon or older transactions will need importing from a bank file.</>
-                )}
-              </>
-            ) : (
-              <>
-                Unfinished import for <strong>{d.accountName}</strong> — {d.fileName} ({d.rowCount} row{d.rowCount === 1 ? '' : 's'}),
-                last touched {new Date(d.updatedAt).toLocaleString()}.
-              </>
-            )}
+            Unfinished import for <strong>{d.accountName}</strong> — {d.fileName} ({d.rowCount} row{d.rowCount === 1 ? '' : 's'}),
+            last touched {new Date(d.updatedAt).toLocaleString()}.
           </span>
-          <button className={styles.resumeBtn} onClick={() => handleResume(d)}>{d.fromBankSync ? 'Review' : 'Resume'}</button>
+          <button className={styles.resumeBtn} onClick={() => handleResume(d)}>Resume</button>
           <button className={styles.discardBtn} onClick={() => handleDiscard(d)}>Discard</button>
           <button className={styles.hideBtn} onClick={() => setDismissedIds(prev => new Set(prev).add(d.id))} title="Hide for this visit only">
             ✕
