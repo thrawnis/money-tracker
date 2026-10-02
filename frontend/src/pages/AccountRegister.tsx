@@ -1,3 +1,4 @@
+import HoldingsPanel from '../components/HoldingsPanel';
 import { useEffect, useState, useCallback, useRef, useLayoutEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { usePageTitle } from '../hooks/usePageTitle';
@@ -1276,6 +1277,8 @@ export default function AccountRegister() {
           </div>
         </div>
       </div>
+
+      {account?.type === 'Investment' && <HoldingsPanel accountId={account.id} />}
 
       {/* ── Filter panel ── */}
       {filterOpen && (
