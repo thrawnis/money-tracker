@@ -97,24 +97,6 @@ public class SimpleFinController(
         return Ok(await simpleFin.GetStatusAsync(user));
     }
 
-    // Hour: 0-23 in the user's time zone, or null to turn the daily
-    // automatic balance update off.
-    public record DailyUpdateDto(int? Hour);
-
-    [HttpPut("daily-update")]
-    public async Task<IActionResult> SetDailyUpdate(DailyUpdateDto dto)
-    {
-        var user = await GetUserAsync();
-        if (user is null) return Unauthorized();
-        if (dto.Hour is < 0 or > 23) return BadRequest(new { message = "Choose an hour between 0 and 23." });
-        try
-        {
-            await simpleFin.SetDailyUpdateHourAsync(user, dto.Hour);
-        }
-        catch (KeyNotFoundException) { return NotFound(new { message = "SimpleFIN isn't connected." }); }
-        return Ok(await simpleFin.GetStatusAsync(user));
-    }
-
     // AccountIds: the SimpleFIN accounts to sync this time (the Sync screen's
     // checkboxes). Omitted or null syncs every linked account.
     public record SyncDto(int[]? AccountIds);

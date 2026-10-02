@@ -31,9 +31,9 @@ public class SimpleFinConnection
     // needs attention"). Encrypted: they routinely name the bank and account.
     public string? LastErrorsEncrypted { get; set; }
 
-    // Daily automatic balance update for balance-only accounts: the hour (0-23,
-    // Pacific Time for every user) after which it runs each day, or null when
-    // turned off. LastAutoUpdateDate is the Pacific day it last succeeded;
+    // Nightly sync: the hour (0-23, Pacific Time for every user) after which
+    // it runs each day. Fixed at 8 pm — not user-editable; null (off) is only
+    // possible by editing the database directly, for maintenance. LastAutoUpdateDate is the Pacific day it last succeeded;
     // LastAutoAttemptAt spaces out retries after a failure.
     public int? DailyUpdateHour { get; set; } = 20;
     public DateOnly? LastAutoUpdateDate { get; set; }

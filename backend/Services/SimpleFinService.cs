@@ -628,14 +628,6 @@ public class SimpleFinService(
         await db.SaveChangesAsync();
     }
 
-    public async Task SetDailyUpdateHourAsync(ApplicationUser user, int? hour)
-    {
-        if (hour is < 0 or > 23) throw new ArgumentOutOfRangeException(nameof(hour));
-        var conn = await db.SimpleFinConnections.FirstOrDefaultAsync(c => c.UserId == user.Id)
-            ?? throw new KeyNotFoundException();
-        conn.DailyUpdateHour = hour;
-        await db.SaveChangesAsync();
-    }
 
     /// <summary>
     /// Offers a skipped transaction again: forgets the skip and rewinds the

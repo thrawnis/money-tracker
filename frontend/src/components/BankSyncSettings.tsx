@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   connectSimpleFin, disconnectSimpleFin, linkSimpleFinAccount,
-  setSimpleFinBalanceOnly, setSimpleFinDailyUpdate,
+  setSimpleFinBalanceOnly,
   type SimpleFinStatus, type SimpleFinAccount,
 } from '../api/simplefin';
 import { useAuth } from '../contexts/auth-context';
@@ -96,14 +96,6 @@ export default function BankSyncSettings({ status, onStatus: setStatus, accounts
     }
   };
 
-  const handleDailyHour = async (value: string) => {
-    setError('');
-    try {
-      setStatus(await setSimpleFinDailyUpdate(value === '' ? null : Number(value)));
-    } catch (err) {
-      setError(apiMsg(err, 'Failed to save the daily update time.'));
-    }
-  };
 
   const handleDisconnect = async () => {
     if (!confirm(
@@ -302,24 +294,15 @@ export default function BankSyncSettings({ status, onStatus: setStatus, accounts
           Syncs every linked account once a day without you pressing Sync. New transactions wait on the Bank Sync
           screen for your approval; if you don't get to them, the next nights add to the same review (keeping the
           choices you've made) rather than starting over. Balance-only accounts get the day's value recorded. A
-          review you've worked on in the last hour is left alone until the next night. Times are Pacific Time; if
-          the server is down then, it catches up before midnight.
+          review you've worked on in the last hour is left alone until the next night. If the server is down at 8 pm,
+          it catches up before midnight.
         </p>
-        <select
-          value={status.dailyUpdateHour ?? ''}
-          onChange={e => handleDailyHour(e.target.value)}
-          aria-label="Nightly sync time"
-        >
-          <option value="">Off</option>
-          {Array.from({ length: 24 }, (_, h) => (
-            <option key={h} value={h}>
-              Every day after {h === 0 ? '12 am' : h < 12 ? `${h} am` : h === 12 ? '12 pm' : `${h - 12} pm`} Pacific
-            </option>
-          ))}
-        </select>
-        {status.lastAutoUpdateDate && (
-          <span className={styles.hint} style={{ marginLeft: 10 }}>Last ran {formatDay(status.lastAutoUpdateDate)}.</span>
-        )}
+        <p style={{ margin: 0, fontSize: 14 }}>
+          <strong>Every day after 8 pm Pacific</strong>
+          {status.lastAutoUpdateDate && (
+            <span className={styles.hint} style={{ marginLeft: 10 }}>Last ran {formatDay(status.lastAutoUpdateDate)}.</span>
+          )}
+        </p>
       </div>
 
       <div style={{ display: 'flex', gap: 10, marginTop: 14, alignItems: 'center' }}>

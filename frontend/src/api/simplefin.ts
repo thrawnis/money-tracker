@@ -87,9 +87,6 @@ export const syncSimpleFin = (accountIds?: number[]): Promise<SimpleFinSyncResul
 export const setSimpleFinBalanceOnly = (simpleFinAccountId: number, balanceOnly: boolean): Promise<SimpleFinStatus> =>
   api.put(`/simplefin/accounts/${simpleFinAccountId}/mode`, { balanceOnly }).then(r => r.data);
 
-export const setSimpleFinDailyUpdate = (hour: number | null): Promise<SimpleFinStatus> =>
-  api.put('/simplefin/daily-update', { hour }).then(r => r.data);
-
 /** Forget a skip, so the next sync of that account offers the transaction again. */
 export const restoreSkippedTransaction = (skippedId: number): Promise<SimpleFinStatus> =>
   api.delete(`/simplefin/skipped/${skippedId}`).then(r => r.data);
