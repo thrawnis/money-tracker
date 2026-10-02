@@ -570,6 +570,8 @@ function ImportTab() {
   // New rows (by file position) the user unticked — they won't be imported.
   const [excludedRows, setExcludedRows] = useState<Set<number>>(new Set());
   const [fromBankSync, setFromBankSync] = useState(false);
+  // Where the rows under review came from: the uploaded/staged file's name.
+  const [sourceName, setSourceName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [result, setResult] = useState<{ imported: number; transfersLinked: number; errors?: string[] } | null>(null);
@@ -601,6 +603,7 @@ function ImportTab() {
     resumeImportDraft(id)
       .then(res => {
         setDraftId(res.draftId);
+        setSourceName(res.fileName);
         setQifAccountId(res.accountId);
         setFile(null);
         setPreview(res.preview);
@@ -654,6 +657,7 @@ function ImportTab() {
       const res = await previewImport(file, isQif && qifAccountId !== '' ? qifAccountId : undefined);
       if (res.error) { setError(res.error); setLoading(false); return; }
       setPreview(res);
+      setSourceName(file.name);
       setCheckedDups(new Set());
       setExcludedRows(new Set());
       setFromBankSync(false);
@@ -772,8 +776,22 @@ function ImportTab() {
     const newRows = preview.newRows ?? [];
     const selectedCount = newRows.filter(r => !excludedRows.has(r.row)).length;
     const allSelected = selectedCount === newRows.length;
+    // The destination: the chosen/staged account, or — for a file whose rows
+    // name their own accounts — every account the rows go to.
+    const target = accounts.find(a => a.id === effectiveAccountId)?.name;
+    const fileAccounts = [...new Set(newRows.map(r => r.account).filter((n): n is string => !!n))];
+    const destination = target ?? (fileAccounts.length > 0 ? fileAccounts.join(', ') : null);
     return (
       <div className={styles.tabSection}>
+        <div>
+          <h3 className={styles.prefGroupTitle} style={{ fontSize: 16, margin: 0 }}>
+            {destination ? <>Importing into {destination}</> : <>Reviewing import</>}
+          </h3>
+          <p className={styles.hint} style={{ marginTop: 2 }}>
+            {fromBankSync ? 'New transactions from bank sync' : sourceName ? <>From {sourceName}</> : null}
+            {!target && fileAccounts.length > 1 && ' — accounts as named in the file'}
+          </p>
+        </div>
         <p className={styles.hint}>
           <strong>{preview.newTransactions}</strong> new transaction{preview.newTransactions !== 1 ? 's' : ''} and{' '}
           <strong>{preview.duplicates.length}</strong> potential duplicate{preview.duplicates.length !== 1 ? 's' : ''} found.
