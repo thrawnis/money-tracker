@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
+import BalanceHistoryReport from '../components/BalanceHistoryReport';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import {
@@ -62,6 +64,11 @@ type ReportType = 'monthly' | 'category';
 export default function Reports() {
   usePageTitle('Reports');
   const [reportType, setReportType] = useState<ReportType>('monthly');
+  // "Balances over time" is self-contained (its own controls, not saveable),
+  // so it's shown in place of the parameterized reports rather than as a ReportType.
+  const location = useLocation();
+  const [showBalanceHistory, setShowBalanceHistory] = useState(
+    (location.state as { report?: string } | null)?.report === 'balances');
   const [activeSavedId, setActiveSavedId] = useState<number | null>(null);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -116,6 +123,7 @@ export default function Reports() {
   }
 
   const loadSavedReport = (r: SavedReport) => {
+    setShowBalanceHistory(false);
     setActiveSavedId(r.id);
     setSaveReportName(r.name);
     setReportType(r.type);
@@ -139,6 +147,7 @@ export default function Reports() {
   };
 
   const selectReportType = (t: ReportType) => {
+    setShowBalanceHistory(false);
     setReportType(t);
     setActiveSavedId(null);
     setSaveReportName('');
@@ -243,16 +252,22 @@ export default function Reports() {
           <div className={styles.sidebarSection}>
             <div className={styles.sidebarHeading}>Report Types</div>
             <button
-              className={`${styles.listItem} ${reportType === 'monthly' && activeSavedId === null ? styles.listItemActive : ''}`}
+              className={`${styles.listItem} ${reportType === 'monthly' && activeSavedId === null && !showBalanceHistory ? styles.listItemActive : ''}`}
               onClick={() => selectReportType('monthly')}
             >
               📊 Monthly Income/Expense
             </button>
             <button
-              className={`${styles.listItem} ${reportType === 'category' && activeSavedId === null ? styles.listItemActive : ''}`}
+              className={`${styles.listItem} ${reportType === 'category' && activeSavedId === null && !showBalanceHistory ? styles.listItemActive : ''}`}
               onClick={() => selectReportType('category')}
             >
               🏷️ Transactions by Category
+            </button>
+            <button
+              className={`${styles.listItem} ${showBalanceHistory ? styles.listItemActive : ''}`}
+              onClick={() => { setShowBalanceHistory(true); setActiveSavedId(null); }}
+            >
+              📈 Balances Over Time
             </button>
           </div>
 
@@ -272,6 +287,14 @@ export default function Reports() {
         </div>
 
         {/* ── Main content ── */}
+        {showBalanceHistory ? (
+          <div className={styles.main}>
+            <div className={styles.mainHeader}>
+              <h2 className={styles.pageTitle}>Balances Over Time</h2>
+            </div>
+            <BalanceHistoryReport />
+          </div>
+        ) : (
         <div className={styles.main}>
           <div className={styles.mainHeader}>
             <h2 className={styles.pageTitle}>
@@ -460,6 +483,7 @@ export default function Reports() {
             </>
           )}
         </div>
+        )}
       </div>
     </div>
   );

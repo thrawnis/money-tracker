@@ -208,6 +208,76 @@ public class ReportsController(
 
     // ── Saved Reports ─────────────────────────────────────────────────────────
 
+    // ── Balances over time (net worth and per account) ───────────────────────
+
+    // range: 3m | 1y | 5y | all (default 1y). accountId: one account only;
+    // omitted means every account (active or not — a closed account's past
+    // balance is still part of past net worth).
+    [HttpGet("balance-history")]
+    public async Task<IActionResult> BalanceHistoryReport([FromQuery] string? range, [FromQuery] int? accountId)
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+        var user = await userManager.FindByIdAsync(userId);
+        if (user is null) return Unauthorized();
+
+        var accountsQuery = db.Accounts.Where(a => a.UserId == userId);
+        if (accountId.HasValue) accountsQuery = accountsQuery.Where(a => a.Id == accountId.Value);
+        var accounts = await accountsQuery.ToListAsync();
+        if (accountId.HasValue && accounts.Count == 0) return NotFound();
+        var ids = accounts.Select(a => a.Id).ToList();
+
+        var today = UserClock.Today(user);
+        // Same as-of rule as current balances: effective date, voided excluded.
+        var daily = (await db.Transactions
+                .Where(t => ids.Contains(t.AccountId) && !t.IsVoided && (t.PostDate ?? t.Date) <= today)
+                .GroupBy(t => new { t.AccountId, Day = t.PostDate ?? t.Date })
+                .Select(g => new { g.Key.AccountId, g.Key.Day, Sum = g.Sum(t => t.Amount) })
+                .ToListAsync())
+            .ToLookup(x => x.AccountId, x => (x.Day, x.Sum));
+
+        // Accounts whose balance is the bank's reported value use their value history.
+        var reportedIds = (await ReportedBalances.ForUserAsync(db, userId)).Keys.ToHashSet();
+        var values = (await db.AccountValueSnapshots
+                .Where(v => v.UserId == userId && reportedIds.Contains(v.AccountId) && ids.Contains(v.AccountId) && v.Date <= today)
+                .Select(v => new { v.AccountId, v.Date, v.Balance })
+                .ToListAsync())
+            .ToLookup(v => v.AccountId, v => (v.Date, v.Balance));
+
+        var inputs = accounts.Select(a => new BalanceHistory.AccountInput(
+            a.Id, a.Name, a.Type.ToString(), a.OpeningBalance,
+            UserClock.ToLocalDate(new DateTimeOffset(DateTime.SpecifyKind(a.CreatedAt, DateTimeKind.Utc)), user.TimeZoneId),
+            daily[a.Id].ToList(),
+            reportedIds.Contains(a.Id) ? values[a.Id].ToList() : null)).ToList();
+
+        var earliest = BalanceHistory.EarliestDate(inputs) ?? today;
+        var from = (range ?? "1y") switch
+        {
+            "3m" => today.AddMonths(-3),
+            "5y" => today.AddYears(-5),
+            "all" => earliest,
+            _ => today.AddYears(-1),
+        };
+        if (from < earliest) from = earliest;
+
+        var result = BalanceHistory.Build(inputs, from, today);
+        return Ok(new
+        {
+            interval = result.Interval.ToString().ToLowerInvariant(),
+            dates = result.Dates,
+            netWorth = result.NetWorth,
+            assets = result.Assets,
+            debts = result.Debts,
+            accounts = result.Accounts
+                .OrderBy(a => a.Name)
+                .Select(a => new
+                {
+                    id = a.Id, name = a.Name, type = a.Type,
+                    reported = a.Reported, since = a.Since, values = a.Values,
+                }),
+        });
+    }
+
     [HttpGet("saved")]
     public async Task<IActionResult> GetSaved()
     {

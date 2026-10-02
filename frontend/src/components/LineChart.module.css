@@ -1,0 +1,61 @@
+/* Series colors: the validated 3-slot categorical set (blue, orange, aqua),
+   stepped separately for the dark surface. Assigned by role in fixed order,
+   never by rank. */
+.root {
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --grid: #e6e9ee;
+  --axis: var(--c-666677);
+  --ink: var(--c-333344);
+  --surface: var(--c-ffffff);
+  position: relative;
+  width: 100%;
+}
+
+@media (prefers-color-scheme: dark) {
+  .root {
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --series-3: #199e70;
+    --grid: #2c3440;
+  }
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  font-size: 12px;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+
+.legendItem { display: inline-flex; align-items: center; gap: 6px; }
+.swatch { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+
+.svg { display: block; width: 100%; overflow: visible; touch-action: pan-y; }
+
+.tick { font-size: 11px; fill: var(--axis); font-variant-numeric: tabular-nums; }
+.endLabel { font-size: 11px; font-weight: 600; fill: var(--ink); }
+
+.tooltip {
+  position: absolute;
+  top: 0;
+  pointer-events: none;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--grid);
+  border-radius: 6px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+  padding: 8px 10px;
+  font-size: 12px;
+  white-space: nowrap;
+  z-index: 2;
+}
+
+.tooltipDate { font-weight: 700; margin-bottom: 4px; }
+.tooltipRow { display: flex; align-items: center; gap: 6px; justify-content: space-between; }
+.tooltipRow span:last-child { font-variant-numeric: tabular-nums; font-weight: 600; margin-left: 12px; }
+
+.empty { font-size: 12px; color: var(--axis); padding: 24px 0; text-align: center; }

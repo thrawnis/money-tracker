@@ -131,6 +131,8 @@ Update this file whenever requirements change or new features are defined.
 - **Monthly Summary**: income vs. expense bar/line chart for last N months; filterable by accounts and categories
 - **Transactions by Category**: totals per category for a date range; filterable by account
 - Both reports are split-aware: a split transaction's amount is attributed to each split's own category rather than the whole transaction landing in one bucket
+- **Balances Over Time**: a line chart of net worth (all accounts, active or not) or any single account, over 3 months / 1 year / 5 years / all time, with the change over the period. Net worth can be split into what you own (positive balances) and what you owe (negative balances). Transaction accounts are rebuilt from their transactions (opening balance plus non-voided transactions by effective date, the same rule as current balances), starting from their first transaction or creation date; balance-only bank-synced accounts use their recorded daily values, so their history starts when recording began (noted under the chart). Points are daily up to ~4 months, weekly up to 3 years, then month ends, always ending today. Hover shows every series at a date; a table view is available. Not saveable
+- The Dashboard shows a compact net-worth chart, hidden while balances are hidden
 - Reports can be saved (name, type, parameters); one report can be set as the default
 - Date range defaults: current month or last 6 months depending on report type
 

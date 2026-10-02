@@ -1,3 +1,4 @@
+import BalanceHistoryReport from '../components/BalanceHistoryReport';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getDashboard, type DashboardData, type DashboardAccount } from '../api/dashboard';
@@ -153,8 +154,17 @@ export default function Dashboard() {
           <PieChart accounts={data.accounts} />
         </div>
 
-        {/* Right: Bills + Uncategorized */}
+        {/* Right: Net worth + Bills + Uncategorized */}
         <div className={styles.rightPanel}>
+          <div className={styles.billsSection}>
+            <h3 className={styles.sectionTitle}>
+              <Link to="/reports" state={{ report: 'balances' }}>Net Worth</Link>
+            </h3>
+            {/* Follows the balance toggle: hidden balances stay hidden here too. */}
+            {showBalances
+              ? <BalanceHistoryReport compact defaultRange="1y" />
+              : <p style={{ fontSize: 12, opacity: 0.75, margin: 0 }}>Show balances to see your net worth over time.</p>}
+          </div>
           <div className={styles.billsSection}>
             <h3 className={styles.sectionTitle}>Upcoming Bills (Next 14 Days)</h3>
             {data.upcomingBills.length === 0 ? (
