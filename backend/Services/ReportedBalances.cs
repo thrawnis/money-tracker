@@ -1,13 +1,15 @@
 using Microsoft.EntityFrameworkCore;
 using MoneyTracker.Data;
+using MoneyTracker.Models;
 
 namespace MoneyTracker.Services;
 
 /// <summary>
 /// Balances that come from the bank rather than from adding up transactions:
-/// accounts linked to a balance-only SimpleFIN account use their latest
-/// recorded value. Used wherever a "current balance" is shown (Accounts,
-/// Dashboard, register header) so they all agree.
+/// accounts linked to a balance-only SimpleFIN account, and linked Investment
+/// accounts in either mode, use their latest recorded value. Used wherever a
+/// "current balance" is shown (Accounts, Dashboard, register header) so they
+/// all agree.
 /// </summary>
 public static class ReportedBalances
 {
@@ -16,7 +18,11 @@ public static class ReportedBalances
     public static async Task<Dictionary<int, Value>> ForUserAsync(AppDbContext db, string userId)
     {
         var accountIds = await db.SimpleFinAccounts
-            .Where(a => a.UserId == userId && a.BalanceOnly && a.LinkedAccountId != null)
+            // Balance-only links, and any linked Investment account: its value
+            // moves with the market, so adding up its transactions (cash in,
+            // the same cash spent on funds) would show roughly zero.
+            .Where(a => a.UserId == userId && a.LinkedAccountId != null
+                && (a.BalanceOnly || a.LinkedAccount!.Type == AccountType.Investment))
             .Select(a => a.LinkedAccountId!.Value)
             .ToListAsync();
         if (accountIds.Count == 0) return [];

@@ -410,6 +410,11 @@ public class SimpleFinService(
                 continue;
             }
 
+            // The bank's reported balance is recorded for transaction accounts
+            // too: it's what an Investment account shows as its balance (market
+            // value moves aren't transactions), and a history for every other.
+            await RecordValueAsync(user, localId, sf, ct);
+
             var existingDraft = await db.ImportDrafts.FirstOrDefaultAsync(d => d.UserId == user.Id && d.AccountId == localId, ct);
             if (existingDraft is not null && existingDraft.SimpleFinAccountId is null)
             {
