@@ -11,8 +11,9 @@ import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import {
   getTemplate, previewImport, importWithDuplicates,
   resumeImportDraft, updateImportDraft, deleteImportDraft,
-  type PreviewResult,
+  type PreviewResult, type NewRow,
 } from '../api/import';
+import { getCategories } from '../api/categories';
 import { getAuditLog, type AuditEntry, type GetAuditParams } from '../api/audit';
 import { getAccounts } from '../api/accounts';
 import { listAccountBackups, downloadAccountBackup, type AccountBackupSummary } from '../api/accountBackups';
@@ -579,6 +580,9 @@ function ImportTab() {
   const [payeeChoices, setPayeeChoices] = useState<Record<string, PayeeChoice>>({});
   // Every payee, for searching in the payee picker.
   const [payees, setPayees] = useState<Payee[]>([]);
+  // Category id -> "Parent : Child" label, to show what a picked payee's
+  // default category will put on its rows.
+  const [categoryLabels, setCategoryLabels] = useState<Map<number, string>>(new Map());
 
   // QIF files often don't embed an account name (Money Sunset exports one
   // account at a time) — the user picks the destination account up front.
@@ -591,6 +595,14 @@ function ImportTab() {
   useEffect(() => {
     getAccounts().then(setAccounts).catch(() => {});
     getPayees().then(setPayees).catch(() => {});
+    getCategories().then(cats => {
+      const labels = new Map<number, string>();
+      for (const c of cats) {
+        labels.set(c.id, c.name);
+        for (const sub of c.subCategories ?? []) labels.set(sub.id, `${c.name} : ${sub.name}`);
+      }
+      setCategoryLabels(labels);
+    }).catch(() => {});
   }, []);
 
   // Arriving from the "unfinished import" banner's Resume action.
@@ -744,6 +756,19 @@ function ImportTab() {
     });
   };
 
+  // The category a new row will get, reflecting payee choices made here: a
+  // picked existing payee brings its default category; a new payee has none.
+  const rowCategory = (r: NewRow): string | null | undefined => {
+    if (r.fileCategory) return r.category;
+    const choice = payeeChoices[r.payee];
+    if (choice?.mode === 'existing') {
+      const id = payees.find(p => p.id === choice.payeeId)?.defaultCategoryId;
+      return id != null ? categoryLabels.get(id) : null;
+    }
+    if (choice?.mode === 'new') return null;
+    return r.category;
+  };
+
   const choiceFor = (rawText: string): PayeeChoice => payeeChoices[rawText] ?? { mode: 'file', remember: true };
 
   const setPayeeChoice = (rawText: string, choice: PayeeChoice) => {
@@ -883,6 +908,7 @@ function ImportTab() {
                     {newRows.some(r => r.account) && effectiveAccountId == null && <th>Account</th>}
                     <th>Payee</th>
                     <th>Amount</th>
+                    <th>Category</th>
                     <th>Memo</th>
                   </tr>
                 </thead>
@@ -906,6 +932,7 @@ function ImportTab() {
                       <td style={{ color: r.amount == null ? undefined : r.amount < 0 ? '#cc0000' : '#006600', whiteSpace: 'nowrap' }}>
                         {r.amount == null ? <em>unreadable</em> : r.amount.toFixed(2)}
                       </td>
+                      <td>{rowCategory(r) ?? <span className={styles.hint}>—</span>}</td>
                       <td>{r.memo}</td>
                     </tr>
                   ))}

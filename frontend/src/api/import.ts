@@ -31,6 +31,10 @@ export interface NewRow {
   memo?: string | null;
   /** Destination account name (multi-account files). */
   account?: string | null;
+  /** Category it will get: the file's, else the default of the payee its name resolves to. */
+  category?: string | null;
+  /** The category comes from the file itself, so payee choices don't change it. */
+  fileCategory?: boolean;
   /** Looks like the other side of a transfer and will be linked. */
   transfer: boolean;
   invalid: boolean;

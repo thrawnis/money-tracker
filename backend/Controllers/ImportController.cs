@@ -165,6 +165,38 @@ public class ImportController(
 
         var allPayees = await db.Payees.Where(p => p.UserId == userId).ToListAsync();
         var rules = await db.PayeeMappingRules.Where(r => r.UserId == userId).ToListAsync();
+
+        // The category each new row will get: the file's own, or else the
+        // default category of the payee its name resolves to (exact name or
+        // mapping rule) — the same fallback RunImportAsync applies. Choices
+        // made on the review screen are layered on by the client.
+        var categories = await db.Categories.Where(c => c.UserId == userId).ToListAsync();
+        string? CategoryLabel(int? id)
+        {
+            var c = categories.FirstOrDefault(x => x.Id == id);
+            if (c is null) return null;
+            var name = encryption.Decrypt(c.NameEncrypted, dek);
+            var parent = c.ParentId is int pid ? categories.FirstOrDefault(x => x.Id == pid) : null;
+            return parent is null ? name : $"{encryption.Decrypt(parent.NameEncrypted, dek)} : {name}";
+        }
+        var payeeByName = new Dictionary<string, Payee>(StringComparer.OrdinalIgnoreCase);
+        foreach (var p in allPayees)
+            payeeByName.TryAdd(encryption.Decrypt(p.NameEncrypted, dek) ?? "", p);
+        string? PreviewCategory(CsvRow r)
+        {
+            if (!string.IsNullOrWhiteSpace(r.Category))
+                return string.IsNullOrWhiteSpace(r.SubCategory) ? r.Category.Trim() : $"{r.Category.Trim()} : {r.SubCategory.Trim()}";
+            var raw = r.Payee?.Trim();
+            if (string.IsNullOrEmpty(raw)) return null;
+            var payee = payeeByName.GetValueOrDefault(raw);
+            if (payee is null)
+            {
+                var rule = PayeePatternMatcher.FindMatch(rules, raw,
+                    x => encryption.Decrypt(x.PatternEncrypted, dek) ?? "", x => x.IsRegex);
+                payee = rule is null ? null : allPayees.FirstOrDefault(p => p.Id == rule.TargetPayeeId);
+            }
+            return CategoryLabel(payee?.DefaultCategoryId);
+        }
         var unmatchedPayees = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
 
         for (var rowIndex = 0; rowIndex < rows.Count; rowIndex++)
@@ -250,6 +282,10 @@ public class ImportController(
                     amount = (double?)amount,
                     memo = row.Memo?.Trim(),
                     account = userAccounts.FirstOrDefault(a => a.Id == rowAccountId)?.Name,
+                    category = row.Splits is { Count: > 0 } ? "Split" : PreviewCategory(row),
+                    // True when the row brings its own category (so a payee
+                    // choice on the review screen won't change it).
+                    fileCategory = !string.IsNullOrWhiteSpace(row.Category) || row.Splits is { Count: > 0 },
                     transfer = match is not null,
                     invalid = false,
                 });
@@ -739,6 +775,12 @@ public class ImportController(
 
                     // Resolve category (and subcategory, if present) — unused when split
                     var categoryId = splits is null ? await ResolveCategoryIdAsync(row.Category, row.SubCategory) : null;
+
+                    // No category in the file (always the case for bank sync):
+                    // use the payee's default category, the same one the
+                    // transaction form fills in when that payee is picked.
+                    if (categoryId is null && splits is null && payeeId is int pid)
+                        categoryId = allPayeesCache.FirstOrDefault(p => p.Id == pid)?.DefaultCategoryId;
 
                     var tx = new Transaction
                     {
