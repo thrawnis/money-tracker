@@ -3,12 +3,22 @@ import api from './client';
 export const getTemplate = (format: 'csv' | 'xlsx') =>
   api.get(`/import/template/${format}`, { responseType: 'blob' }).then(r => r.data);
 
+/** A file row that matches a transaction already in the account (same account, date, amount). */
 export interface DuplicateRow {
+  /** Position in the file (orders it among the new rows). */
+  row?: number;
+  /** What the file says. */
+  filePayee: string;
+  fileMemo?: string | null;
   date: string;
-  payee: string;
   amount: number;
+  /** The existing transaction it matches. */
+  payee: string;
   memo?: string;
   matchedTransactionId: number;
+  matchedCategory?: string | null;
+  matchedStatus?: string;
+  matchedVoided?: boolean;
 }
 
 export interface UnmatchedPayeeSuggestion {

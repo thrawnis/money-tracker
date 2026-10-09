@@ -247,6 +247,7 @@ public class ImportController(
 
             var existing = (await db.Transactions
                 .Include(t => t.Payee)
+                .Include(t => t.Splits)
                 .Where(t => t.AccountId == rowAccountId && t.Date == date && t.Amount == amount)
                 .OrderBy(t => t.Id)
                 .ToListAsync())
@@ -264,11 +265,22 @@ public class ImportController(
 
                 duplicates.Add(new
                 {
+                    // Where it sits in the file, so the review can list it among
+                    // the new rows, and what the file says about it.
+                    row = rowIndex,
+                    filePayee = row.Payee?.Trim() ?? "",
+                    fileMemo = row.Memo?.Trim(),
                     date = date.ToString("yyyy-MM-dd"),
-                    payee = payeeName ?? row.Payee ?? "",
                     amount = (double)amount,
+                    // The transaction already in the account that it matches —
+                    // its own payee, never the file's name standing in for it.
+                    payee = existing.Payee is not null ? payeeName ?? ""
+                        : existing.TransferAccountId != null ? "Transfer" : "",
                     memo,
                     matchedTransactionId = existing.Id,
+                    matchedCategory = existing.Splits.Count > 0 ? "Split" : CategoryLabel(existing.CategoryId),
+                    matchedStatus = existing.Status.ToString(),
+                    matchedVoided = existing.IsVoided,
                 });
             }
             else

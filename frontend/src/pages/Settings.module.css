@@ -602,3 +602,31 @@ p.hint { max-width: 110ch; }
   margin-top: 10px;
   align-items: center;
 }
+
+/* Possible-duplicate rows in the import review. The badge pairs a ⚠ and words
+   with the amber, so it never relies on color alone. */
+.dupRow td { background: var(--c-fff4d6); }
+
+.dupBadgeLine {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 3px;
+}
+
+.dupBadge {
+  display: inline-block;
+  padding: 1px 6px;
+  border: 1px solid var(--c-e6b800);
+  border-radius: 4px;
+  color: var(--c-5c4400);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.dupCompare td {
+  background: var(--c-fff4d6);
+  border-top: none;
+  font-size: 13px;
+}

@@ -1,5 +1,5 @@
 import PayeeResolveInput, { type PayeeChoice } from '../components/PayeeResolveInput';
-import { useState, useEffect, type FormEvent } from 'react';
+import { Fragment, useState, useEffect, type FormEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { usePageTitle } from '../hooks/usePageTitle';
@@ -11,7 +11,7 @@ import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import {
   getTemplate, previewImport, importWithDuplicates,
   resumeImportDraft, updateImportDraft, deleteImportDraft,
-  getImportDrafts, IMPORT_DRAFTS_CHANGED, type PreviewResult, type NewRow, type ImportDraftSummary,
+  getImportDrafts, IMPORT_DRAFTS_CHANGED, type PreviewResult, type NewRow, type DuplicateRow, type ImportDraftSummary,
 } from '../api/import';
 import { getCategories } from '../api/categories';
 import { getAuditLog, type AuditEntry, type GetAuditParams } from '../api/audit';
@@ -716,12 +716,13 @@ function ImportTab() {
     }
   };
 
-  const handleImport = async (includeChecked: boolean) => {
+  // includeDuplicateIds: which possible duplicates (by the existing
+  // transaction each matched) to import anyway.
+  const handleImport = async (includeDuplicateIds: number[]) => {
     if ((!file && draftId == null) || !preview) return;
     setLoading(true);
     setError('');
     try {
-      const includeDuplicateIds = includeChecked ? Array.from(checkedDups) : [];
       const { payeeOverrides, payeeNewNames, rememberPayeeMappings } = payeeChoicePayload(payeeChoices);
 
       const res = await importWithDuplicates({
@@ -798,6 +799,15 @@ function ImportTab() {
     });
   };
 
+  const [comparing, setComparing] = useState<Set<number>>(new Set());
+  const toggleCompare = (id: number) => {
+    setComparing(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
   const toggleRow = (row: number) => {
     setExcludedRows(prev => {
       const next = new Set(prev);
@@ -865,6 +875,12 @@ function ImportTab() {
 
   if (step === 'review' && preview) {
     const newRows = preview.newRows ?? [];
+    const dups = preview.duplicates;
+    // New rows and possible duplicates together, in file order.
+    const reviewItems: ({ kind: 'new'; row: number; r: NewRow } | { kind: 'dup'; row: number; d: DuplicateRow })[] = [
+      ...newRows.map(r => ({ kind: 'new' as const, row: r.row, r })),
+      ...dups.map(d => ({ kind: 'dup' as const, row: d.row ?? Number.MAX_SAFE_INTEGER, d })),
+    ].sort((a, b) => a.row - b.row);
     const selectedCount = newRows.filter(r => !excludedRows.has(r.row)).length;
     const allSelected = selectedCount === newRows.length;
     // The destination: the chosen/staged account, or — for a file whose rows
@@ -952,13 +968,16 @@ function ImportTab() {
           </>
         )}
 
-        {newRows.length > 0 && (
+        {(newRows.length > 0 || dups.length > 0) && (
           <>
             <p className={styles.hint}>
-              New transactions: <strong>{selectedCount}</strong> of {newRows.length} selected. Untick any you don't want imported.
+              <strong>{selectedCount + checkedDups.size}</strong> of {newRows.length + dups.length} transactions selected.
+              Untick any you don't want imported.
+              {dups.length > 0 && <> Rows marked <strong>⚠ Possible duplicate</strong> match a transaction already in the account
+                and are left unticked; use Compare to see the match, and tick one only if it's really a separate transaction.</>}
               {fromBankSync && <> Unticked bank transactions won't be offered by later syncs; you can restore them from the Bank Sync screen.</>}
             </p>
-            <div style={{ maxHeight: 420, overflowY: 'auto', marginBottom: 12 }}>
+            <div style={{ maxHeight: 520, overflowY: 'auto', marginBottom: 12 }}>
               <table className={styles.dupTable}>
                 <thead>
                   <tr>
@@ -969,10 +988,11 @@ function ImportTab() {
                         checked={allSelected}
                         ref={el => { if (el) el.indeterminate = selectedCount > 0 && !allSelected; }}
                         onChange={() => setExcludedRows(allSelected ? new Set(newRows.map(r => r.row)) : new Set())}
+                        title="Selects the new transactions; possible duplicates are ticked one by one"
                       />
                     </th>
                     <th>Date</th>
-                    {newRows.some(r => r.account) && effectiveAccountId == null && <th>Account</th>}
+                    {newRows.some(x => x.account) && effectiveAccountId == null && <th>Account</th>}
                     <th>Payee</th>
                     <th>Amount</th>
                     <th>Category</th>
@@ -980,8 +1000,10 @@ function ImportTab() {
                   </tr>
                 </thead>
                 <tbody>
-                  {newRows.map(r => (
-                    <tr key={r.row} style={excludedRows.has(r.row) ? { opacity: 0.5 } : undefined}>
+                  {reviewItems.map(item => item.kind === 'new' ? (() => {
+                    const r = item.r;
+                    return (
+                    <tr key={`n${r.row}`} style={excludedRows.has(r.row) ? { opacity: 0.5 } : undefined}>
                       <td>
                         <input
                           type="checkbox"
@@ -1008,46 +1030,64 @@ function ImportTab() {
                       <td>{rowCategory(r) ?? <span className={styles.hint}>—</span>}</td>
                       <td>{r.memo}</td>
                     </tr>
-                  ))}
+                    );
+                  })() : (() => {
+                    const d = item.d;
+                    const included = checkedDups.has(d.matchedTransactionId);
+                    const open = comparing.has(d.matchedTransactionId);
+                    return (
+                    <Fragment key={`d${d.matchedTransactionId}`}>
+                      <tr className={styles.dupRow} style={included ? undefined : { opacity: 0.75 }}>
+                        <td>
+                          <input
+                            type="checkbox"
+                            aria-label={`Import possible duplicate ${d.date} ${d.filePayee}`}
+                            checked={included}
+                            onChange={() => toggleDup(d.matchedTransactionId)}
+                          />
+                        </td>
+                        <td style={{ whiteSpace: 'nowrap' }}>{d.date}</td>
+                        {newRows.some(x => x.account) && effectiveAccountId == null && <td></td>}
+                        <td>
+                          {d.filePayee}
+                          <div className={styles.dupBadgeLine}>
+                            <span className={styles.dupBadge}>⚠ Possible duplicate</span>
+                            <button
+                              type="button"
+                              className={styles.btnLink}
+                              aria-expanded={open}
+                              onClick={() => toggleCompare(d.matchedTransactionId)}
+                            >
+                              {open ? 'Hide' : 'Compare'}
+                            </button>
+                          </div>
+                        </td>
+                        <td style={{ color: d.amount < 0 ? '#cc0000' : '#006600', whiteSpace: 'nowrap' }}>{d.amount.toFixed(2)}</td>
+                        <td>{included ? <span className={styles.hint}>—</span> : <span className={styles.hint}>skipped</span>}</td>
+                        <td>{d.fileMemo}</td>
+                      </tr>
+                      {open && (
+                        <tr className={styles.dupCompare}>
+                          <td></td>
+                          <td colSpan={newRows.some(x => x.account) && effectiveAccountId == null ? 6 : 5}>
+                            <strong>Already in this account:</strong>{' '}
+                            {d.date} · {d.payee || '—'} · <span style={{ whiteSpace: 'nowrap' }}>{d.amount.toFixed(2)}</span>
+                            {' · '}{d.matchedCategory ?? 'Uncategorized'}
+                            {' · '}{d.matchedStatus}{d.matchedVoided ? ' (void)' : ''}
+                            {d.memo && <> · “{d.memo}”</>}
+                            <div className={styles.hint}>
+                              Same account, date and amount. Leave it unticked if this is the same transaction; tick it to import
+                              it as a separate one.
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                    );
+                  })())}
                 </tbody>
               </table>
             </div>
-          </>
-        )}
-
-        {preview.duplicates.length > 0 && (
-          <>
-            <p className={styles.hint}>Check the duplicates you want to include:</p>
-            <table className={styles.dupTable}>
-              <thead>
-                <tr>
-                  <th>Include</th>
-                  <th>Date</th>
-                  <th>Payee</th>
-                  <th>Amount</th>
-                  <th>Memo</th>
-                </tr>
-              </thead>
-              <tbody>
-                {preview.duplicates.map(d => (
-                  <tr key={d.matchedTransactionId}>
-                    <td>
-                      <input
-                        type="checkbox"
-                        checked={checkedDups.has(d.matchedTransactionId)}
-                        onChange={() => toggleDup(d.matchedTransactionId)}
-                      />
-                    </td>
-                    <td>{d.date}</td>
-                    <td>{d.payee}</td>
-                    <td style={{ color: d.amount < 0 ? '#cc0000' : '#006600' }}>
-                      {d.amount.toFixed(2)}
-                    </td>
-                    <td>{d.memo}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
           </>
         )}
 
@@ -1056,30 +1096,38 @@ function ImportTab() {
         <div className={styles.actions}>
           <button
             className={styles.btnPrimary}
-            onClick={() => handleImport(false)}
+            onClick={() => handleImport(Array.from(checkedDups))}
             disabled={loading}
           >
-            {loading ? 'Importing…' : 'Import New Only'}
+            {loading ? 'Importing…'
+              : checkedDups.size === 0 ? 'Import New Only'
+                : `Import Selected (incl. ${checkedDups.size} possible duplicate${checkedDups.size === 1 ? '' : 's'})`}
           </button>
           {draftId == null && (
             <button className={styles.btnLink} onClick={handleDiscardDraft}>← Back</button>
           )}
         </div>
-        {checkedDups.size > 0 && (
-          <p className={styles.hint}>
-            You ticked {checkedDups.size} potential duplicate{checkedDups.size === 1 ? '' : 's'} to include — those are only
-            imported with <strong>Import All</strong> under Advanced.
-          </p>
-        )}
 
         {/* Less common choices, kept out of the way of the usual one. */}
         <details className={styles.advanced}>
           <summary>Advanced</summary>
           <div className={styles.actions}>
-            <button className={styles.btnSecondary} onClick={() => handleImport(true)} disabled={loading}>
+            <button
+              className={styles.btnSecondary}
+              onClick={() => {
+                if (dups.length > 0 && !confirm(`Import everything, including all ${dups.length} possible duplicate${dups.length === 1 ? '' : 's'}? `
+                  + 'Each one will be added as a separate transaction even though a matching one is already in the account.')) return;
+                handleImport(dups.map(d => d.matchedTransactionId));
+              }}
+              disabled={loading}
+            >
               Import All
             </button>
-            <span className={styles.hint}>New transactions plus any duplicates ticked above.</span>
+            <span className={styles.hint}>
+              {dups.length > 0
+                ? <>Selected transactions plus all {dups.length} possible duplicate{dups.length === 1 ? '' : 's'}.</>
+                : 'Same as the main button: there are no possible duplicates.'}
+            </span>
           </div>
           {draftId != null && (
             <div className={styles.actions}>
