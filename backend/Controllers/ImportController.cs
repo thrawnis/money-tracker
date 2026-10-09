@@ -182,20 +182,31 @@ public class ImportController(
         var payeeByName = new Dictionary<string, Payee>(StringComparer.OrdinalIgnoreCase);
         foreach (var p in allPayees)
             payeeByName.TryAdd(encryption.Decrypt(p.NameEncrypted, dek) ?? "", p);
+        // The existing payee a raw name resolves to: exact name, then mapping rule.
+        Payee? ResolvedPayee(string? rawPayee)
+        {
+            var raw = rawPayee?.Trim();
+            if (string.IsNullOrEmpty(raw)) return null;
+            var payee = payeeByName.GetValueOrDefault(raw);
+            if (payee is not null) return payee;
+            var rule = PayeePatternMatcher.FindMatch(rules, raw,
+                x => encryption.Decrypt(x.PatternEncrypted, dek) ?? "", x => x.IsRegex);
+            return rule is null ? null : allPayees.FirstOrDefault(p => p.Id == rule.TargetPayeeId);
+        }
         string? PreviewCategory(CsvRow r)
         {
             if (!string.IsNullOrWhiteSpace(r.Category))
                 return string.IsNullOrWhiteSpace(r.SubCategory) ? r.Category.Trim() : $"{r.Category.Trim()} : {r.SubCategory.Trim()}";
+            return CategoryLabel(ResolvedPayee(r.Payee)?.DefaultCategoryId);
+        }
+        // The payee name the row will actually get, when a mapping rule turns
+        // the raw text into a different payee (null when it stays as-is).
+        string? MappedPayeeName(CsvRow r)
+        {
             var raw = r.Payee?.Trim();
-            if (string.IsNullOrEmpty(raw)) return null;
-            var payee = payeeByName.GetValueOrDefault(raw);
-            if (payee is null)
-            {
-                var rule = PayeePatternMatcher.FindMatch(rules, raw,
-                    x => encryption.Decrypt(x.PatternEncrypted, dek) ?? "", x => x.IsRegex);
-                payee = rule is null ? null : allPayees.FirstOrDefault(p => p.Id == rule.TargetPayeeId);
-            }
-            return CategoryLabel(payee?.DefaultCategoryId);
+            var payee = ResolvedPayee(raw);
+            var name = payee is null ? null : encryption.Decrypt(payee.NameEncrypted, dek);
+            return name is null || string.Equals(name, raw, StringComparison.OrdinalIgnoreCase) ? null : name;
         }
         var unmatchedPayees = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
 
@@ -283,6 +294,7 @@ public class ImportController(
                     memo = row.Memo?.Trim(),
                     account = userAccounts.FirstOrDefault(a => a.Id == rowAccountId)?.Name,
                     category = row.Splits is { Count: > 0 } ? "Split" : PreviewCategory(row),
+                    mappedPayee = MappedPayeeName(row),
                     // True when the row brings its own category (so a payee
                     // choice on the review screen won't change it).
                     fileCategory = !string.IsNullOrWhiteSpace(row.Category) || row.Splits is { Count: > 0 },

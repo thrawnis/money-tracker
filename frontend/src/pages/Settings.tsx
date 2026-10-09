@@ -819,6 +819,16 @@ function ImportTab() {
     return r.category;
   };
 
+  // The payee name a new row will end up with, when it differs from the raw
+  // text: a payee picked or created here, else a saved mapping rule's target.
+  const rowPayee = (r: NewRow): string | null => {
+    const choice = payeeChoices[r.payee];
+    const final = choice?.mode === 'existing' ? payees.find(p => p.id === choice.payeeId)?.name
+      : choice?.mode === 'new' ? choice.name
+        : r.mappedPayee;
+    return final && final.toLowerCase() !== r.payee.toLowerCase() ? final : null;
+  };
+
   const choiceFor = (rawText: string): PayeeChoice => payeeChoices[rawText] ?? { mode: 'file', remember: true };
 
   const setPayeeChoice = (rawText: string, choice: PayeeChoice) => {
@@ -983,7 +993,13 @@ function ImportTab() {
                       <td style={{ whiteSpace: 'nowrap' }}>{r.date}</td>
                       {newRows.some(x => x.account) && effectiveAccountId == null && <td>{r.account}</td>}
                       <td>
-                        {r.payee}
+                        {rowPayee(r) ? (
+                          <span title={`"${r.payee}" will be imported as "${rowPayee(r)}"`}>
+                            <span className={styles.hint} style={{ margin: 0 }}>{r.payee}</span>
+                            {' '}<span aria-label="becomes">→</span>{' '}
+                            <strong>{rowPayee(r)}</strong>
+                          </span>
+                        ) : r.payee}
                         {r.transfer && <span className={styles.hint} style={{ margin: 0 }}> (transfer)</span>}
                       </td>
                       <td style={{ color: r.amount == null ? undefined : r.amount < 0 ? '#cc0000' : '#006600', whiteSpace: 'nowrap' }}>

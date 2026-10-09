@@ -33,6 +33,8 @@ export interface NewRow {
   account?: string | null;
   /** Category it will get: the file's, else the default of the payee its name resolves to. */
   category?: string | null;
+  /** Payee a saved mapping rule turns the raw name into (null when it stays as-is). */
+  mappedPayee?: string | null;
   /** The category comes from the file itself, so payee choices don't change it. */
   fileCategory?: boolean;
   /** Looks like the other side of a transfer and will be linked. */
