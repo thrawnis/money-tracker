@@ -255,3 +255,14 @@
   .linkInfo { display: none; }
   .linkIconOnly { display: inline-block; }
 }
+
+.notice {
+  margin-bottom: 14px;
+  padding: 10px 14px;
+  border: 1px solid var(--c-006600);
+  border-radius: 6px;
+  background: var(--c-e8f8e8);
+  color: var(--c-006600);
+  font-size: 14px;
+  font-weight: 600;
+}

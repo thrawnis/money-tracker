@@ -71,6 +71,9 @@ export default function AccountsList() {
   const [showInactive, setShowInactive] = useState(false);
   const [syncStatus, setSyncStatus] = useState<SimpleFinStatus | null>(null);
   const location = useLocation();
+  // A one-off message from the page that sent us here (e.g. the end of the
+  // bank sync review queue).
+  const notice = (location.state as { notice?: string } | null)?.notice;
 
   useEffect(() => {
     getAccounts(true)
@@ -111,6 +114,11 @@ export default function AccountsList() {
 
   return (
     <div className={styles.page}>
+      {notice && (
+        <div className={styles.notice} role="status">
+          ✓ {notice}
+        </div>
+      )}
       <div className={styles.pageHeader}>
         <h2 className={styles.pageTitle}>Accounts</h2>
         <button className={styles.btnPrimary} onClick={() => navigate('/accounts/new')}>

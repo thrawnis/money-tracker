@@ -584,3 +584,21 @@
 
 /* Paragraph-length help text reads badly at full page width. */
 p.hint { max-width: 110ch; }
+
+/* Collapsible "Advanced" import options under the main import button. */
+.advanced {
+  margin-top: 4px;
+  font-size: 13px;
+}
+
+.advanced summary {
+  cursor: pointer;
+  color: var(--c-006666);
+  font-weight: 600;
+  width: max-content;
+}
+
+.advanced .actions {
+  margin-top: 10px;
+  align-items: center;
+}

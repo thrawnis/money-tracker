@@ -112,6 +112,9 @@ export interface ImportDraftSummary {
   updatedAt: string;
 }
 
+/** Window event fired after a draft is committed or discarded without a page change. */
+export const IMPORT_DRAFTS_CHANGED = 'import-drafts-changed';
+
 export const getImportDrafts = (): Promise<ImportDraftSummary[]> =>
   api.get('/import/drafts').then(r => r.data);
 

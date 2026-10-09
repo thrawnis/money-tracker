@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { getImportDrafts, deleteImportDraft, type ImportDraftSummary } from '../api/import';
+import { getImportDrafts, deleteImportDraft, IMPORT_DRAFTS_CHANGED, type ImportDraftSummary } from '../api/import';
 import styles from './ImportDraftBanner.module.css';
 
 // Global, hard-to-miss notice of imports waiting for the user: one summary
@@ -16,7 +16,12 @@ export default function ImportDraftBanner() {
   const [loadedAt, setLoadedAt] = useState(0);
 
   useEffect(() => {
-    getImportDrafts().then(d => { setDrafts(d); setLoadedAt(Date.now()); }).catch(() => {});
+    const load = () => getImportDrafts().then(d => { setDrafts(d); setLoadedAt(Date.now()); }).catch(() => {});
+    load();
+    // Imports and discards that don't change the page (e.g. moving through
+    // the bank sync review queue) announce themselves so the counts stay true.
+    window.addEventListener(IMPORT_DRAFTS_CHANGED, load);
+    return () => window.removeEventListener(IMPORT_DRAFTS_CHANGED, load);
   }, [location.pathname]);
 
   const visible = drafts.filter(d => !dismissedIds.has(d.id));

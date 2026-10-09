@@ -11,7 +11,7 @@ import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import {
   getTemplate, previewImport, importWithDuplicates,
   resumeImportDraft, updateImportDraft, deleteImportDraft,
-  type PreviewResult, type NewRow,
+  getImportDrafts, IMPORT_DRAFTS_CHANGED, type PreviewResult, type NewRow, type ImportDraftSummary,
 } from '../api/import';
 import { getCategories } from '../api/categories';
 import { getAuditLog, type AuditEntry, type GetAuditParams } from '../api/audit';
@@ -571,6 +571,9 @@ function ImportTab() {
   // New rows (by file position) the user unticked — they won't be imported.
   const [excludedRows, setExcludedRows] = useState<Set<number>>(new Set());
   const [fromBankSync, setFromBankSync] = useState(false);
+  // One-line status shown above a review, e.g. what the previous bank sync
+  // review imported before this one opened.
+  const [notice, setNotice] = useState('');
   // Where the rows under review came from: the uploaded/staged file's name.
   const [sourceName, setSourceName] = useState('');
   const [loading, setLoading] = useState(false);
@@ -605,14 +608,12 @@ function ImportTab() {
     }).catch(() => {});
   }, []);
 
-  // Arriving from the "unfinished import" banner's Resume action.
-  useEffect(() => {
-    const id = (location.state as { resumeDraftId?: number } | null)?.resumeDraftId;
-    if (!id) return;
-    navigate('.', { replace: true, state: null });
+  // Opens a staged draft for review, restoring the choices already made.
+  const loadDraft = (id: number) => {
     setLoading(true);
     setError('');
-    resumeImportDraft(id)
+    setResult(null);
+    return resumeImportDraft(id)
       .then(res => {
         setDraftId(res.draftId);
         setSourceName(res.fileName);
@@ -630,8 +631,39 @@ function ImportTab() {
       })
       .catch(() => setError('Failed to resume that import — it may have been discarded.'))
       .finally(() => setLoading(false));
+  };
+
+  // Arriving from the "unfinished import" banner's Resume action.
+  useEffect(() => {
+    const id = (location.state as { resumeDraftId?: number } | null)?.resumeDraftId;
+    if (!id) return;
+    navigate('.', { replace: true, state: null });
+    setNotice('');
+    loadDraft(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.state]);
+
+  // Bank sync reviews run as a queue: once one account's batch is approved or
+  // discarded, the next account with synced transactions waiting opens
+  // straight away; when none are left, back to the Accounts page.
+  const goToNextSyncReview = async (done: string) => {
+    window.dispatchEvent(new Event(IMPORT_DRAFTS_CHANGED));
+    let next: ImportDraftSummary | undefined;
+    let remaining = 0;
+    try {
+      const waiting = (await getImportDrafts()).filter(d => d.fromBankSync);
+      next = waiting[0];
+      remaining = waiting.length;
+    } catch { /* fall through to Accounts */ }
+    if (!next) {
+      navigate('/accounts', { state: { notice: `${done ? `${done} ` : ''}All bank sync reviews are done.` } });
+      return;
+    }
+    setNotice(`${done ? `${done} ` : ''}Next: ${next.accountName}`
+      + (remaining > 1 ? ` (${remaining} accounts left to review).` : ' (the last one).'));
+    setFile(null);
+    await loadDraft(next.id);
+  };
 
   // Persist review progress (which duplicates are checked, payee resolutions)
   // as the user works, so an interruption loses at most a moment's work.
@@ -702,9 +734,19 @@ function ImportTab() {
         rememberPayeeMappings,
         excludeRows: Array.from(excludedRows),
       });
-      setResult(res);
       setDraftId(null);
+      const into = accounts.find(a => a.id === effectiveAccountId)?.name;
+      const summary = `Imported ${res.imported} transaction${res.imported === 1 ? '' : 's'}${into ? ` into ${into}` : ''}.`;
+      // A clean bank sync import moves straight on to the next account; one
+      // with warnings stops on the results so they can be read first.
+      if (fromBankSync && !res.errors?.length) {
+        await goToNextSyncReview(summary);
+        return;
+      }
+      setNotice('');
+      setResult(res);
       setStep('done');
+      window.dispatchEvent(new Event(IMPORT_DRAFTS_CHANGED));
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
       setError(msg ?? 'Import failed.');
@@ -715,10 +757,18 @@ function ImportTab() {
 
   const handleDiscardDraft = async () => {
     if (draftId == null) { setStep('select'); setPreview(null); return; }
-    if (!confirm('Discard this staged import? The upload and your review choices will be permanently deleted.')) return;
+    const into = accounts.find(a => a.id === effectiveAccountId)?.name;
+    if (!confirm(fromBankSync
+      ? `Discard these synced transactions${into ? ` for ${into}` : ''}? Nothing is lost: the next bank sync fetches them again.`
+      : 'Discard this staged import? The upload and your review choices will be permanently deleted.')) return;
     try {
       await deleteImportDraft(draftId);
     } catch { /* best-effort */ }
+    if (fromBankSync) {
+      setDraftId(null);
+      await goToNextSyncReview(`Discarded the synced transactions${into ? ` for ${into}` : ''}.`);
+      return;
+    }
     setDraftId(null);
     setStep('select');
     setPreview(null);
@@ -790,9 +840,15 @@ function ImportTab() {
             <ul>{result.errors.map((e, i) => <li key={i}>{e}</li>)}</ul>
           </div>
         )}
-        <button className={styles.btnSecondary} onClick={() => { setStep('select'); setFile(null); setResult(null); }}>
-          Import Another File
-        </button>
+        {fromBankSync ? (
+          <button className={styles.btnPrimary} onClick={() => goToNextSyncReview('')}>
+            Continue to the next account
+          </button>
+        ) : (
+          <button className={styles.btnSecondary} onClick={() => { setStep('select'); setFile(null); setResult(null); }}>
+            Import Another File
+          </button>
+        )}
       </div>
     );
   }
@@ -808,6 +864,7 @@ function ImportTab() {
     const destination = target ?? (fileAccounts.length > 0 ? fileAccounts.join(', ') : null);
     return (
       <div className={styles.tabSection}>
+        {notice && <div className={styles.resultSuccess}>{notice}</div>}
         <div>
           <h3 className={styles.prefGroupTitle} style={{ fontSize: 16, margin: 0 }}>
             {destination ? <>Importing into {destination}</> : <>Reviewing import</>}
@@ -983,22 +1040,44 @@ function ImportTab() {
         <div className={styles.actions}>
           <button
             className={styles.btnPrimary}
-            onClick={() => handleImport(true)}
-            disabled={loading}
-          >
-            {loading ? 'Importing…' : excludedRows.size > 0 ? 'Import Selected' : 'Import All'}
-          </button>
-          <button
-            className={styles.btnSecondary}
             onClick={() => handleImport(false)}
             disabled={loading}
           >
-            Import New Only
+            {loading ? 'Importing…' : 'Import New Only'}
           </button>
-          <button className={styles.btnLink} onClick={handleDiscardDraft}>
-            {draftId != null ? 'Discard' : '← Back'}
-          </button>
+          {draftId == null && (
+            <button className={styles.btnLink} onClick={handleDiscardDraft}>← Back</button>
+          )}
         </div>
+        {checkedDups.size > 0 && (
+          <p className={styles.hint}>
+            You ticked {checkedDups.size} potential duplicate{checkedDups.size === 1 ? '' : 's'} to include — those are only
+            imported with <strong>Import All</strong> under Advanced.
+          </p>
+        )}
+
+        {/* Less common choices, kept out of the way of the usual one. */}
+        <details className={styles.advanced}>
+          <summary>Advanced</summary>
+          <div className={styles.actions}>
+            <button className={styles.btnSecondary} onClick={() => handleImport(true)} disabled={loading}>
+              Import All
+            </button>
+            <span className={styles.hint}>New transactions plus any duplicates ticked above.</span>
+          </div>
+          {draftId != null && (
+            <div className={styles.actions}>
+              <button className={styles.btnDanger} onClick={handleDiscardDraft} disabled={loading}>
+                Discard
+              </button>
+              <span className={styles.hint}>
+                {fromBankSync
+                  ? 'Drop these synced transactions; the next bank sync fetches them again.'
+                  : 'Delete this staged import and your review choices.'}
+              </span>
+            </div>
+          )}
+        </details>
       </div>
     );
   }
