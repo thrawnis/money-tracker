@@ -65,9 +65,10 @@ export default function TransactionDetailPanel({ accountId, transactionId, accou
   }, [onClose, formDirty]);
 
   const handleSave = async (data: Omit<Transaction, 'id' | 'accountId' | 'createdAt' | 'updatedAt' | 'splits' | 'isVoided'> & { targetAccountId?: number; transferDestAccountId?: number; splits?: SplitInput[] }) => {
-    if (tx && (tx.status === 'Cleared' || tx.status === 'Reconciled')) {
+    // Only Reconciled transactions ask first; Cleared ones save freely.
+    if (tx?.status === 'Reconciled') {
       const proceed = confirm(
-        `This transaction is marked ${tx.status}. Editing it may affect your reconciled balance. Save changes anyway?`
+        'This transaction is marked Reconciled. Editing it may affect your reconciled balance. Save changes anyway?'
       );
       if (!proceed) return;
     }
