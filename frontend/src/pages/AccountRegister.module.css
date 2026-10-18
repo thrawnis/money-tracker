@@ -347,14 +347,14 @@
   transition: background 0.1s;
 }
 .statusUncleared:hover  { background: var(--c-f0f0f0); }
-.statusCleared:hover    { background: var(--c-e6f9ee); }
-.statusReconciled:hover { background: var(--c-ddeaf8); }
+.statusCleared:hover    { background: var(--c-ddeaf8); }
+.statusReconciled:hover { background: var(--c-e6f9ee); }
 
 .statusCell { text-align: center; }
 
 .statusUncleared  { color: var(--c-888888); }
-.statusCleared    { color: var(--c-27ae60); font-weight: 700; }
-.statusReconciled { color: var(--c-002a52); font-weight: 700; }
+.statusCleared    { color: var(--c-2563ab); font-weight: 700; }
+.statusReconciled { color: var(--c-27ae60); font-weight: 700; }
 .statusScheduled {
   color: var(--c-b8860b);
   font-size: 12px;
