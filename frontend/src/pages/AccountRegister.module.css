@@ -339,10 +339,11 @@
   background: none;
   border: none;
   cursor: pointer;
-  padding: 2px 4px;
-  border-radius: 3px;
-  font-size: 14px;
-  line-height: 1;
+  padding: 3px;
+  border-radius: 50%;
+  line-height: 0;
+  display: inline-flex;
+  vertical-align: middle;
   transition: background 0.1s;
 }
 .statusUncleared:hover  { background: var(--c-f0f0f0); }

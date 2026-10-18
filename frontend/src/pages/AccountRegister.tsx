@@ -52,6 +52,31 @@ interface TxFilters {
   voided?: boolean;
 }
 
+/**
+ * Status symbols, drawn rather than typed so each reads clearly at a glance:
+ * Uncleared an empty circle, Cleared a ringed check, Reconciled a solid
+ * disc with a check. Different shapes, not just colors.
+ */
+function StatusIcon({ status }: { status: string }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true" style={{ display: 'block' }}>
+      {status === 'Reconciled' ? (
+        <>
+          <circle cx="9" cy="9" r="8" fill="currentColor" />
+          <path d="M5 9.3l2.6 2.6L13 6.5" fill="none" stroke="var(--c-ffffff)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        </>
+      ) : status === 'Cleared' ? (
+        <>
+          <circle cx="9" cy="9" r="7.25" fill="none" stroke="currentColor" strokeWidth="1.5" />
+          <path d="M5 9.3l2.6 2.6L13 6.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        </>
+      ) : (
+        <circle cx="9" cy="9" r="7.25" fill="none" stroke="currentColor" strokeWidth="1.5" />
+      )}
+    </svg>
+  );
+}
+
 export default function AccountRegister() {
   const { id } = useParams<{ id: string }>();
   const accountId = Number(id);
@@ -970,9 +995,10 @@ export default function AccountRegister() {
         <button
           className={styles[`status${tx.status}`]}
           onClick={e => { e.stopPropagation(); handleToggleStatus(tx); }}
-          title={tx.status === 'Uncleared' ? 'Mark Cleared' : tx.status === 'Cleared' ? 'Mark Reconciled' : 'Mark Uncleared'}
+          title={`${tx.status} — click to mark ${tx.status === 'Uncleared' ? 'Cleared' : tx.status === 'Cleared' ? 'Reconciled' : 'Uncleared'}`}
+          aria-label={`Status: ${tx.status}. Click to mark ${tx.status === 'Uncleared' ? 'Cleared' : tx.status === 'Cleared' ? 'Reconciled' : 'Uncleared'}`}
         >
-          {tx.status === 'Uncleared' ? '○' : tx.status === 'Cleared' ? '✓' : '✓✓'}
+          <StatusIcon status={tx.status} />
         </button>
       </td>
       <td className={styles.actions}>
