@@ -1065,7 +1065,9 @@ export default function AccountRegister() {
           ))}
       </td>
       <td>
-        {getCategoryLabel(tx, categories) || (
+        {getCategoryLabel(tx, categories) === 'Transfer' && !tx.categoryId
+          ? <span className={styles.transferLabel}>Transfer</span>
+          : getCategoryLabel(tx, categories) || (
           <span className={styles.categoryMissing} title="No category — click the row to set one, or bulk-edit several">Missing</span>
         )}
       </td>
@@ -1215,10 +1217,14 @@ export default function AccountRegister() {
         <td>
           {bill.payee?.name
             ?? (bill.transferAccountId
-              ? `Transfer → ${allAccounts.find(a => a.id === bill.transferAccountId)?.name ?? 'account'}`
+              ? <span className={styles.transferLabel}>Transfer → {allAccounts.find(a => a.id === bill.transferAccountId)?.name ?? 'account'}</span>
               : (bill.name || '—'))}
         </td>
-        <td>{getBillCategoryLabel(bill, categories)}</td>
+        <td>
+          {!bill.categoryId && bill.transferAccountId
+            ? <span className={styles.transferLabel}>Transfer</span>
+            : getBillCategoryLabel(bill, categories)}
+        </td>
         <td className={styles.colMemo}>{bill.memo ?? ''}</td>
         <td className={`${styles.right} ${bill.amount < 0 ? styles.debit : styles.credit}`}>
           {formatCurrency(bill.amount)}
