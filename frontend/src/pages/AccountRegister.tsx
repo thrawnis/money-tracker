@@ -1062,7 +1062,11 @@ export default function AccountRegister() {
             </span>
           : (tx.payee?.name ?? '—')}
       </td>
-      <td>{getCategoryLabel(tx, categories)}</td>
+      <td>
+        {getCategoryLabel(tx, categories) || (
+          <span className={styles.categoryMissing} title="No category — click the row to set one, or bulk-edit several">Missing</span>
+        )}
+      </td>
       <td className={styles.colMemo}>{tx.memo ?? ''}</td>
       <td className={`${styles.right} ${tx.amount < 0 ? styles.debit : styles.credit}`}>
         {formatCurrency(tx.amount)}
@@ -1635,7 +1639,8 @@ export default function AccountRegister() {
 
 function getCategoryLabel(tx: Transaction, categories: Category[]): string {
   if (tx.splits && tx.splits.length > 0) return `Split (${tx.splits.length})`;
-  if (!tx.categoryId) return '';
+  // A transfer with no category of its own reads as "Transfer".
+  if (!tx.categoryId) return tx.transferAccountId ? 'Transfer' : '';
   for (const cat of categories) {
     if (cat.id === tx.categoryId) return cat.name;
     if (cat.subCategories) {
@@ -1650,7 +1655,7 @@ function getCategoryLabel(tx: Transaction, categories: Category[]): string {
 // Same "Parent:Sub" resolution as getCategoryLabel, but for a scheduled
 // transaction (which has no splits).
 function getBillCategoryLabel(bill: ScheduledTransaction, categories: Category[]): string {
-  if (!bill.categoryId) return '';
+  if (!bill.categoryId) return bill.transferAccountId ? 'Transfer' : '';
   for (const cat of categories) {
     if (cat.id === bill.categoryId) return cat.name;
     if (cat.subCategories) {

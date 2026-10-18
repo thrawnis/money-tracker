@@ -572,3 +572,12 @@
 .bulkLabel { color: var(--c-336699); }
 .bulkCategory { width: 260px; max-width: 100%; }
 .bulkMessage { color: var(--c-333344); }
+
+/* Uncategorized transaction: red word, not just color, so it's readable for everyone. */
+.categoryMissing {
+  color: var(--c-cc0000);
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
