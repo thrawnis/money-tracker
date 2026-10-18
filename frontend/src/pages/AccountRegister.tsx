@@ -1060,7 +1060,9 @@ export default function AccountRegister() {
                 ? `Transfer → ${allAccounts.find(a => a.id === tx.transferAccountId)?.name ?? 'account'}`
                 : `Transfer ← ${allAccounts.find(a => a.id === tx.transferAccountId)?.name ?? 'account'}`}
             </span>
-          : (tx.payee?.name ?? '—')}
+          : (tx.payee?.name ?? (
+            <span className={styles.categoryMissing} title="No payee — click the row to set one">Missing</span>
+          ))}
       </td>
       <td>
         {getCategoryLabel(tx, categories) || (
