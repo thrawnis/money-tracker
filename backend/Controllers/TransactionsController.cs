@@ -430,6 +430,51 @@ public class TransactionsController(
         return CreatedAtAction(nameof(GetById), new { accountId, id = tx.Id }, mapped);
     }
 
+    public record BulkCategoryDto(int[] TransactionIds, int CategoryId);
+
+    // Sets one category on many transactions in this account at once (the
+    // register's bulk edit). Split transactions are skipped — their category
+    // lives on each split — and reported back so the client can say so.
+    [HttpPost("bulk-category")]
+    public async Task<IActionResult> BulkSetCategory(int accountId, BulkCategoryDto dto)
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+        if (!await AccountBelongsToUser(accountId, userId)) return NotFound();
+        if (dto.TransactionIds is not { Length: > 0 })
+            return BadRequest(new { message = "Select at least one transaction." });
+        if (dto.TransactionIds.Length > 2000)
+            return BadRequest(new { message = "Too many transactions in one go (2,000 at most)." });
+        if (!await db.Categories.AnyAsync(c => c.Id == dto.CategoryId && c.UserId == userId))
+            return BadRequest(new { message = "Category not found." });
+
+        var ids = dto.TransactionIds.Distinct().ToList();
+        var txs = await db.Transactions
+            .Where(t => t.AccountId == accountId && ids.Contains(t.Id))
+            .Select(t => new { Tx = t, HasSplits = t.Splits.Any() })
+            .ToListAsync();
+
+        var updated = 0;
+        foreach (var x in txs.Where(x => !x.HasSplits))
+        {
+            if (x.Tx.CategoryId == dto.CategoryId) continue;
+            x.Tx.CategoryId = dto.CategoryId;
+            x.Tx.UpdatedAt = DateTime.UtcNow;
+            updated++;
+        }
+        await db.SaveChangesAsync();
+        await audit.LogAsync("TRANSACTIONS_BULK_CATEGORY", "Account", accountId,
+            new { count = updated, categoryId = dto.CategoryId });
+
+        return Ok(new
+        {
+            updated,
+            unchanged = txs.Count(x => !x.HasSplits) - updated,
+            skippedSplits = txs.Count(x => x.HasSplits),
+            notFound = ids.Count - txs.Count,
+        });
+    }
+
     [HttpPut("{id}")]
     public async Task<IActionResult> Update(int accountId, int id, TransactionDto dto)
     {

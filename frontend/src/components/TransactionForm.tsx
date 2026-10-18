@@ -6,6 +6,8 @@ import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import { useAuth } from '../contexts/auth-context';
 import { formatDateTime } from '../utils/timezone';
 import styles from './TransactionForm.module.css';
+import CategoryAutocomplete from './CategoryAutocomplete';
+import { flattenCategories } from '../utils/categories';
 
 export interface SplitInput {
   categoryId?: number;
@@ -22,20 +24,6 @@ interface Props {
   onSave: (data: Omit<Transaction, 'id' | 'accountId' | 'createdAt' | 'updatedAt' | 'splits' | 'isVoided'> & { targetAccountId?: number; transferDestAccountId?: number; splits?: SplitInput[] }) => Promise<void>;
   onCancel: () => void;
   onDirtyChange?: (dirty: boolean) => void;
-}
-
-// Flatten category tree into searchable entries
-function flattenCategories(categories: Category[]): { id: number; label: string }[] {
-  const flat: { id: number; label: string }[] = [];
-  for (const cat of categories) {
-    flat.push({ id: cat.id, label: cat.name });
-    if (cat.subCategories) {
-      for (const sub of cat.subCategories) {
-        flat.push({ id: sub.id, label: `${cat.name}: ${sub.name}` });
-      }
-    }
-  }
-  return flat;
 }
 
 // Given a label like "Food: Groceries", resolve or create the category ID
@@ -238,98 +226,6 @@ function AmountField({
         evalResult.ok
           ? <div className={styles.amountPreview}>= {evalResult.value.toFixed(2)}</div>
           : <div className={styles.amountFormulaError}>{evalResult.message}</div>
-      )}
-    </div>
-  );
-}
-
-function CategoryAutocomplete({
-  value, onChange, categories, className, placeholder, tabIndex, autoFocus, inputRef,
-}: {
-  value: string;
-  onChange: (val: string) => void;
-  categories: Category[];
-  className?: string;
-  placeholder?: string;
-  tabIndex?: number;
-  autoFocus?: boolean;
-  inputRef?: RefObject<HTMLInputElement | null>;
-}) {
-  const [suggestions, setSuggestions] = useState<{ id: number; label: string }[]>([]);
-  const [show, setShow] = useState(false);
-  const [highlight, setHighlight] = useState(-1);
-
-  const updateSuggestions = (val: string) => {
-    if (val.length >= 1) {
-      const flat = flattenCategories(categories);
-      const filtered = flat.filter(c => c.label.toLowerCase().includes(val.toLowerCase()));
-      setSuggestions(filtered.slice(0, 10));
-      setShow(true);
-      setHighlight(-1);
-    } else {
-      setShow(false);
-      setHighlight(-1);
-    }
-  };
-
-  const handleChange = (val: string) => {
-    onChange(val);
-    updateSuggestions(val);
-  };
-
-  const select = (entry: { id: number; label: string }) => {
-    onChange(entry.label);
-    setShow(false);
-    setHighlight(-1);
-  };
-
-  const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (!show || suggestions.length === 0) return;
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      setHighlight(h => (h + 1) % suggestions.length);
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setHighlight(h => (h - 1 + suggestions.length) % suggestions.length);
-    } else if (e.key === 'Enter') {
-      if (highlight >= 0) {
-        e.preventDefault();
-        select(suggestions[highlight]);
-      }
-    } else if (e.key === 'Escape') {
-      setShow(false);
-      setHighlight(-1);
-    }
-  };
-
-  return (
-    <div className={styles.fieldRelative}>
-      <input
-        ref={inputRef}
-        type="text"
-        className={className ?? styles.input}
-        value={value}
-        onChange={e => handleChange(e.target.value)}
-        onKeyDown={handleKeyDown}
-        onFocus={() => updateSuggestions(value)}
-        onBlur={() => setTimeout(() => setShow(false), 150)}
-        tabIndex={tabIndex}
-        autoComplete="off"
-        placeholder={placeholder}
-        autoFocus={autoFocus}
-      />
-      {show && suggestions.length > 0 && (
-        <ul className={styles.suggestions}>
-          {suggestions.map((c, i) => (
-            <li
-              key={c.id}
-              onMouseDown={() => select(c)}
-              className={i === highlight ? `${styles.suggestion} ${styles.suggestionActive}` : styles.suggestion}
-            >
-              {c.label}
-            </li>
-          ))}
-        </ul>
       )}
     </div>
   );

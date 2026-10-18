@@ -547,3 +547,28 @@
   color: var(--c-b0bec5);
   font-size: 0.8em;
 }
+
+/* ── Bulk edit ── */
+.selectCol {
+  width: 28px;
+  text-align: center;
+  padding-left: 6px !important;
+  padding-right: 2px !important;
+}
+
+.bulkBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--c-c8d8e8);
+  border-radius: 6px;
+  background: var(--c-e8f0f8);
+  font-size: 14px;
+}
+
+.bulkLabel { color: var(--c-336699); }
+.bulkCategory { width: 260px; max-width: 100%; }
+.bulkMessage { color: var(--c-333344); }

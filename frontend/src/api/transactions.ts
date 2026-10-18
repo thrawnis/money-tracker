@@ -59,3 +59,15 @@ export interface TransferDto {
 
 export const createTransfer = (data: TransferDto) =>
   api.post<{ debit: Transaction; credit: Transaction }>('/transfers', data).then(r => r.data);
+
+export interface BulkCategoryResult {
+  updated: number;
+  unchanged: number;
+  /** Split transactions keep their per-split categories and are left alone. */
+  skippedSplits: number;
+  notFound: number;
+}
+
+/** Sets one category on many transactions in an account at once. */
+export const bulkSetCategory = (accountId: number, transactionIds: number[], categoryId: number): Promise<BulkCategoryResult> =>
+  api.post(`/accounts/${accountId}/transactions/bulk-category`, { transactionIds, categoryId }).then(r => r.data);

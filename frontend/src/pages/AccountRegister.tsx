@@ -4,7 +4,9 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { getAccount, getAccounts } from '../api/accounts';
 import { useDeleteAccountFlow } from '../hooks/useDeleteAccountFlow';
-import { getTransactions, createTransaction, updateTransaction, updateTransactionStatus, updateTransactionVoided, deleteTransaction, createTransfer } from '../api/transactions';
+import { getTransactions, createTransaction, updateTransaction, updateTransactionStatus, updateTransactionVoided, deleteTransaction, createTransfer, bulkSetCategory } from '../api/transactions';
+import CategoryAutocomplete from '../components/CategoryAutocomplete';
+import { flattenCategories } from '../utils/categories';
 import { getUpcoming } from '../api/scheduledTransactions';
 import { getPreferences } from '../api/preferences';
 import { getCategories } from '../api/categories';
@@ -15,6 +17,8 @@ import ReceiptScanner from '../components/ReceiptScanner';
 import AccountEditModal from '../components/AccountEditModal';
 import type { ExtractedReceipt } from '../api/receipts';
 import styles from './AccountRegister.module.css';
+
+type ApiError = { response?: { data?: { message?: string } } };
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
@@ -160,6 +164,20 @@ export default function AccountRegister() {
   // Form
   const [showForm, setShowForm] = useState(false);
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
+  // Bulk edit: ticked transaction rows, the last one clicked (for shift-click
+  // ranges), and the category being applied to all of them.
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [lastSelectedId, setLastSelectedId] = useState<number | null>(null);
+  const [bulkCategory, setBulkCategory] = useState('');
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkMessage, setBulkMessage] = useState('');
+  // A selection belongs to one account's register: switching accounts drops it.
+  const [selectionAccountId, setSelectionAccountId] = useState(accountId);
+  if (selectionAccountId !== accountId) {
+    setSelectionAccountId(accountId);
+    setSelectedIds(new Set());
+    setBulkMessage('');
+  }
   const [formDirty, setFormDirty] = useState(false);
   // Bumped when a "new" form needs a remount despite the key staying 'new'
   // (e.g. a receipt scan landing while a blank form is already open)
@@ -934,6 +952,10 @@ export default function AccountRegister() {
   const restTxsRaw = isDateSort ? pastTxs.filter(tx => tx.date <= today) : pastTxs;
   const futureRealTxs = isChronologicalAsc ? [...futureRealTxsRaw].reverse() : futureRealTxsRaw;
   const restTxs = isChronologicalAsc ? [...restTxsRaw].reverse() : restTxsRaw;
+  // Every loaded transaction row in on-screen order — what shift-click
+  // ranges and the bulk "select all" checkbox cover.
+  const selectableIds = (isChronologicalAsc ? [...restTxs, ...futureRealTxs] : [...futureRealTxs, ...restTxs]).map(t => t.id);
+  const allLoadedSelected = selectableIds.length > 0 && selectableIds.every(id => selectedIds.has(id));
 
   const goToBillsPrefilled = (tx: Transaction) => {
     navigate('/bills', {
@@ -953,6 +975,54 @@ export default function AccountRegister() {
     });
   };
 
+  // Every loaded transaction row, in on-screen order (future then past, or
+  // the reverse when sorted oldest-first) — what shift-click ranges and
+  // "select all" cover.
+
+  const toggleSelected = (id: number, shift: boolean) => {
+    setBulkMessage('');
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (shift && lastSelectedId != null && lastSelectedId !== id) {
+        // Shift-click: tick everything between the last click and this one.
+        const order = selectableIds;
+        const [a, b] = [order.indexOf(lastSelectedId), order.indexOf(id)].sort((x, y) => x - y);
+        if (a >= 0) for (const rid of order.slice(a, b + 1)) next.add(rid);
+        else next.add(id);
+      } else if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+    setLastSelectedId(id);
+  };
+
+  const applyBulkCategory = async () => {
+    const label = bulkCategory.trim();
+    const match = flattenCategories(categories).find(c => c.label.toLowerCase() === label.toLowerCase());
+    if (!match) {
+      setBulkMessage(`No category called "${label}". Pick one from the suggestions.`);
+      return;
+    }
+    const n = selectedIds.size;
+    if (!confirm(`Set the category of ${n} transaction${n === 1 ? '' : 's'} to "${match.label}"?`)) return;
+    setBulkBusy(true);
+    setBulkMessage('');
+    try {
+      const res = await bulkSetCategory(accountId, [...selectedIds], match.id);
+      const parts = [`Set "${match.label}" on ${res.updated} transaction${res.updated === 1 ? '' : 's'}.`];
+      if (res.unchanged > 0) parts.push(`${res.unchanged} already had it.`);
+      if (res.skippedSplits > 0) parts.push(`${res.skippedSplits} split transaction${res.skippedSplits === 1 ? ' was' : 's were'} skipped (their categories are per split).`);
+      setBulkMessage(parts.join(' '));
+      setSelectedIds(new Set());
+      setBulkCategory('');
+      await reloadLoadedPages();
+    } catch (err) {
+      setBulkMessage((err as ApiError)?.response?.data?.message ?? 'Failed to update the categories.');
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
   const renderTxRow = (tx: Transaction) => (
     <tr
       key={tx.id}
@@ -961,6 +1031,15 @@ export default function AccountRegister() {
       onClick={() => handleEdit(tx)}
       onContextMenu={e => { e.preventDefault(); setContextMenu({ x: e.clientX, y: e.clientY, tx }); }}
     >
+      <td className={styles.selectCol} onClick={e => e.stopPropagation()}>
+        <input
+          type="checkbox"
+          aria-label={`Select ${formatDate(tx.date)} ${tx.payee?.name ?? ''} ${tx.amount}`}
+          checked={selectedIds.has(tx.id)}
+          onChange={() => {}}
+          onClick={e => toggleSelected(tx.id, e.shiftKey)}
+        />
+      </td>
       <td>
         {tx.isVoided && <span className={styles.voidBadge} title="Voided — excluded from the balance">VOID</span>}
         {tx.scheduledTransactionId != null && (
@@ -1056,7 +1135,7 @@ export default function AccountRegister() {
   // ── Today divider ──
   const todayDivider = (
     <tr className={styles.todayRow} ref={todayRowRef}>
-      <td colSpan={8}>
+      <td colSpan={9}>
         <div className={styles.todayDivider}>
           <span className={styles.todayLabel}>Today — {formatDate(today)}</span>
         </div>
@@ -1071,7 +1150,7 @@ export default function AccountRegister() {
   // so topSentinelRef always attaches to the live one.
   const loadOlderSentinel = hasMorePast && (
     <tr>
-      <td colSpan={8} className={styles.sentinelCell}>
+      <td colSpan={9} className={styles.sentinelCell}>
         <div ref={topSentinelRef} className={styles.sentinel} />
         {loadingPast && <span className={styles.loadingMore}>Loading older transactions…</span>}
       </td>
@@ -1080,7 +1159,7 @@ export default function AccountRegister() {
 
   const pastRows = restTxs.length === 0 && !initialLoading
     ? (futureRealTxs.length === 0 && (
-        <tr><td colSpan={8} className={styles.emptyMsg}>No transactions found.</td></tr>
+        <tr><td colSpan={9} className={styles.emptyMsg}>No transactions found.</td></tr>
       ))
     : restTxs.map(renderTxRow);
 
@@ -1122,6 +1201,7 @@ export default function AccountRegister() {
     const balance = billProjectedBalance.get(key);
     return (
       <tr key={key} className={`${styles.futureTxRow} ${styles.txRowFuture}`}>
+        <td className={styles.selectCol}></td>
         <td>
           <span className={styles.recurringIcon} title="Recurring scheduled transaction">↻</span>
           {formatDate(bill.nextDueDate)}
@@ -1160,21 +1240,21 @@ export default function AccountRegister() {
     <>
       {futureError && futureBills.length === 0 ? (
         <tr>
-          <td colSpan={8} className={styles.noUpcoming}>{futureError}</td>
+          <td colSpan={9} className={styles.noUpcoming}>{futureError}</td>
         </tr>
       ) : loadingFuture && futureBills.length === 0 ? (
         <tr>
-          <td colSpan={8} className={styles.loadingMore}>Loading upcoming…</td>
+          <td colSpan={9} className={styles.loadingMore}>Loading upcoming…</td>
         </tr>
       ) : futureBills.length === 0 ? (
         <tr>
-          <td colSpan={8} className={styles.noUpcoming}>No upcoming scheduled transactions.</td>
+          <td colSpan={9} className={styles.noUpcoming}>No upcoming scheduled transactions.</td>
         </tr>
       ) : null}
 
       {hasMoreFuture && (
         <tr>
-          <td colSpan={8} className={styles.sentinelCell}>
+          <td colSpan={9} className={styles.sentinelCell}>
             <div ref={bottomSentinelRef} className={styles.sentinel} />
             {loadingFuture && <span className={styles.loadingMore}>Loading more upcoming…</span>}
           </td>
@@ -1380,11 +1460,47 @@ export default function AccountRegister() {
         />
       )}
 
+      {/* ── Bulk edit toolbar ── */}
+      {(selectedIds.size > 0 || bulkMessage) && (
+        <div className={styles.bulkBar} role="region" aria-label="Bulk edit">
+          {selectedIds.size > 0 ? (
+            <>
+              <strong>{selectedIds.size} selected</strong>
+              <span className={styles.bulkLabel}>Set category:</span>
+              <div className={styles.bulkCategory}>
+                <CategoryAutocomplete
+                  value={bulkCategory}
+                  onChange={setBulkCategory}
+                  categories={categories}
+                  placeholder="e.g. Food or Food: Groceries"
+                />
+              </div>
+              <button className={styles.btnPrimary} onClick={applyBulkCategory} disabled={bulkBusy || !bulkCategory.trim()}>
+                {bulkBusy ? 'Applying…' : 'Apply'}
+              </button>
+              <button className={styles.btnSecondary} onClick={() => { setSelectedIds(new Set()); setBulkMessage(''); }} disabled={bulkBusy}>
+                Clear selection
+              </button>
+            </>
+          ) : null}
+          {bulkMessage && <span className={styles.bulkMessage} role="status">{bulkMessage}</span>}
+        </div>
+      )}
+
       {/* ── Register table ── */}
       <div className={styles.tableWrapper} ref={tableWrapperRef}>
         <table className={styles.table}>
           <thead>
             <tr>
+              <th className={styles.selectCol}>
+                <input
+                  type="checkbox"
+                  aria-label="Select all loaded transactions"
+                  checked={allLoadedSelected}
+                  ref={el => { if (el) el.indeterminate = selectedIds.size > 0 && !allLoadedSelected; }}
+                  onChange={() => setSelectedIds(allLoadedSelected ? new Set() : new Set(selectableIds))}
+                />
+              </th>
               {(['date','payee','category','memo'] as const).map(col => (
                 <th
                   key={col}
