@@ -6,6 +6,9 @@ import { getAccount, getAccounts } from '../api/accounts';
 import { useDeleteAccountFlow } from '../hooks/useDeleteAccountFlow';
 import { getTransactions, createTransaction, updateTransaction, updateTransactionStatus, updateTransactionVoided, deleteTransaction, createTransfer, bulkSetCategory } from '../api/transactions';
 import CategoryAutocomplete from '../components/CategoryAutocomplete';
+import IouDialog from '../components/IouDialog';
+import IouPaymentDialog from '../components/IouPaymentDialog';
+import { getIouBadges, getIous, type IouBadge, type IouLinkedTransaction, type IouPage } from '../api/ious';
 import { flattenCategories } from '../utils/categories';
 import { getUpcoming } from '../api/scheduledTransactions';
 import { getPreferences } from '../api/preferences';
@@ -78,6 +81,35 @@ function StatusIcon({ status }: { status: string }) {
         <circle cx="9" cy="9" r="7.25" fill="none" stroke="currentColor" strokeWidth="1.5" />
       )}
     </svg>
+  );
+}
+
+/**
+ * Small marker on a register row tied to IOUs: 👥 for a purchase split with
+ * people (with what's owed and received so far), "IOU" for money that was
+ * recorded as an IOU payment. Clicking opens the IOUs page.
+ */
+function IouBadgeChip({ badge, onOpen }: { badge?: IouBadge; onOpen: () => void }) {
+  if (!badge) return null;
+  const money = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+  const parts: string[] = [];
+  if (badge.owedToMe > 0) parts.push(`${badge.people.join(', ')} owe${badge.people.length === 1 ? 's' : ''} ${money(badge.owedToMe)} — ${money(badge.receivedSoFar)} received so far`);
+  if (badge.iOwe > 0) parts.push(`You owe ${money(badge.iOwe)} — ${money(badge.paidSoFar)} paid so far`);
+  for (const p of badge.payments) parts.push(`IOU payment ${p.direction === 'Received' ? 'from' : 'to'} ${p.person}: ${money(p.amount)}`);
+  const isPurchase = badge.owedToMe > 0 || badge.iOwe > 0;
+  return (
+    <button
+      type="button"
+      className={styles.iouBadge}
+      title={`${parts.join('\n')}\nClick to open IOUs`}
+      aria-label={`IOU: ${parts.join('; ')}`}
+      onClick={e => { e.stopPropagation(); onOpen(); }}
+    >
+      {isPurchase ? '👥' : 'IOU'}
+      {isPurchase && badge.owedToMe > 0 && (
+        <span className={styles.iouBadgeText}>{money(badge.receivedSoFar)} / {money(badge.owedToMe)}</span>
+      )}
+    </button>
   );
 }
 
@@ -202,6 +234,11 @@ export default function AccountRegister() {
 
   // Actions menu
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
+  // IOUs: badges for loaded rows tagged with IOUs or linked to an IOU payment,
+  // and the tag / record-payment forms opened from a row's menu.
+  const [iouBadges, setIouBadges] = useState<Map<number, IouBadge>>(new Map());
+  const [iouForm, setIouForm] = useState<{ kind: 'tag' | 'payment'; tx: IouLinkedTransaction; data: IouPage } | null>(null);
+  const [iouBadgesVersion, setIouBadgesVersion] = useState(0);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Right-click context menu
@@ -1023,6 +1060,30 @@ export default function AccountRegister() {
     }
   };
 
+  // Refresh IOU badges whenever the loaded rows change (or an IOU form saves).
+  const loadedTxKey = pastTxs.map(t => t.id).join(',');
+  useEffect(() => {
+    let cancelled = false;
+    const ids = loadedTxKey ? loadedTxKey.split(',').map(Number) : [];
+    getIouBadges(ids)
+      .then(list => { if (!cancelled) setIouBadges(new Map(list.map(b => [b.transactionId, b]))); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [loadedTxKey, iouBadgesVersion]);
+
+  const openIouForm = async (kind: 'tag' | 'payment', tx: Transaction) => {
+    try {
+      const data = await getIous();
+      setIouForm({
+        kind,
+        data,
+        tx: { id: tx.id, accountId: tx.accountId, accountName: account?.name ?? '', date: tx.date, payee: tx.payee?.name ?? null, amount: tx.amount },
+      });
+    } catch {
+      setError('Failed to load IOUs.');
+    }
+  };
+
   const renderTxRow = (tx: Transaction) => (
     <tr
       key={tx.id}
@@ -1063,6 +1124,7 @@ export default function AccountRegister() {
           : (tx.payee?.name ?? (
             <span className={styles.categoryMissing} title="No payee — click the row to set one">Missing</span>
           ))}
+        <IouBadgeChip badge={iouBadges.get(tx.id)} onOpen={() => navigate('/ious')} />
       </td>
       <td>
         {getCategoryLabel(tx, categories) === 'Transfer' && !tx.categoryId
@@ -1112,6 +1174,12 @@ export default function AccountRegister() {
                 </button>
               )}
               <button className={styles.dropdownEdit} onClick={e => { e.stopPropagation(); setOpenMenuId(null); handleEdit(tx); }}>Edit</button>
+              <button className={styles.dropdownGoto} onClick={e => { e.stopPropagation(); setOpenMenuId(null); openIouForm('tag', tx); }}>
+                Split with people (IOU)…
+              </button>
+              <button className={styles.dropdownGoto} onClick={e => { e.stopPropagation(); setOpenMenuId(null); openIouForm('payment', tx); }}>
+                Record as IOU payment…
+              </button>
               {!tx.transferTransactionId && (
                 <button
                   className={styles.dropdownGoto}
@@ -1583,6 +1651,24 @@ export default function AccountRegister() {
           onDirtyChange={setFormDirty}
         />
         </div>
+      )}
+
+      {iouForm?.kind === 'tag' && (
+        <IouDialog
+          people={iouForm.data.people}
+          transaction={iouForm.tx}
+          onSaved={() => { setIouForm(null); setIouBadgesVersion(v => v + 1); }}
+          onClose={() => setIouForm(null)}
+        />
+      )}
+      {iouForm?.kind === 'payment' && (
+        <IouPaymentDialog
+          people={iouForm.data.people}
+          openEntries={iouForm.data.entries}
+          transaction={iouForm.tx}
+          onSaved={() => { setIouForm(null); setIouBadgesVersion(v => v + 1); }}
+          onClose={() => setIouForm(null)}
+        />
       )}
 
       {contextMenu && (

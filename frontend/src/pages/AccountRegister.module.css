@@ -581,3 +581,21 @@
   text-transform: uppercase;
   letter-spacing: 0.03em;
 }
+
+/* IOU marker on a register row (split purchase or IOU payment). */
+.iouBadge {
+  margin-left: 6px;
+  padding: 0 5px;
+  border: 1px solid var(--c-c8d8e8);
+  border-radius: 10px;
+  background: var(--c-e8f0f8);
+  color: var(--c-336699);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.5;
+  cursor: pointer;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.iouBadge:hover { border-color: var(--c-336699); }
+.iouBadgeText { margin-left: 4px; font-weight: 500; }

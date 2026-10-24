@@ -110,3 +110,19 @@ export const getIousForTransaction = (transactionId: number): Promise<IouTransac
 
 export const exportIous = (personId?: number): Promise<Blob> =>
   api.get('/ious/export', { params: { personId }, responseType: 'blob' }).then(r => r.data);
+
+/** What the register shows on a transaction tagged with IOUs or linked to an IOU payment. */
+export interface IouBadge {
+  transactionId: number;
+  people: string[];
+  owedToMe: number;
+  receivedSoFar: number;
+  iOwe: number;
+  paidSoFar: number;
+  payments: { person: string; amount: number; direction: IouDirection }[];
+}
+
+export const getIouBadges = (transactionIds: number[]): Promise<IouBadge[]> =>
+  transactionIds.length === 0
+    ? Promise.resolve([])
+    : api.get('/ious/by-transactions', { params: { ids: transactionIds.join(',') } }).then(r => r.data);

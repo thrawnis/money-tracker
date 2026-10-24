@@ -1,4 +1,5 @@
 import BalanceHistoryReport from '../components/BalanceHistoryReport';
+import { getIous, type IouPage } from '../api/ious';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getDashboard, type DashboardData, type DashboardAccount } from '../api/dashboard';
@@ -81,6 +82,51 @@ function PieChart({ accounts }: { accounts: DashboardAccount[] }) {
   );
 }
 
+/**
+ * At-a-glance IOUs: what's owed each way, the net, and the oldest unpaid.
+ * Follows the Dashboard's hide-balances toggle.
+ */
+function IousTile({ data, showBalances }: { data: IouPage; showBalances: boolean }) {
+  const money = (n: number) => (showBalances ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : '••••••');
+  const { owedToMe, iOwe, peopleOwingMe, peopleIOwe } = data.totals;
+  const net = owedToMe + iOwe;
+  const oldest = data.people
+    .filter(p => p.balance > 0 && p.oldestOpen)
+    .sort((a, b) => (a.oldestOpen! < b.oldestOpen! ? -1 : 1))[0];
+  const daysAgo = (d: string) =>
+    Math.max(0, Math.floor((Date.parse(new Date().toLocaleDateString('en-CA')) - Date.parse(d)) / 864e5));
+  const plural = (n: number) => `${n} ${n === 1 ? 'person' : 'people'}`;
+  return (
+    <div className={styles.billsSection}>
+      <h3 className={styles.sectionTitle}><Link to="/ious">IOUs</Link></h3>
+      {data.summary.length === 0 ? (
+        <p className={styles.iouLine}>All square — nobody owes anything right now.</p>
+      ) : (
+        <>
+          <p className={styles.iouLine}>
+            <span>Owed to you</span>
+            <span><strong className={owedToMe > 0 ? styles.positive : undefined}>{money(owedToMe)}</strong> <span className={styles.iouMuted}>({plural(peopleOwingMe)})</span></span>
+          </p>
+          <p className={styles.iouLine}>
+            <span>You owe</span>
+            <span><strong className={iOwe < 0 ? styles.negative : undefined}>{money(Math.abs(iOwe))}</strong> <span className={styles.iouMuted}>({plural(peopleIOwe)})</span></span>
+          </p>
+          <p className={`${styles.iouLine} ${styles.iouNet}`}>
+            <span>Net</span>
+            <strong className={net >= 0 ? styles.positive : styles.negative}>{showBalances ? (net >= 0 ? '+' : '−') : ''}{money(Math.abs(net))}</strong>
+          </p>
+          {oldest && (
+            <p className={styles.iouMuted}>
+              Oldest unpaid: {oldest.name} · {money(oldest.balance)} · {daysAgo(oldest.oldestOpen!)} days
+            </p>
+          )}
+        </>
+      )}
+      <p className={styles.iouLink}><Link to="/ious">View IOUs →</Link></p>
+    </div>
+  );
+}
+
 export default function Dashboard() {
   usePageTitle('Dashboard');
   const [data, setData] = useState<DashboardData | null>(null);
@@ -91,11 +137,15 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  const [ious, setIous] = useState<IouPage | null>(null);
+
   useEffect(() => {
     getDashboard()
       .then(setData)
       .catch(() => setError('Failed to load dashboard data.'))
       .finally(() => setLoading(false));
+    // The IOUs tile is optional: if it fails, the rest of the Dashboard stands.
+    getIous().then(setIous).catch(() => {});
   }, []);
 
   if (loading) return <div className={styles.page}><p className={styles.loading}>Loading…</p></div>;
@@ -165,6 +215,8 @@ export default function Dashboard() {
               ? <BalanceHistoryReport compact defaultRange="1y" />
               : <p style={{ fontSize: 13, opacity: 0.75, margin: 0 }}>Show balances to see your net worth over time.</p>}
           </div>
+          {ious && ious.people.length > 0 && <IousTile data={ious} showBalances={showBalances} />}
+
           <div className={styles.billsSection}>
             <h3 className={styles.sectionTitle}>Upcoming Bills (Next 14 Days)</h3>
             {data.upcomingBills.length === 0 ? (

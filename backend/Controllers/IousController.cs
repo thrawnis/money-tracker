@@ -198,6 +198,53 @@ public class IousController(
         });
     }
 
+    /// <summary>
+    /// Which of the given transactions carry IOUs (and how much is owed and
+    /// paid back on them) or are linked to IOU payments — for the register's
+    /// badges. Only the user's own transactions are reported.
+    /// </summary>
+    [HttpGet("by-transactions")]
+    public async Task<IActionResult> ByTransactions([FromQuery] string? ids)
+    {
+        var (userId, dek) = await UserAsync();
+        if (userId is null) return Unauthorized();
+        var txIds = (ids ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries)
+            .Select(x => int.TryParse(x, out var n) ? n : 0).Where(n => n > 0).Distinct().Take(2000).ToList();
+        if (txIds.Count == 0) return Ok(Array.Empty<object>());
+
+        var entries = await db.IouEntries
+            .Where(e => e.UserId == userId && e.TransactionId != null && txIds.Contains(e.TransactionId.Value))
+            .Include(e => e.Person)
+            .ToListAsync();
+        var payments = await db.IouPayments
+            .Where(p => p.UserId == userId && p.TransactionId != null && txIds.Contains(p.TransactionId.Value))
+            .Include(p => p.Person)
+            .ToListAsync();
+        var entryIds = entries.Select(e => e.Id).ToList();
+        var covered = (await db.IouAllocations.Where(a => entryIds.Contains(a.EntryId)).ToListAsync())
+            .GroupBy(a => a.EntryId).ToDictionary(g => g.Key, g => g.Sum(a => a.Amount));
+        string Name(IouPerson p) => encryption.Decrypt(p.NameEncrypted, dek!) ?? "";
+
+        return Ok(txIds
+            .Select(id => new
+            {
+                transactionId = id,
+                e = entries.Where(x => x.TransactionId == id).ToList(),
+                p = payments.Where(x => x.TransactionId == id).ToList(),
+            })
+            .Where(x => x.e.Count > 0 || x.p.Count > 0)
+            .Select(x => new
+            {
+                x.transactionId,
+                people = x.e.Select(e => Name(e.Person)).Distinct().ToList(),
+                owedToMe = x.e.Where(e => e.Amount > 0).Sum(e => e.Amount),
+                receivedSoFar = x.e.Where(e => e.Amount > 0).Sum(e => covered.GetValueOrDefault(e.Id)),
+                iOwe = -x.e.Where(e => e.Amount < 0).Sum(e => e.Amount),
+                paidSoFar = x.e.Where(e => e.Amount < 0).Sum(e => covered.GetValueOrDefault(e.Id)),
+                payments = x.p.Select(p => new { person = Name(p.Person), amount = p.Amount, direction = p.Direction.ToString() }),
+            }));
+    }
+
     // ── People ──────────────────────────────────────────────────────────────
 
     [HttpPost("people")]

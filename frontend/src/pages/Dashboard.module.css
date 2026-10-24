@@ -274,3 +274,16 @@
 }
 
 .txLink:hover { text-decoration: underline; }
+
+/* IOUs tile */
+.iouLine {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin: 0 0 6px;
+  font-size: 14px;
+}
+.iouNet { border-top: 1px solid var(--c-e0e8f0); padding-top: 6px; }
+.iouMuted { color: var(--c-666677); font-size: 13px; margin: 4px 0 0; }
+.iouLink { margin: 8px 0 0; text-align: right; font-size: 13px; }
+.positive { color: var(--c-006600); }
