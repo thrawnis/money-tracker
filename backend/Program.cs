@@ -176,6 +176,7 @@ builder.Services.AddHttpClient(SimpleFinClient.HttpClientName, c => c.Timeout = 
     .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
 builder.Services.AddScoped<SimpleFinClient>();
 builder.Services.AddScoped<SimpleFinService>();
+builder.Services.AddScoped<IouLedger>();
 builder.Services.AddSingleton<IAccountBackupService, AccountBackupService>();
 // Registered as itself (not just IHostedService) so controllers can inject it
 // directly to trigger an immediate posting pass right after a schedule is

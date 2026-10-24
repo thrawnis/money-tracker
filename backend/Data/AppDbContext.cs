@@ -27,6 +27,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<SimpleFinSkippedTransaction> SimpleFinSkippedTransactions => Set<SimpleFinSkippedTransaction>();
     public DbSet<SimpleFinImportedTransaction> SimpleFinImportedTransactions => Set<SimpleFinImportedTransaction>();
     public DbSet<AccountValueSnapshot> AccountValueSnapshots => Set<AccountValueSnapshot>();
+    public DbSet<IouPerson> IouPeople => Set<IouPerson>();
+    public DbSet<IouEntry> IouEntries => Set<IouEntry>();
+    public DbSet<IouPayment> IouPayments => Set<IouPayment>();
+    public DbSet<IouAllocation> IouAllocations => Set<IouAllocation>();
     public DbSet<HoldingSnapshot> HoldingSnapshots => Set<HoldingSnapshot>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -150,6 +154,40 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             e.HasOne(i => i.Transaction).WithMany()
                 .HasForeignKey(i => i.TransactionId).OnDelete(DeleteBehavior.SetNull);
             e.HasIndex(i => new { i.SimpleFinAccountId, i.ExternalId }).IsUnique();
+        });
+
+        // ── IOUs ───────────────────────────────────────────────────────────────
+        modelBuilder.Entity<IouPerson>(e =>
+        {
+            // Removing a user removes their people, and with them every IOU,
+            // payment and allocation (all cascade from the person).
+            e.HasOne(p => p.User).WithMany().HasForeignKey(p => p.UserId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<IouEntry>(e =>
+        {
+            e.Property(x => x.Amount).HasPrecision(18, 2);
+            e.HasOne(x => x.Person).WithMany().HasForeignKey(x => x.PersonId).OnDelete(DeleteBehavior.Cascade);
+            // Deleting the purchase keeps the IOU (the debt is still real).
+            e.HasOne(x => x.Transaction).WithMany().HasForeignKey(x => x.TransactionId).OnDelete(DeleteBehavior.SetNull);
+            e.HasIndex(x => new { x.UserId, x.PersonId });
+            e.HasIndex(x => x.TransactionId);
+        });
+        modelBuilder.Entity<IouPayment>(e =>
+        {
+            e.Property(x => x.Amount).HasPrecision(18, 2);
+            e.HasOne(x => x.Person).WithMany().HasForeignKey(x => x.PersonId).OnDelete(DeleteBehavior.Cascade);
+            e.HasOne(x => x.Transaction).WithMany().HasForeignKey(x => x.TransactionId).OnDelete(DeleteBehavior.SetNull);
+            e.HasOne(x => x.AppliesToEntry).WithMany().HasForeignKey(x => x.AppliesToEntryId).OnDelete(DeleteBehavior.SetNull);
+            e.HasIndex(x => new { x.UserId, x.PersonId });
+            e.HasIndex(x => x.TransactionId);
+        });
+        modelBuilder.Entity<IouAllocation>(e =>
+        {
+            e.Property(x => x.Amount).HasPrecision(18, 2);
+            e.HasOne(x => x.Payment).WithMany().HasForeignKey(x => x.PaymentId).OnDelete(DeleteBehavior.Cascade);
+            // Derived rows: removed with either their payment or their IOU.
+            e.HasOne(x => x.Entry).WithMany().HasForeignKey(x => x.EntryId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(x => x.EntryId);
         });
 
         modelBuilder.Entity<AccountValueSnapshot>(e =>

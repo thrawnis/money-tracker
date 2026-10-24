@@ -612,6 +612,169 @@ namespace MoneyTracker.Migrations
                     b.ToTable("Institutions");
                 });
 
+            modelBuilder.Entity("MoneyTracker.Models.IouAllocation", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<int>("EntryId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("PaymentId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EntryId");
+
+                    b.HasIndex("PaymentId");
+
+                    b.ToTable("IouAllocations");
+                });
+
+            modelBuilder.Entity("MoneyTracker.Models.IouEntry", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<string>("DescriptionEncrypted")
+                        .HasColumnType("text");
+
+                    b.Property<string>("NotesEncrypted")
+                        .HasColumnType("text");
+
+                    b.Property<DateOnly?>("PaidOffDate")
+                        .HasColumnType("date");
+
+                    b.Property<bool>("PaidOffManually")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("PersonId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("TransactionId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PersonId");
+
+                    b.HasIndex("TransactionId");
+
+                    b.HasIndex("UserId", "PersonId");
+
+                    b.ToTable("IouEntries");
+                });
+
+            modelBuilder.Entity("MoneyTracker.Models.IouPayment", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<int?>("AppliesToEntryId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<int>("Direction")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Method")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("NotesEncrypted")
+                        .HasColumnType("text");
+
+                    b.Property<int>("PersonId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("TransactionId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AppliesToEntryId");
+
+                    b.HasIndex("PersonId");
+
+                    b.HasIndex("TransactionId");
+
+                    b.HasIndex("UserId", "PersonId");
+
+                    b.ToTable("IouPayments");
+                });
+
+            modelBuilder.Entity("MoneyTracker.Models.IouPerson", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("NameEncrypted")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("NotesEncrypted")
+                        .HasColumnType("text");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("IouPeople");
+                });
+
             modelBuilder.Entity("MoneyTracker.Models.Payee", b =>
                 {
                     b.Property<int>("Id")
@@ -1306,6 +1469,79 @@ namespace MoneyTracker.Migrations
                 });
 
             modelBuilder.Entity("MoneyTracker.Models.Institution", b =>
+                {
+                    b.HasOne("MoneyTracker.Models.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("MoneyTracker.Models.IouAllocation", b =>
+                {
+                    b.HasOne("MoneyTracker.Models.IouEntry", "Entry")
+                        .WithMany()
+                        .HasForeignKey("EntryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MoneyTracker.Models.IouPayment", "Payment")
+                        .WithMany()
+                        .HasForeignKey("PaymentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Entry");
+
+                    b.Navigation("Payment");
+                });
+
+            modelBuilder.Entity("MoneyTracker.Models.IouEntry", b =>
+                {
+                    b.HasOne("MoneyTracker.Models.IouPerson", "Person")
+                        .WithMany()
+                        .HasForeignKey("PersonId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MoneyTracker.Models.Transaction", "Transaction")
+                        .WithMany()
+                        .HasForeignKey("TransactionId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Person");
+
+                    b.Navigation("Transaction");
+                });
+
+            modelBuilder.Entity("MoneyTracker.Models.IouPayment", b =>
+                {
+                    b.HasOne("MoneyTracker.Models.IouEntry", "AppliesToEntry")
+                        .WithMany()
+                        .HasForeignKey("AppliesToEntryId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("MoneyTracker.Models.IouPerson", "Person")
+                        .WithMany()
+                        .HasForeignKey("PersonId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MoneyTracker.Models.Transaction", "Transaction")
+                        .WithMany()
+                        .HasForeignKey("TransactionId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("AppliesToEntry");
+
+                    b.Navigation("Person");
+
+                    b.Navigation("Transaction");
+                });
+
+            modelBuilder.Entity("MoneyTracker.Models.IouPerson", b =>
                 {
                     b.HasOne("MoneyTracker.Models.ApplicationUser", "User")
                         .WithMany()

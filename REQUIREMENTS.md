@@ -141,6 +141,19 @@ Update this file whenever requirements change or new features are defined.
 
 ---
 
+## IOUs
+
+Money other people owe the user, and money the user owes them.
+
+- **People**: names (and optional notes) encrypted with the user's DEK; unique case-insensitively, checked in memory. Deleting a person deletes their IOUs and payments (with confirmation)
+- **IOUs**: person, date, signed amount (positive = they owe the user, negative = the user owes them), description and notes (encrypted), optional link to the purchase transaction it came from, and a paid off date. One purchase can carry IOUs for several people (splitting a bill). Deleting the purchase keeps the IOUs (the debt is still real) and drops the link
+- **Payments**: person, date, amount, direction (received from them / paid to them), method (Cash, Zelle, Venmo, PayPal, Check, Bank transfer, Other), notes (encrypted), optional link to the bank transaction the money arrived or left in, and optionally an IOU to apply it to first
+- **Applying payments**: each change to a person's IOUs or payments re-applies all their payments from scratch, in date order: received money pays down what they owe, paid money pays down what the user owes; the named IOU first, then the oldest open ones; IOUs settled by hand are skipped; anything left over is a credit on their balance. An IOU fully covered gets the finishing payment's date as its paid off date, and loses it again if a payment is removed. A paid off date set by hand (settled outside the app, or forgiven) is kept and payments skip that IOU
+- **Balance** per person: IOUs not settled by hand, minus money received, plus money paid — so overpayments show as credit
+- **Per purchase**: what others owe on it and how much has been received so far
+- **Export**: CSV of IOUs and payments, everyone's or one person's
+- Possible future improvement: spending reports that count only the user's own share of a split purchase
+
 ## Reports
 
 - **Monthly Summary**: income vs. expense bar/line chart for last N months; filterable by accounts and categories
