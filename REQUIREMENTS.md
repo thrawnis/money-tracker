@@ -152,6 +152,11 @@ Money other people owe the user, and money the user owes them.
 - **Balance** per person: IOUs not settled by hand, minus money received, plus money paid — so overpayments show as credit
 - **Per purchase**: what others owe on it and how much has been received so far
 - **Export**: CSV of IOUs and payments, everyone's or one person's
+- **IOUs page** (sidebar): totals (owed to you, you owe, net) and a table of everyone with a non-zero balance (positive = owes you, negative = you owe), clicking a person filters the register to them. Below, a register of IOUs and payments, newest first (on the same day, payments above the IOU they paid): date, person, type, description/notes, linked transaction (opens it in its register), amount, how much has been paid back, paid off date. Paid-off IOUs (and payments that only paid settled IOUs) are hidden unless "Show paid off" is ticked; with one person shown and paid off included, a running balance column appears
+- **New IOU** form: they owe me / I owe them, date, description, notes, one or more people (type-ahead over existing people, or add a new one) with amounts, and a split helper (a total, optionally including the user's share, split evenly with cents spread exactly). Editing an IOU can mark it settled outside the app (or forgiven) with a date
+- **Record payment** form: received/paid, person, date, amount, method, notes, and which open IOU to apply it to first (default: oldest first), plus the linked bank transaction when there is one. Each open IOU row has a shortcut to record a payment against it
+- **Copy request** (one person shown): copies a message listing their open IOUs with amounts, partial payments and the total, to paste into a text or payment request. Rename and delete (with confirmation) are available there too. **Export CSV** downloads everyone's, or the shown person's, IOUs and payments
+- All forms guard against navigating away with unsaved changes, and deletes confirm first
 - Possible future improvement: spending reports that count only the user's own share of a split purchase
 
 ## Reports

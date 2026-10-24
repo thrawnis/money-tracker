@@ -15,6 +15,7 @@ import Payees from './pages/Payees';
 import TransactionSearch from './pages/TransactionSearch';
 import AllTransactions from './pages/AllTransactions';
 import BankSync from './pages/BankSync';
+import Ious from './pages/Ious';
 import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
 import SetupTotp from './pages/auth/SetupTotp';
@@ -53,6 +54,7 @@ const router = createBrowserRouter(
         <Route path="transactions"            element={<TransactionSearch />} />
         <Route path="all-transactions"        element={<AllTransactions />} />
         <Route path="bank-sync"               element={<BankSync />} />
+        <Route path="ious"                    element={<Ious />} />
         <Route path="utilities"               element={<Utilities />} />
         <Route path="settings"                element={<Settings />} />
         <Route path="*"                       element={<Navigate to="/" replace />} />
