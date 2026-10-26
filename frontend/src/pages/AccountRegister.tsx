@@ -774,7 +774,9 @@ export default function AccountRegister() {
   // server-side over the full history, so in-place list edits would show
   // stale balances on every other row.
 
-  const handleSaveTx = async (data: Omit<Transaction, 'id' | 'accountId' | 'createdAt' | 'updatedAt' | 'splits' | 'isVoided'> & { targetAccountId?: number; transferDestAccountId?: number; splits?: SplitInput[] }) => {
+  const handleSaveTx = async (formData: Omit<Transaction, 'id' | 'accountId' | 'createdAt' | 'updatedAt' | 'splits' | 'isVoided'> & { targetAccountId?: number; transferDestAccountId?: number; splits?: SplitInput[]; splitWithPeople?: boolean }) => {
+    // "Split with people" is a UI choice, not transaction data.
+    const { splitWithPeople, ...data } = formData;
     // Only Reconciled transactions ask first; Cleared ones save freely.
     if (editingTx?.status === 'Reconciled') {
       const proceed = confirm(
@@ -810,6 +812,11 @@ export default function AccountRegister() {
       lastUsedDateRef.current = data.date;
       setLastUsedDate(data.date);
       newTxId = created.id;
+      // Opted in on the form: go straight to splitting it with people.
+      if (splitWithPeople) {
+        const payeeName = data.payeeId != null ? created.payee?.name ?? null : null;
+        void openIouForm('tag', { ...created, accountId: entryAccountId, payee: created.payee ?? (payeeName ? { id: data.payeeId!, name: payeeName } : undefined) });
+      }
     }
     setShowForm(false);
     setEditingTx(null);
@@ -1077,7 +1084,11 @@ export default function AccountRegister() {
       setIouForm({
         kind,
         data,
-        tx: { id: tx.id, accountId: tx.accountId, accountName: account?.name ?? '', date: tx.date, payee: tx.payee?.name ?? null, amount: tx.amount },
+        tx: {
+          id: tx.id, accountId: tx.accountId,
+          accountName: allAccounts.find(a => a.id === tx.accountId)?.name ?? account?.name ?? '',
+          date: tx.date, payee: tx.payee?.name ?? null, amount: tx.amount,
+        },
       });
     } catch {
       setError('Failed to load IOUs.');
@@ -1640,6 +1651,7 @@ export default function AccountRegister() {
       {showForm && (
         <div ref={formRef}>
         <TransactionForm
+          offerIouSplit
           key={editingTx?.id ?? `new-${formNonce}`}
           accountId={accountId}
           accounts={allAccounts}
@@ -1691,6 +1703,12 @@ export default function AccountRegister() {
             </button>
           )}
           <button className={styles.dropdownEdit} onClick={() => { const tx = contextMenu.tx; setContextMenu(null); handleEdit(tx); }}>Edit</button>
+          <button className={styles.dropdownGoto} onClick={() => { const tx = contextMenu.tx; setContextMenu(null); openIouForm('tag', tx); }}>
+            Split with people (IOU)…
+          </button>
+          <button className={styles.dropdownGoto} onClick={() => { const tx = contextMenu.tx; setContextMenu(null); openIouForm('payment', tx); }}>
+            Record as IOU payment…
+          </button>
           {!contextMenu.tx.transferTransactionId && (
             <button
               className={styles.dropdownGoto}

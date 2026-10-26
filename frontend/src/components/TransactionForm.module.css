@@ -316,3 +316,13 @@
   padding: 2px 0;
 }
 .btnSecondaryLink:hover { text-decoration: underline; }
+
+.iouSplitOption {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0 8px;
+  font-size: 13px;
+  color: var(--c-336699);
+  cursor: pointer;
+}

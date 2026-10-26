@@ -21,7 +21,9 @@ interface Props {
   initial?: Partial<Transaction>;
   initialPayeeName?: string;
   initialCategoryLabel?: string;
-  onSave: (data: Omit<Transaction, 'id' | 'accountId' | 'createdAt' | 'updatedAt' | 'splits' | 'isVoided'> & { targetAccountId?: number; transferDestAccountId?: number; splits?: SplitInput[] }) => Promise<void>;
+  onSave: (data: Omit<Transaction, 'id' | 'accountId' | 'createdAt' | 'updatedAt' | 'splits' | 'isVoided'> & { targetAccountId?: number; transferDestAccountId?: number; splits?: SplitInput[]; splitWithPeople?: boolean }) => Promise<void>;
+  /** Offer "Split with people (IOU) after saving" on a new, non-transfer transaction. */
+  offerIouSplit?: boolean;
   onCancel: () => void;
   onDirtyChange?: (dirty: boolean) => void;
 }
@@ -239,7 +241,7 @@ interface SplitRow {
   memo: string;
 }
 
-export default function TransactionForm({ accountId: _accountId, accounts, initial, initialPayeeName, initialCategoryLabel, onSave, onCancel, onDirtyChange }: Props) {
+export default function TransactionForm({ accountId: _accountId, accounts, initial, initialPayeeName, initialCategoryLabel, onSave, onCancel, onDirtyChange, offerIouSplit }: Props) {
   const { user } = useAuth();
   const today = new Date().toISOString().slice(0, 10);
   const [date, setDate] = useState(initial?.date ?? today);
@@ -288,6 +290,8 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
   const [entryAccountId, setEntryAccountId] = useState<number>(_accountId);
   const isExistingTransfer = !!(initial?.transferTransactionId);
   const [isTransfer, setIsTransfer] = useState(isExistingTransfer);
+  // New transaction only: open the IOU split form for it once it's saved.
+  const [splitWithPeople, setSplitWithPeople] = useState(false);
   const [transferDestAccountId, setTransferDestAccountId] = useState<number | undefined>(
     isExistingTransfer ? (initial?.transferAccountId ?? undefined) : undefined
   );
@@ -556,6 +560,7 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
         targetAccountId: entryAccountId !== _accountId ? entryAccountId : undefined,
         transferDestAccountId: isTransfer ? transferDestAccountId : undefined,
         splits: resolvedSplits,
+        splitWithPeople: splitWithPeople && !isTransfer && !initial?.id ? true : undefined,
       });
     } catch (err) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
@@ -856,6 +861,13 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
             <> · edited {formatDateTime(initial.updatedAt, user?.timeZoneId)}</>
           )}
         </p>
+      )}
+
+      {offerIouSplit && !initial?.id && !isTransfer && (
+        <label className={styles.iouSplitOption}>
+          <input type="checkbox" checked={splitWithPeople} onChange={e => setSplitWithPeople(e.target.checked)} />
+          Split with people (IOU) after saving
+        </label>
       )}
 
       {saveError && <div className={styles.error}>{saveError}</div>}
