@@ -177,6 +177,7 @@ builder.Services.AddScoped<ExportService>();
 builder.Services.AddScoped<DemoSeeder>();
 builder.Services.AddScoped<VoidCategoryMigrationService>();
 builder.Services.AddScoped<VoidPayeeMigrationService>();
+builder.Services.AddScoped<DuplicateNameMergeService>();
 // SimpleFIN bank sync. Redirects are disabled on its HttpClient: the claim URL
 // comes from user input, and a followed redirect could point the server at an
 // internal address after SimpleFinClient already vetted the original host.

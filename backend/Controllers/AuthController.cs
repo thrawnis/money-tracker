@@ -34,6 +34,7 @@ public class AuthController(
     IAuditService                   audit,
     VoidCategoryMigrationService    voidCategoryMigration,
     VoidPayeeMigrationService       voidPayeeMigration,
+    DuplicateNameMergeService       duplicateNameMerge,
     IConfiguration                  config) : ControllerBase
 {
     private bool IsDemoMode => config["DEMO_MODE"] == "true";
@@ -568,6 +569,7 @@ public class AuthController(
         // refresh that the service's own docs claim covers it.
         await voidCategoryMigration.RunIfNeededAsync(stored.User);
         await voidPayeeMigration.RunIfNeededAsync(stored.User);
+        await duplicateNameMerge.RunAsync(stored.User);
 
         var roles = await userManager.GetRolesAsync(stored.User);
         var role  = roles.Contains(Roles.Admin) ? Roles.Admin : Roles.Standard;
@@ -719,6 +721,7 @@ public class AuthController(
         // through, so it fires "next time the app loads" for free.
         await voidCategoryMigration.RunIfNeededAsync(user);
         await voidPayeeMigration.RunIfNeededAsync(user);
+        await duplicateNameMerge.RunAsync(user);
 
         var roles      = await userManager.GetRolesAsync(user);
         var role       = roles.Contains(Roles.Admin) ? Roles.Admin : Roles.Standard;

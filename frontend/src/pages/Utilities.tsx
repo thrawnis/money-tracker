@@ -5,7 +5,7 @@ import { deleteTransaction, getTransaction } from '../api/transactions';
 import { getInstitutions, updateInstitution, deleteInstitution } from '../api/institutions';
 import { getAccounts } from '../api/accounts';
 import {
-  getPayeeMappingRules, createPayeeMappingRule, deletePayeeMappingRule,
+  getPayeeMappingRules, createPayeeMappingRule, deletePayeeMappingRule, applyPayeeMappingRules,
   type PayeeMappingRule,
 } from '../api/payeeMappingRules';
 import { getPayees } from '../api/payees';
@@ -446,6 +446,26 @@ function PayeeMappingRulesTab() {
   const [targetPayeeId, setTargetPayeeId] = useState<number | ''>('');
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [applying, setApplying] = useState(false);
+  const [applyResult, setApplyResult] = useState('');
+
+  const handleApply = async () => {
+    if (!confirm('Apply these rules to every uncategorized transaction? Matching payees will be renamed and their default category assigned. This cannot be undone.')) return;
+    setApplying(true);
+    setError('');
+    setApplyResult('');
+    try {
+      const r = await applyPayeeMappingRules();
+      setApplyResult(`Checked ${r.checkedCount} uncategorized transaction${r.checkedCount === 1 ? '' : 's'}: `
+        + `${r.renamed} payee${r.renamed === 1 ? '' : 's'} renamed, ${r.categorized} categorized`
+        + (r.removedPayees ? `, ${r.removedPayees} unused payee${r.removedPayees === 1 ? '' : 's'} removed.` : '.'));
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      setError(msg ?? 'Failed to apply rules.');
+    } finally {
+      setApplying(false);
+    }
+  };
 
   const load = () => {
     setLoading(true);
@@ -500,6 +520,15 @@ function PayeeMappingRulesTab() {
       </p>
 
       {error && <div className={styles.error}>{error}</div>}
+
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 16 }}>
+        <button type="button" className={styles.btnPrimary} onClick={handleApply} disabled={applying}>
+          {applying ? 'Applying…' : 'Apply to Uncategorized Transactions'}
+        </button>
+        <span className={styles.hint} style={{ margin: 0 }}>
+          {applyResult || 'Renames matching payees on existing transactions with no category and fills in the payee\'s default category.'}
+        </span>
+      </div>
 
       <form onSubmit={handleCreate} style={{ display: 'flex', gap: 10, alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: 16 }}>
         <div>

@@ -17,3 +17,9 @@ export const createPayeeMappingRule = (data: { pattern: string; isRegex: boolean
 
 export const deletePayeeMappingRule = (id: number): Promise<void> =>
   api.delete(`/payee-mapping-rules/${id}`).then(() => undefined);
+
+export interface ApplyRulesResult { checkedCount: number; renamed: number; categorized: number; removedPayees: number }
+
+/** Runs the rules (and payee default categories) over existing uncategorized transactions. */
+export const applyPayeeMappingRules = (): Promise<ApplyRulesResult> =>
+  api.post('/payee-mapping-rules/apply').then(r => r.data);

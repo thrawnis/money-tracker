@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using MoneyTracker.Auth.Services;
 using MoneyTracker.Data;
 using MoneyTracker.Models;
+using MoneyTracker.Services;
 
 namespace MoneyTracker.Controllers;
 
@@ -80,6 +81,69 @@ public class PayeeMappingRulesController(
         await db.SaveChangesAsync();
 
         return CreatedAtAction(nameof(GetAll), new { }, new { id = rule.Id });
+    }
+
+    /// <summary>
+    /// Runs the mapping rules over existing transactions that have no category:
+    /// a payee whose name matches a rule is replaced by the rule's payee, and the
+    /// (possibly new) payee's default category is filled in. Transfers, splits and
+    /// voided transactions are left alone. Payees left unused by the rename are
+    /// removed unless they carry a default category or are a rule's target.
+    /// </summary>
+    [HttpPost("apply")]
+    public async Task<IActionResult> ApplyToUncategorized()
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+
+        var user = await userManager.FindByIdAsync(userId);
+        if (user is null) return Unauthorized();
+        var dek = user.EncryptedDataKey;
+
+        var rules = await db.PayeeMappingRules.Where(r => r.UserId == userId).OrderBy(r => r.Id).ToListAsync();
+        var patterns = rules.ToDictionary(r => r.Id, r => encryption.Decrypt(r.PatternEncrypted, dek) ?? "");
+        var payees = await db.Payees.Where(p => p.UserId == userId).ToDictionaryAsync(p => p.Id);
+        var payeeNames = payees.Values.ToDictionary(p => p.Id, p => encryption.Decrypt(p.NameEncrypted, dek) ?? "");
+
+        var txs = await db.Transactions
+            .Where(t => t.Account.UserId == userId && t.CategoryId == null && t.PayeeId != null
+                && t.TransferTransactionId == null && t.TransferAccountId == null
+                && !t.IsVoided && !t.Splits.Any())
+            .ToListAsync();
+
+        int renamed = 0, categorized = 0;
+        var oldPayeeIds = new HashSet<int>();
+        foreach (var tx in txs)
+        {
+            var rule = PayeePatternMatcher.FindMatch(rules, payeeNames[tx.PayeeId!.Value], r => patterns[r.Id], r => r.IsRegex);
+            if (rule is not null && rule.TargetPayeeId != tx.PayeeId)
+            {
+                oldPayeeIds.Add(tx.PayeeId.Value);
+                tx.PayeeId = rule.TargetPayeeId;
+                renamed++;
+            }
+            if (payees.TryGetValue(tx.PayeeId.Value, out var payee) && payee.DefaultCategoryId is int catId)
+            {
+                tx.CategoryId = catId;
+                categorized++;
+            }
+            if (db.Entry(tx).State == EntityState.Modified) tx.UpdatedAt = DateTime.UtcNow;
+        }
+        await db.SaveChangesAsync();
+
+        var removedPayees = 0;
+        foreach (var id in oldPayeeIds)
+        {
+            if (payees[id].DefaultCategoryId.HasValue
+                || await db.Transactions.AnyAsync(t => t.PayeeId == id)
+                || await db.ScheduledTransactions.AnyAsync(s => s.PayeeId == id)
+                || await db.PayeeMappingRules.AnyAsync(r => r.TargetPayeeId == id)) continue;
+            db.Payees.Remove(payees[id]);
+            removedPayees++;
+        }
+        await db.SaveChangesAsync();
+
+        return Ok(new { checkedCount = txs.Count, renamed, categorized, removedPayees });
     }
 
     [HttpDelete("{id}")]
