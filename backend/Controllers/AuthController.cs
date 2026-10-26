@@ -1,3 +1,4 @@
+using Fido2NetLib;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -109,8 +110,15 @@ public class AuthController(
         if (!user.MfaEnrolled)
             return Ok(new { requiresMfaSetup = true });
 
-        // MFA challenge required — client must call /mfa/totp/verify or /passkey/login/*
-        return Ok(new { requiresMfa = true, userId = user.Id });
+        // MFA challenge: the passkey is the default; the authenticator app is
+        // offered as the alternative when it's set up too.
+        var hasPasskey = await db.PasskeyCredentials.AnyAsync(c => c.UserId == user.Id);
+        return Ok(new
+        {
+            requiresMfa = true,
+            userId = user.Id,
+            methods = new { passkey = hasPasskey, totp = user.TotpEnrolled },
+        });
     }
 
     // ── TOTP setup ───────────────────────────────────────────────────────────
@@ -149,7 +157,12 @@ public class AuthController(
         var user = await userManager.FindByIdAsync(userId);
         if (user is null) return Unauthorized();
 
-        return Ok(new { mfaEnrolled = user.MfaEnrolled });
+        var passkeys = await db.PasskeyCredentials
+            .Where(c => c.UserId == userId)
+            .OrderBy(c => c.CreatedAt)
+            .Select(c => new { id = c.Id, name = c.DeviceName, createdAt = c.CreatedAt, lastUsedAt = c.LastUsedAt })
+            .ToListAsync();
+        return Ok(new { mfaEnrolled = user.MfaEnrolled, totpEnrolled = user.TotpEnrolled, passkeys });
     }
 
     // ── TOTP reset (already-logged-in user invalidating/recreating their
@@ -179,7 +192,8 @@ public class AuthController(
         // reset degrades to "no MFA" rather than locking the user out of login
         // entirely with a code they have no way to produce.
         await userManager.ResetAuthenticatorKeyAsync(user);
-        user.MfaEnrolled = false;
+        user.TotpEnrolled = false;
+        user.MfaEnrolled = await db.PasskeyCredentials.AnyAsync(c => c.UserId == user.Id);
         await userManager.UpdateAsync(user);
         await db.SaveChangesAsync();
 
@@ -218,6 +232,7 @@ public class AuthController(
 
         await userManager.ResetAccessFailedCountAsync(user);
 
+        user.TotpEnrolled = true;
         user.MfaEnrolled = true;
         await userManager.UpdateAsync(user);
 
@@ -255,12 +270,13 @@ public class AuthController(
 
         await userManager.ResetAccessFailedCountAsync(user);
 
+        user.TotpEnrolled = true;
         user.MfaEnrolled = true;
         await userManager.UpdateAsync(user);
 
         await audit.LogAsync("MFA_ENROLLED", details: new { type = "TOTP" });
 
-        return await IssueTokensAsync(user);
+        return await IssueTokensAsync(user, "totp");
     }
 
     // ── TOTP login (step 2) ──────────────────────────────────────────────────
@@ -272,6 +288,8 @@ public class AuthController(
 
         var user = await userManager.FindByIdAsync(request.UserId);
         if (user is null) return NotFound();
+        if (!user.TotpEnrolled)
+            return Unauthorized(new { message = "No authenticator app is set up for this account. Use your passkey." });
 
         if (await userManager.IsLockedOutAsync(user))
             return StatusCode(429, "Account locked due to too many failed attempts. Try again later.");
@@ -289,10 +307,10 @@ public class AuthController(
 
         await userManager.ResetAccessFailedCountAsync(user);
 
-        return await IssueTokensAsync(user);
+        return await IssueTokensAsync(user, "totp");
     }
 
-    // ── Passkey registration ──────────────────────────────────────────────────
+    // ── Passkey: first-time setup (step 2 of sign-up / first login) ───────────
 
     [HttpPost("passkey/register/begin")]
     public async Task<IActionResult> PasskeyRegisterBegin([FromBody] string userId)
@@ -304,8 +322,9 @@ public class AuthController(
 
         // Same rule as TOTP setup: once enrolled, a password alone must never be
         // enough to register a fresh second factor (that would bypass the old one).
+        // Adding more passkeys later goes through Settings → Security.
         if (user.MfaEnrolled)
-            return Unauthorized(new { message = "Two-factor authentication is already enrolled." });
+            return Unauthorized(new { message = "Two-factor authentication is already set up." });
 
         var optionsJson = await passkeyService.BeginRegistrationAsync(user);
         HttpContext.Session.SetString("passkeyRegOptions", optionsJson);
@@ -313,35 +332,39 @@ public class AuthController(
     }
 
     [HttpPost("passkey/register/complete")]
-    public async Task<IActionResult> PasskeyRegisterComplete(
-        [FromBody] PasskeyRegisterCompleteRequest request)
+    public async Task<IActionResult> PasskeyRegisterComplete([FromBody] PasskeyRegisterCompleteRequest request)
     {
         if (!MfaStepAuthorized(request.UserId)) return Unauthorized("Password verification required.");
 
         var user = await userManager.FindByIdAsync(request.UserId);
         if (user is null) return NotFound();
-
         if (user.MfaEnrolled)
-            return Unauthorized(new { message = "Two-factor authentication is already enrolled." });
+            return Unauthorized(new { message = "Two-factor authentication is already set up." });
 
         var optionsJson = HttpContext.Session.GetString("passkeyRegOptions");
-        if (optionsJson is null) return BadRequest("Registration session expired.");
+        if (optionsJson is null) return BadRequest(new { message = "Passkey setup timed out. Please try again." });
+        HttpContext.Session.Remove("passkeyRegOptions");
 
-        var credential = await passkeyService.CompleteRegistrationAsync(
-            request.AttestationResponseJson, optionsJson, request.DeviceName);
+        UserPasskeyCredential credential;
+        try
+        {
+            credential = await passkeyService.CompleteRegistrationAsync(user, request.AttestationResponseJson, optionsJson, request.DeviceName);
+        }
+        catch (Exception ex) when (ex is Fido2VerificationException or InvalidOperationException or System.Text.Json.JsonException)
+        {
+            return BadRequest(new { message = "The passkey couldn't be verified. Please try again." });
+        }
 
-        credential.UserId = user.Id;
         db.PasskeyCredentials.Add(credential);
-
         user.MfaEnrolled = true;
         await userManager.UpdateAsync(user);
         await db.SaveChangesAsync();
+        await audit.LogAsync("MFA_ENROLLED", details: new { type = "Passkey" });
 
-        HttpContext.Session.Remove("passkeyRegOptions");
-        return await IssueTokensAsync(user);
+        return await IssueTokensAsync(user, "passkey");
     }
 
-    // ── Passkey login (step 2) ────────────────────────────────────────────────
+    // ── Passkey sign-in (step 2) ──────────────────────────────────────────────
 
     [HttpPost("passkey/login/begin")]
     public async Task<IActionResult> PasskeyLoginBegin([FromBody] string userId)
@@ -350,31 +373,147 @@ public class AuthController(
 
         var user = await userManager.FindByIdAsync(userId);
         if (user is null) return NotFound();
+        if (!await db.PasskeyCredentials.AnyAsync(c => c.UserId == user.Id))
+            return BadRequest(new { message = "No passkey is set up for this account. Use your authenticator app." });
+        if (await userManager.IsLockedOutAsync(user))
+            return StatusCode(429, "Account locked due to too many failed attempts. Try again later.");
 
-        var optionsJson = await passkeyService.BeginAuthenticationAsync(user.Email!);
+        var optionsJson = await passkeyService.BeginAuthenticationAsync(user);
         HttpContext.Session.SetString("passkeyAuthOptions", optionsJson);
         return Content(optionsJson, "application/json");
     }
 
     [HttpPost("passkey/login/complete")]
-    public async Task<IActionResult> PasskeyLoginComplete(
-        [FromBody] PasskeyLoginCompleteRequest request)
+    public async Task<IActionResult> PasskeyLoginComplete([FromBody] PasskeyLoginCompleteRequest request)
     {
+        // The password step must have been completed for this same user first.
+        if (!MfaStepAuthorized(request.UserId)) return Unauthorized("Password verification required.");
+
+        var user = await userManager.FindByIdAsync(request.UserId);
+        if (user is null) return Unauthorized();
+        if (await userManager.IsLockedOutAsync(user))
+            return StatusCode(429, "Account locked due to too many failed attempts. Try again later.");
+
         var optionsJson = HttpContext.Session.GetString("passkeyAuthOptions");
-        if (optionsJson is null) return BadRequest("Authentication session expired.");
+        if (optionsJson is null) return BadRequest(new { message = "Passkey sign-in timed out. Please try again." });
+        HttpContext.Session.Remove("passkeyAuthOptions");
 
-        var credential = await passkeyService.CompleteAuthenticationAsync(
-            request.AssertionResponseJson, optionsJson);
+        try
+        {
+            await passkeyService.CompleteAuthenticationAsync(user, request.AssertionResponseJson, optionsJson);
+        }
+        catch (Exception ex) when (ex is Fido2VerificationException or InvalidOperationException or System.Text.Json.JsonException)
+        {
+            await userManager.AccessFailedAsync(user);
+            return Unauthorized(new { message = "That passkey couldn't be verified for this account." });
+        }
 
-        if (!MfaStepAuthorized(credential.UserId)) return Unauthorized("Password verification required.");
+        await db.SaveChangesAsync();   // sign counter / last used
+        await userManager.ResetAccessFailedCountAsync(user);
+        return await IssueTokensAsync(user, "passkey");
+    }
 
-        await db.SaveChangesAsync();
+    // ── Passkeys in Settings → Security (signed in; changes need a fresh
+    // identity check, like the authenticator reset) ──────────────────────────
 
-        var user = await userManager.FindByIdAsync(credential.UserId);
+    [HttpPost("passkeys/add/begin")]
+    [Authorize]
+    public async Task<IActionResult> PasskeyAddBegin([FromBody] ReauthRequest request)
+    {
+        var user = await CurrentUserAsync();
+        if (user is null) return Unauthorized();
+        if (!await ConsumeReauthTokenAsync(user.Id, request.ExportToken))
+            return Unauthorized(new { message = "Identity verification required or expired." });
+
+        var optionsJson = await passkeyService.BeginRegistrationAsync(user);
+        HttpContext.Session.SetString($"passkeyAddOptions:{user.Id}", optionsJson);
+        return Content(optionsJson, "application/json");
+    }
+
+    [HttpPost("passkeys/add/complete")]
+    [Authorize]
+    public async Task<IActionResult> PasskeyAddComplete([FromBody] PasskeyAddCompleteRequest request)
+    {
+        var user = await CurrentUserAsync();
         if (user is null) return Unauthorized();
 
-        HttpContext.Session.Remove("passkeyAuthOptions");
-        return await IssueTokensAsync(user);
+        var key = $"passkeyAddOptions:{user.Id}";
+        var optionsJson = HttpContext.Session.GetString(key);
+        if (optionsJson is null) return BadRequest(new { message = "Adding the passkey timed out. Please start again." });
+        HttpContext.Session.Remove(key);
+
+        UserPasskeyCredential credential;
+        try
+        {
+            credential = await passkeyService.CompleteRegistrationAsync(user, request.AttestationResponseJson, optionsJson, request.DeviceName);
+        }
+        catch (Exception ex) when (ex is Fido2VerificationException or InvalidOperationException or System.Text.Json.JsonException)
+        {
+            return BadRequest(new { message = "The passkey couldn't be verified. Please try again." });
+        }
+
+        db.PasskeyCredentials.Add(credential);
+        user.MfaEnrolled = true;
+        await userManager.UpdateAsync(user);
+        await db.SaveChangesAsync();
+        await audit.LogAsync("PASSKEY_ADDED", "Passkey", credential.Id);
+        return Ok(new { id = credential.Id });
+    }
+
+    [HttpPut("passkeys/{id:int}")]
+    [Authorize]
+    public async Task<IActionResult> PasskeyRename(int id, [FromBody] PasskeyRenameRequest request)
+    {
+        var user = await CurrentUserAsync();
+        if (user is null) return Unauthorized();
+        var credential = await db.PasskeyCredentials.FirstOrDefaultAsync(c => c.Id == id && c.UserId == user.Id);
+        if (credential is null) return NotFound();
+        var name = request.Name?.Trim();
+        credential.DeviceName = string.IsNullOrEmpty(name) ? null : name[..Math.Min(name.Length, 100)];
+        await db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    [HttpPost("passkeys/{id:int}/remove")]
+    [Authorize]
+    public async Task<IActionResult> PasskeyRemove(int id, [FromBody] ReauthRequest request)
+    {
+        var user = await CurrentUserAsync();
+        if (user is null) return Unauthorized();
+        var credential = await db.PasskeyCredentials.FirstOrDefaultAsync(c => c.Id == id && c.UserId == user.Id);
+        if (credential is null) return NotFound();
+
+        // Signing in always needs a second factor: never remove the last one.
+        var others = await db.PasskeyCredentials.CountAsync(c => c.UserId == user.Id && c.Id != id);
+        if (others == 0 && !user.TotpEnrolled)
+            return Conflict(new { message = "This is your only second factor. Add another passkey or set up the authenticator app before removing it." });
+        if (!await ConsumeReauthTokenAsync(user.Id, request.ExportToken))
+            return Unauthorized(new { message = "Identity verification required or expired." });
+
+        db.PasskeyCredentials.Remove(credential);
+        await db.SaveChangesAsync();
+        await audit.LogAsync("PASSKEY_REMOVED", "Passkey", id);
+        return NoContent();
+    }
+
+    /// <summary>Turns off the authenticator app; only allowed while a passkey remains.</summary>
+    [HttpPost("mfa/totp/remove")]
+    [Authorize]
+    public async Task<IActionResult> TotpRemove([FromBody] ReauthRequest request)
+    {
+        var user = await CurrentUserAsync();
+        if (user is null) return Unauthorized();
+        if (!user.TotpEnrolled) return NoContent();
+        if (!await db.PasskeyCredentials.AnyAsync(c => c.UserId == user.Id))
+            return Conflict(new { message = "The authenticator app is your only second factor. Add a passkey before removing it." });
+        if (!await ConsumeReauthTokenAsync(user.Id, request.ExportToken))
+            return Unauthorized(new { message = "Identity verification required or expired." });
+
+        await userManager.ResetAuthenticatorKeyAsync(user);   // old codes stop working
+        user.TotpEnrolled = false;
+        await userManager.UpdateAsync(user);
+        await audit.LogAsync("MFA_REMOVED", details: new { type = "TOTP" });
+        return NoContent();
     }
 
     // ── Token refresh ─────────────────────────────────────────────────────────
@@ -552,7 +691,28 @@ public class AuthController(
     private bool MfaStepAuthorized(string userId) =>
         HttpContext.Session.GetString("mfaUserId") == userId;
 
-    private async Task<IActionResult> IssueTokensAsync(ApplicationUser user)
+    private async Task<ApplicationUser?> CurrentUserAsync()
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        return userId is null ? null : await userManager.FindByIdAsync(userId);
+    }
+
+    /// <summary>
+    /// Uses up a fresh identity-check token (from /api/export/confirm-identity,
+    /// the same one the authenticator reset uses). True when it was valid.
+    /// </summary>
+    private async Task<bool> ConsumeReauthTokenAsync(string userId, string? token)
+    {
+        if (string.IsNullOrEmpty(token)) return false;
+        var stored = await db.ExportTokens
+            .FirstOrDefaultAsync(t => t.Token == token && t.UserId == userId && !t.IsUsed && t.ExpiresAt > DateTime.UtcNow);
+        if (stored is null) return false;
+        stored.IsUsed = true;
+        await db.SaveChangesAsync();
+        return true;
+    }
+
+    private async Task<IActionResult> IssueTokensAsync(ApplicationUser user, string method = "password")
     {
         // Runs once per user (see VoidCategoriesMigrated) — this is the one
         // chokepoint every login path and silent token refresh funnels
@@ -580,7 +740,7 @@ public class AuthController(
 
         SetRefreshCookie(refreshToken, rememberMe ? refreshExpiry : null);
         HttpContext.Session.Remove("mfaUserId");
-        await audit.LogAsync("LOGIN", details: new { email = user.Email, method = "password" });
+        await audit.LogAsync("LOGIN", details: new { email = user.Email, method });
         return Ok(new TokenResponse(accessToken, expiry, role, user.MfaEnrolled,
             RequiresTimeZone: string.IsNullOrWhiteSpace(user.TimeZoneId)));
     }
@@ -632,5 +792,10 @@ public record PasskeyRegisterCompleteRequest(
     string AttestationResponseJson,
     string? DeviceName);
 public record PasskeyLoginCompleteRequest(
+    string UserId,
     string AssertionResponseJson);
+public record PasskeyAddCompleteRequest(string AttestationResponseJson, string? DeviceName);
+public record PasskeyRenameRequest(string? Name);
+/// <summary>A fresh identity-check token from /api/export/confirm-identity.</summary>
+public record ReauthRequest(string? ExportToken);
 public record ChangePasswordRequest(string CurrentPassword, string NewPassword);

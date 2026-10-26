@@ -60,10 +60,11 @@ export default function Login() {
       const res = await authApi.login(email, password, rememberMe);
       if (res.requiresMfa && res.userId) {
         sessionStorage.setItem('mfa_login_user_id', res.userId);
-        navigate('/auth/totp');
+        sessionStorage.setItem('mfa_login_methods', JSON.stringify(res.methods ?? { passkey: false, totp: true }));
+        navigate('/auth/mfa');
       } else if (res.requiresMfaSetup && res.userId) {
         sessionStorage.setItem('mfa_setup_user_id', res.userId);
-        navigate('/auth/setup-totp');
+        navigate('/auth/setup-mfa');
       } else if (res.accessToken) {
         signIn(res.accessToken);
         navigate('/');

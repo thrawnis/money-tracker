@@ -10,8 +10,11 @@ Update this file whenever requirements change or new features are defined.
 - Users register with email and password (12+ chars, mixed case, digit)
 - Login issues a short-lived JWT access token (15 min) and a httpOnly refresh token cookie
 - "Remember me" keeps the browser signed in for 2 months (60 days from the last visit, since each refresh renews the token); without it the refresh cookie is a session cookie, ending when the browser closes (and at most 1 day)
-- TOTP-based MFA: users can enroll; enrolled users must verify on each login
-- Optional WebAuthn/FIDO2 passkey login (build flag `FIDO2_AVAILABLE`)
+- Authenticator-app (TOTP) MFA is the secondary option: users may enroll it alongside or instead of passkeys; at sign-in they verify with either one
+- A second factor is required after the password: a **passkey** (WebAuthn — the default) and/or a code from an **authenticator app** (TOTP — the secondary option). Users can set up both; sign-in needs either one. Login returns which methods the account has; the sign-in step offers the passkey first, with "Use authenticator app code instead" when the app is also set up
+- First-time setup (after sign-up, or a first sign-in without a second factor) offers "Set up a passkey (recommended)" or the authenticator app
+- Passkeys require user verification on the device (fingerprint, face, PIN), are tied to the site's domain (FIDO2_DOMAIN / FIDO2_ORIGIN; HTTPS or localhost only), and sign-in only offers and accepts the signing-in user's own passkeys. Each passkey has a name, added date and last-used date
+- Settings → Security manages both: add (one per device/security key; the same device can't be added twice), rename and remove passkeys; set up, reset or remove the authenticator app. Adding or removing a passkey and setting up, resetting or removing the app each require a fresh identity check (password or current code). The last remaining second factor can never be removed
 - Password change requires current password; blocked for demo account
 - "Sign out all sessions" invalidates all refresh tokens for the user
 - Account lockout after repeated failed login attempts — applies to passwords, TOTP codes, and export re-authentication

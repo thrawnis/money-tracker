@@ -5,7 +5,12 @@ namespace MoneyTracker.Models;
 public class ApplicationUser : IdentityUser
 {
     // Email is used as the username — set on registration
+    // True when the user has at least one second factor: a passkey and/or the
+    // authenticator app. Kept in step with the two below by AuthController.
     public bool MfaEnrolled { get; set; } = false;
+    // The authenticator app (TOTP) is set up. Passkeys live in
+    // PasskeyCredentials; a user may have both, and signs in with either.
+    public bool TotpEnrolled { get; set; } = false;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     // AES-256-GCM encrypted DEK, encrypted with the application master key

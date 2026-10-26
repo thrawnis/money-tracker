@@ -19,6 +19,8 @@ export interface LoginStepOneResponse {
   role?: 'Admin' | 'Standard';
   mfaEnrolled?: boolean;
   requiresTimeZone?: boolean;
+  /** Which second factors the account has (when requiresMfa). The passkey is the default. */
+  methods?: { passkey: boolean; totp: boolean };
 }
 
 export interface TotpSetupResponse {

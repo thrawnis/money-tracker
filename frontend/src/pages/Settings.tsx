@@ -1,11 +1,15 @@
 import PayeeResolveInput, { type PayeeChoice } from '../components/PayeeResolveInput';
-import { Fragment, useState, useEffect, type FormEvent } from 'react';
+import { Fragment, useCallback, useState, useEffect, type FormEvent } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { useAuth } from '../contexts/auth-context';
 import api from '../api/client';
-import { resetTotpSetup, resetTotpEnroll, getMfaStatus } from '../api/auth';
+import {
+  resetTotpSetup, resetTotpEnroll, getMfaStatus, passkeyAddBegin, passkeyAddComplete, renamePasskey, removePasskey, removeTotp,
+  type PasskeyInfo,
+} from '../api/auth';
+import { createPasskey, defaultPasskeyName, passkeyErrorMessage, passkeysSupported } from '../utils/webauthn';
 import { getDemoInfo, resetDemo } from '../api/demo';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import {
@@ -389,46 +393,65 @@ function PreferencesTab() {
 // ── Security ──
 
 function SecurityTab() {
-  const [mfaEnrolled, setMfaEnrolled] = useState<boolean | null>(null);
-  const [showReauth, setShowReauth] = useState(false);
-  const [resetting, setResetting] = useState(false);
+  const [status, setStatus] = useState<{ mfaEnrolled: boolean; totpEnrolled: boolean; passkeys: PasskeyInfo[] } | null>(null);
+  // The action waiting on the identity check, if any.
+  const [pending, setPending] = useState<
+    { kind: 'totpReset' } | { kind: 'totpRemove' } | { kind: 'passkeyAdd' } | { kind: 'passkeyRemove'; passkey: PasskeyInfo } | null
+  >(null);
+  const [busy, setBusy] = useState(false);
   const [sharedKey, setSharedKey] = useState('');
   const [authenticatorUri, setAuthenticatorUri] = useState('');
   const [code, setCode] = useState('');
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState(false);
+  const [notice, setNotice] = useState('');
 
   // Live server-side state, not the auth context's login-time snapshot: an
-  // abandoned reset leaves MFA disabled server-side, and the stale context
-  // would show "Enabled" on an actually-unprotected account.
-  useEffect(() => {
-    getMfaStatus()
-      .then(s => setMfaEnrolled(s.mfaEnrolled))
-      .catch(() => setError('Failed to load two-factor status.'));
-  }, []);
+  // abandoned reset leaves the app turned off server-side.
+  const refresh = useCallback(() => getMfaStatus()
+    .then(setStatus)
+    .catch(() => setError('Failed to load two-factor status.')), []);
+  useEffect(() => { refresh(); }, [refresh]);
 
   const inProgress = !!authenticatorUri;
-
-  // A reset in progress means MFA is currently DISABLED server-side — warn
-  // before the user navigates away and leaves the account unprotected.
+  // A reset in progress means the old code no longer works — warn before
+  // leaving with the new one unconfirmed.
   useUnsavedChanges(inProgress);
 
+  const passkeyCount = status?.passkeys.length ?? 0;
+  const onlyFactor = (isPasskey: boolean) =>
+    isPasskey ? passkeyCount === 1 && !status?.totpEnrolled : passkeyCount === 0;
+
   const handleVerified = async (exportToken: string) => {
-    setShowReauth(false);
-    setResetting(true);
+    const action = pending;
+    setPending(null);
+    if (!action) return;
+    setBusy(true);
     setError('');
+    setNotice('');
     try {
-      const res = await resetTotpSetup(exportToken);
-      setSharedKey(res.sharedKey);
-      setAuthenticatorUri(res.authenticatorUri);
-      // The backend has already invalidated the old code and disabled MFA
-      // until the new one is confirmed below.
-      setMfaEnrolled(false);
-    } catch {
-      setError('Failed to start authenticator reset. Your identity check may have expired — try again.');
+      if (action.kind === 'totpReset') {
+        const res = await resetTotpSetup(exportToken);
+        setSharedKey(res.sharedKey);
+        setAuthenticatorUri(res.authenticatorUri);
+      } else if (action.kind === 'totpRemove') {
+        await removeTotp(exportToken);
+        setNotice('Authenticator app removed. Sign in with your passkey from now on.');
+      } else if (action.kind === 'passkeyAdd') {
+        const options = await passkeyAddBegin(exportToken);
+        const attestation = await createPasskey(options);
+        await passkeyAddComplete(attestation, defaultPasskeyName());
+        setNotice('Passkey added. You can use it the next time you sign in.');
+      } else {
+        await removePasskey(action.passkey.id, exportToken);
+        setNotice(`Removed the passkey "${action.passkey.name || 'Passkey'}".`);
+      }
+      await refresh();
+    } catch (err) {
+      setError(passkeyErrorMessage(err));
+      await refresh();
     } finally {
-      setResetting(false);
+      setBusy(false);
     }
   };
 
@@ -441,11 +464,11 @@ function SecurityTab() {
     setError('');
     try {
       await resetTotpEnroll(code);
-      setMfaEnrolled(true);
       setAuthenticatorUri('');
       setSharedKey('');
       setCode('');
-      setSuccess(true);
+      setNotice('Authenticator app set up. Its codes now work for signing in.');
+      await refresh();
     } catch (err) {
       const msg = (err as { response?: { data?: string } })?.response?.data;
       setError(typeof msg === 'string' ? msg : 'Invalid code. Please try again.');
@@ -454,71 +477,147 @@ function SecurityTab() {
     }
   };
 
+  const rename = async (p: PasskeyInfo) => {
+    const name = prompt('Name this passkey (e.g. "iPhone", "YubiKey"):', p.name ?? '')?.trim();
+    if (name == null || name === (p.name ?? '')) return;
+    try { await renamePasskey(p.id, name); await refresh(); }
+    catch { setError('Failed to rename the passkey.'); }
+  };
+
+  const fmt = (d: string) => new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const reauthHint = !pending ? '' : {
+    totpReset: 'Confirm your identity to set up or reset your authenticator app.',
+    totpRemove: 'Confirm your identity to remove your authenticator app.',
+    passkeyAdd: 'Confirm your identity to add a passkey.',
+    passkeyRemove: 'Confirm your identity to remove this passkey.',
+  }[pending.kind];
+
   return (
     <div className={styles.tabSection}>
       <div className={styles.sectionTitle}>Two-Factor Authentication</div>
       <p className={styles.hint}>
-        Two-factor authentication (TOTP) status:{' '}
-        <strong>{mfaEnrolled === null ? 'Checking…' : mfaEnrolled ? 'Enabled' : 'Not enabled'}</strong>
+        After your password, sign-in asks for a second step: a <strong>passkey</strong> (the default) or a code
+        from your <strong>authenticator app</strong>. You can set up both; either one signs you in.
       </p>
-
-      {mfaEnrolled === false && !inProgress && !success && (
+      {status && !status.mfaEnrolled && !inProgress && (
         <div className={styles.error}>
-          Two-factor authentication is currently disabled — your account is protected by password only.
-          {' '}If you started an authenticator reset and didn't finish it, set up a new authenticator below.
+          No second factor is set up — your account is protected by password only. Add a passkey or set up the
+          authenticator app below.
         </div>
       )}
-
       {error && <div className={styles.error}>{error}</div>}
-      {success && <p style={{ color: '#1a7a40', fontSize: 13 }}>Authenticator reset. Your new code is now active.</p>}
+      {notice && <p style={{ color: 'var(--c-006600)', fontSize: 13 }} role="status">{notice}</p>}
 
-      {!inProgress && (
-        <>
-          <p className={styles.hint}>
-            Lost your device, or want to move to a new one? Resetting invalidates your current authenticator
-            code immediately and generates a new one — you'll need to confirm a code from the new one before
-            it takes effect. Requires confirming your password or current authenticator code first.
-          </p>
-          <button className={styles.btnSecondary} onClick={() => setShowReauth(true)} disabled={resetting || mfaEnrolled === null}>
-            {resetting ? 'Starting…' : mfaEnrolled ? 'Reset Authenticator App' : 'Set Up Authenticator App'}
+      {/* ── Passkeys ── */}
+      <div className={styles.prefGroup}>
+        <p className={styles.prefGroupTitle}>Passkeys (recommended)</p>
+        <p className={styles.hint} style={{ marginBottom: 8 }}>
+          Sign in with your fingerprint, face, device PIN or a security key. Add one on each device you use.
+        </p>
+        {status == null ? <p className={styles.hint}>Checking…</p> : status.passkeys.length === 0 ? (
+          <p className={styles.hint}>No passkeys yet.</p>
+        ) : (
+          <table className={styles.dupTable} style={{ marginBottom: 10 }}>
+            <thead><tr><th>Name</th><th>Added</th><th>Last used</th><th></th></tr></thead>
+            <tbody>
+              {status.passkeys.map(p => (
+                <tr key={p.id}>
+                  <td>{p.name || 'Passkey'}</td>
+                  <td>{fmt(p.createdAt)}</td>
+                  <td>{fmt(p.lastUsedAt)}</td>
+                  <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>
+                    <button className={styles.btnLink} onClick={() => rename(p)}>Rename</button>{' '}
+                    <button
+                      className={styles.btnLink}
+                      style={{ color: 'var(--c-cc0000)', marginLeft: 10 }}
+                      disabled={busy || onlyFactor(true)}
+                      title={onlyFactor(true) ? 'Your only second factor — add another passkey or the authenticator app first' : undefined}
+                      onClick={() => {
+                        if (confirm(`Remove the passkey "${p.name || 'Passkey'}"? It will no longer sign you in.`)) setPending({ kind: 'passkeyRemove', passkey: p });
+                      }}
+                    >Remove</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        {passkeysSupported() ? (
+          <button className={styles.btnPrimary} onClick={() => setPending({ kind: 'passkeyAdd' })} disabled={busy || status == null}>
+            {busy && pending == null ? 'Working…' : '+ Add a passkey'}
           </button>
-        </>
-      )}
+        ) : (
+          <p className={styles.hint}>This browser can't create passkeys. Use a current browser, over HTTPS.</p>
+        )}
+      </div>
 
-      {inProgress && (
-        <div>
-          <p className={styles.hint}>
-            <strong>Your previous code no longer works, and two-factor auth stays disabled until you finish.</strong>
-            {' '}Scan this into your authenticator app and enter a fresh code to finish.
-          </p>
-          <div style={{ margin: '12px 0' }}>
-            <QRCodeSVG value={authenticatorUri} size={160} />
-          </div>
-          <p className={styles.hint}>Or enter this key manually: <code>{sharedKey}</code></p>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 10 }}>
-            <input
-              type="text"
-              inputMode="numeric"
-              pattern="[0-9]{6}"
-              maxLength={6}
-              placeholder="000000"
-              value={code}
-              onChange={e => setCode(e.target.value.replace(/\D/g, ''))}
-              autoFocus
-            />
-            <button className={styles.btnPrimary} onClick={handleConfirm} disabled={confirming}>
-              {confirming ? 'Confirming…' : 'Confirm'}
+      {/* ── Authenticator app ── */}
+      <div className={styles.prefGroup}>
+        <p className={styles.prefGroupTitle}>Authenticator app (backup)</p>
+        <p className={styles.hint} style={{ marginBottom: 8 }}>
+          Status: <strong>{status == null ? 'Checking…' : status.totpEnrolled ? 'On' : 'Off'}</strong>.
+          {' '}A 6-digit code from an app like Google Authenticator or 1Password — handy when you don't have a
+          device with your passkey.
+        </p>
+        {!inProgress && (
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <button className={styles.btnSecondary} onClick={() => setPending({ kind: 'totpReset' })} disabled={busy || status == null}>
+              {status?.totpEnrolled ? 'Reset Authenticator App' : 'Set Up Authenticator App'}
             </button>
+            {status?.totpEnrolled && (
+              <button
+                className={styles.btnSecondary}
+                disabled={busy || onlyFactor(false)}
+                title={onlyFactor(false) ? 'Your only second factor — add a passkey first' : undefined}
+                onClick={() => {
+                  if (confirm('Remove the authenticator app? Its codes will stop working; sign in with your passkey instead.')) setPending({ kind: 'totpRemove' });
+                }}
+              >Remove Authenticator App</button>
+            )}
           </div>
-        </div>
-      )}
+        )}
+        {status?.totpEnrolled && !inProgress && (
+          <p className={styles.hint} style={{ marginTop: 6 }}>
+            Resetting stops your current codes immediately; confirm a code from the new setup to finish.
+          </p>
+        )}
 
-      {showReauth && (
+        {inProgress && (
+          <div>
+            <p className={styles.hint}>
+              <strong>Your previous code no longer works.</strong>
+              {' '}Scan this into your authenticator app and enter a fresh code to finish.
+            </p>
+            <div style={{ margin: '12px 0' }}>
+              <QRCodeSVG value={authenticatorUri} size={160} />
+            </div>
+            <p className={styles.hint}>Or enter this key manually: <code>{sharedKey}</code></p>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 10 }}>
+              <input
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]{6}"
+                maxLength={6}
+                placeholder="000000"
+                value={code}
+                onChange={e => setCode(e.target.value.replace(/\D/g, ''))}
+                autoFocus
+                aria-label="Code from your authenticator app"
+              />
+              <button className={styles.btnPrimary} onClick={handleConfirm} disabled={confirming}>
+                {confirming ? 'Confirming…' : 'Confirm'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {pending && (
         <ReauthModal
           title="Confirm Identity"
-          hint="Confirm your identity to reset your authenticator app."
+          hint={reauthHint}
           onVerified={handleVerified}
-          onClose={() => setShowReauth(false)}
+          onClose={() => setPending(null)}
         />
       )}
 

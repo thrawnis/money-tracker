@@ -23,7 +23,6 @@ dotnet build
 dotnet run
 dotnet test                          # xUnit + Testcontainers (requires Docker)
 dotnet ef database update            # manual migration (auto-applied on startup)
-dotnet build /p:FIDO2_AVAILABLE=true # build with passkey support
 ```
 
 **Frontend** (`/frontend`):
@@ -47,11 +46,11 @@ docker compose up
 ### Stack
 - **Backend**: ASP.NET Core 8 · Entity Framework Core 8 · PostgreSQL 16
 - **Frontend**: React 19 · React Router 7 (`createBrowserRouter`) · TypeScript · Vite · Axios
-- **Auth**: JWT (15-min access tokens) + httpOnly refresh token cookies · TOTP MFA · optional WebAuthn/FIDO2 passkeys (`FIDO2_AVAILABLE` build flag)
+- **Auth**: JWT (15-min access tokens) + httpOnly refresh token cookies · required second factor: WebAuthn passkeys (default, Fido2 library) and/or TOTP authenticator app
 - **Deployment**: Docker Compose — `api` (port 5012), `frontend` nginx (port 3012), `db` (Postgres)
 
 ### Authentication Flow
-1. `POST /auth/login` → password check → if MFA enrolled, returns `{ requiresMfa, userId }` → client calls `/auth/mfa/totp/verify` or `/passkey/login/*`
+1. `POST /auth/login` → password check → if MFA enrolled, returns `{ requiresMfa, userId, methods: { passkey, totp } }` → client calls `/auth/passkey/login/*` (default) or `/auth/mfa/totp/verify`; if not enrolled, `{ requiresMfaSetup }` → first-time setup offers a passkey (recommended) or TOTP
 2. Tokens issued via `IssueTokensAsync`: JWT access token + refresh token stored in DB, set as httpOnly cookie
 3. Silent refresh on app load and tab focus (`AuthContext`)
 4. Demo user (`demo@example.com`) skips MFA when `DEMO_MODE=true`

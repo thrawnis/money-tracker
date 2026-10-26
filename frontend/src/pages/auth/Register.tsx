@@ -41,7 +41,7 @@ export default function Register() {
       const res = await authApi.register(email, password, timeZoneId);
       // Store userId so the TOTP setup page can use it
       sessionStorage.setItem('mfa_setup_user_id', res.userId);
-      navigate('/auth/setup-totp');
+      navigate('/auth/setup-mfa');
     } catch (err: unknown) {
       const response = (err as { response?: { status?: number; data?: unknown } })?.response;
       const data = response?.data;

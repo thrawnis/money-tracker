@@ -1,3 +1,4 @@
+using Fido2NetLib;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Threading.RateLimiting;
@@ -101,7 +102,9 @@ builder.Services.AddRateLimiter(options =>
             httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
             _ => new FixedWindowRateLimiterOptions
             {
-                PermitLimit = 30,
+                // Overridable (RateLimiting:AuthPerMinute) so automated tests that sign
+                // in many times in a row aren't throttled; 30 in production.
+                PermitLimit = builder.Configuration.GetValue("RateLimiting:AuthPerMinute", 30),
                 Window      = TimeSpan.FromMinutes(1),
                 QueueLimit  = 0,
             }));
@@ -119,24 +122,29 @@ builder.Services.AddSession(options =>
     options.Cookie.SameSite    = SameSiteMode.Strict;
 });
 
-// ── Passkeys (Fido2NetLib — only registered when built with FIDO2_AVAILABLE) ──
-
-#if FIDO2_AVAILABLE
-builder.Services.AddFido2(options =>
+// ── Passkeys (WebAuthn) ──────────────────────────────────────────────────────
+// A passkey is bound to the site's domain (the "relying party ID") and only
+// works from the exact origins listed. Docker Compose passes FIDO2_DOMAIN /
+// FIDO2_ORIGIN from .env as Fido2:Domain / Fido2:Origin (Passkeys:RpId /
+// Passkeys:Origins also work); without them both fall back to the frontend
+// address in AllowedOrigins. Origins may be comma-separated. Browsers only
+// allow passkeys on HTTPS sites, or on http://localhost.
 {
-    options.ServerDomain = builder.Configuration["Fido2:Domain"] ?? "localhost";
-    options.ServerName   = "Money Tracker";
-    options.Origins      = new HashSet<string>
+    string? Setting(params string[] keys) =>
+        keys.Select(k => builder.Configuration[k]).FirstOrDefault(v => !string.IsNullOrWhiteSpace(v));
+    var origins = (Setting("Passkeys:Origins", "Fido2:Origin", "AllowedOrigins") ?? "http://localhost:3000")
+        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        .Select(o => o.TrimEnd('/'))
+        .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    var rpId = Setting("Passkeys:RpId", "Fido2:Domain") ?? new Uri(origins.First()).Host;
+    builder.Services.AddSingleton<IFido2>(new Fido2(new Fido2Configuration
     {
-        builder.Configuration["Fido2:Origin"] ?? "https://localhost:3000"
-    };
-    options.TimestampDriftTolerance = 300_000;
-})
-.AddCachedMetadataService(c =>
-{
-    c.AddStaticMetadataRepository();
-});
-#endif
+        ServerDomain = rpId,
+        ServerName = "Money Tracker",
+        Origins = origins,
+        TimestampDriftTolerance = 300_000,
+    }));
+}
 
 builder.Services.AddScoped<IPasskeyService, PasskeyService>();
 

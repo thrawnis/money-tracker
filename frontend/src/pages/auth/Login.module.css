@@ -206,3 +206,18 @@
   height: 1px;
   background: var(--c-e0e0e0);
 }
+
+/* Text-style button for switching between sign-in methods. */
+.linkBtn {
+  display: block;
+  margin: 16px auto 0;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--c-005f5f);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.linkBtn:hover { text-decoration: underline; }
+.linkBtn:disabled { opacity: 0.6; cursor: not-allowed; }

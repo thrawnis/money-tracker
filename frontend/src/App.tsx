@@ -19,7 +19,8 @@ import Ious from './pages/Ious';
 import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
 import SetupTotp from './pages/auth/SetupTotp';
-import TotpVerify from './pages/auth/TotpVerify';
+import MfaChallenge from './pages/auth/MfaChallenge';
+import SetupMfa from './pages/auth/SetupMfa';
 import RequireTimeZone from './pages/auth/RequireTimeZone';
 
 // Combined auth guard + layout — useAuth is available because AuthProvider wraps RouterProvider
@@ -41,7 +42,10 @@ const router = createBrowserRouter(
       <Route path="/auth/login"      element={<Login />} />
       <Route path="/auth/register"   element={<Register />} />
       <Route path="/auth/setup-totp" element={<SetupTotp />} />
-      <Route path="/auth/totp"       element={<TotpVerify />} />
+      <Route path="/auth/mfa"        element={<MfaChallenge />} />
+      <Route path="/auth/setup-mfa"  element={<SetupMfa />} />
+      {/* Old address of the code-only step, kept for bookmarks/back button. */}
+      <Route path="/auth/totp"       element={<MfaChallenge />} />
       <Route element={<AppShell />}>
         <Route index                          element={<Dashboard />} />
         <Route path="accounts"                element={<AccountsList />} />

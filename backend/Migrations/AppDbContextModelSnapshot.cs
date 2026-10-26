@@ -310,6 +310,9 @@ namespace MoneyTracker.Migrations
                     b.Property<string>("TimeZoneId")
                         .HasColumnType("text");
 
+                    b.Property<bool>("TotpEnrolled")
+                        .HasColumnType("boolean");
+
                     b.Property<bool>("TwoFactorEnabled")
                         .HasColumnType("boolean");
 
