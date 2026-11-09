@@ -188,7 +188,7 @@ Money other people owe the user, and money the user owes them.
 
 ## Settings
 
-- Settings tab order: Preferences, Security, Export Data, Import Data, Account Backups, Audit Log (Duplicate Transactions, Duplicate Names, Institutions, and Payee Mapping Rules live under Utilities; password change is part of Security)
+- Settings tab order: Preferences, Security, Export Data, Import Data, Account Backups, Audit Log (Duplicate Transactions, Duplicate Names, Institutions, and Payee Mapping Rules live under Utilities — the open Utilities tab is kept in the address as ?tab=transactions|names|institutions|mapping-rules, so a refresh, the back button or a bookmark returns to it; password change is part of Security)
 - **Preferences**: default sort field and direction the account register uses when first opened (falls back to Date / newest-first if never set); manually changing the sort while viewing a register is a one-visit override and doesn't change the saved default. Also sets how many days ahead the register's "upcoming scheduled transactions" preview section looks (falls back to 31 days if never set) — this replaced the old per-register "Days ahead" control, which is now a single account-wide preference rather than something set per visit. Separately, "Auto-create upcoming recurring transactions" (default off) and its own "days ahead" window control whether/how far ahead recurring transactions are pre-created as real, editable transactions (see Bills & Reminders)
 - **Security**: view MFA enrollment status; reset or set up the authenticator app (see Authentication & Security)
 - **Password**: change password with current-password confirmation

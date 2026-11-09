@@ -1,4 +1,5 @@
 import { useState, useEffect, type FormEvent } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { getDuplicates, ignoreDuplicateGroup, unignoreDuplicateGroup, type DuplicateGroup, type DuplicateTransaction } from '../api/duplicates';
 import { deleteTransaction, getTransaction } from '../api/transactions';
@@ -595,9 +596,22 @@ function PayeeMappingRulesTab() {
 
 type Tab = 'duplicates' | 'duplicateNames' | 'institutions' | 'payeeMappingRules';
 
+const TAB_URL: Record<Tab, string> = {
+  duplicates: 'transactions',
+  duplicateNames: 'names',
+  institutions: 'institutions',
+  payeeMappingRules: 'mapping-rules',
+};
+const TAB_FROM_URL: Record<string, Tab> = Object.fromEntries(
+  Object.entries(TAB_URL).map(([t, u]) => [u, t as Tab]));
+
 export default function Utilities() {
   usePageTitle('Utilities');
-  const [tab, setTab] = useState<Tab>('duplicates');
+  // The open tab lives in the address (?tab=…), so a refresh, the back button
+  // or a bookmark comes back to it.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab: Tab = TAB_FROM_URL[searchParams.get('tab') ?? ''] ?? 'duplicates';
+  const setTab = (t: Tab) => setSearchParams({ tab: TAB_URL[t] }, { replace: true });
 
   return (
     <div className={styles.page}>
