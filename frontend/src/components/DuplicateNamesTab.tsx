@@ -22,7 +22,9 @@ function MergeGroup({ items, kind, dismissed, onMerge, onDismiss, onRestore }: {
 }) {
   const [keepId, setKeepId] = useState(items[0].id);
   const [selected, setSelected] = useState<Set<number>>(new Set(items.map(i => i.id)));
-  const [busy, setBusy] = useState(false);
+  // Which action is running; held until the refreshed list has loaded, so the
+  // group doesn't reappear clickable in between.
+  const [busy, setBusy] = useState<'merge' | 'dismiss' | 'restore' | null>(null);
   const keep = items.find(i => i.id === keepId)!;
   const merge = items.filter(i => i.id !== keepId && selected.has(i.id));
 
@@ -40,8 +42,8 @@ function MergeGroup({ items, kind, dismissed, onMerge, onDismiss, onRestore }: {
       + `and the merged ${what}${merge.length === 1 ? ' is' : 's are'} deleted. This can't be undone.`
       + (kind === 'payee' ? '\n\nThe old names become payee mapping rules, so future imports use the kept name.' : ''),
     )) return;
-    setBusy(true);
-    try { await onMerge(keep, merge); } finally { setBusy(false); }
+    setBusy('merge');
+    try { await onMerge(keep, merge); } finally { setBusy(null); }
   };
 
   return (
@@ -69,18 +71,18 @@ function MergeGroup({ items, kind, dismissed, onMerge, onDismiss, onRestore }: {
         </tbody>
       </table>
       <div style={{ display: 'flex', gap: 8 }}>
-        <button className={styles.btnPrimary} onClick={run} disabled={busy || merge.length === 0}>
-          {busy ? 'Merging…' : merge.length === 0 ? 'Select names to merge' : `Merge ${merge.length} into "${keep.name}"`}
+        <button className={styles.btnPrimary} onClick={run} disabled={busy !== null || merge.length === 0}>
+          {busy === 'merge' ? 'Merging…' : merge.length === 0 ? 'Select names to merge' : `Merge ${merge.length} into "${keep.name}"`}
         </button>
         {dismissed ? (
-          <button className={styles.btnSecondary} disabled={busy}
-            onClick={async () => { setBusy(true); try { await onRestore(); } finally { setBusy(false); } }}>
-            Suggest again
+          <button className={styles.btnSecondary} disabled={busy !== null} aria-busy={busy === 'restore'}
+            onClick={async () => { setBusy('restore'); try { await onRestore(); } finally { setBusy(null); } }}>
+            {busy === 'restore' ? 'Restoring…' : 'Suggest again'}
           </button>
         ) : (
-          <button className={styles.btnSecondary} disabled={busy}
-            onClick={async () => { setBusy(true); try { await onDismiss(); } finally { setBusy(false); } }}>
-            Not duplicates
+          <button className={styles.btnSecondary} disabled={busy !== null} aria-busy={busy === 'dismiss'}
+            onClick={async () => { setBusy('dismiss'); try { await onDismiss(); } finally { setBusy(null); } }}>
+            {busy === 'dismiss' ? 'Hiding…' : 'Not duplicates'}
           </button>
         )}
       </div>
@@ -98,7 +100,13 @@ export default function DuplicateNamesTab() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [showDismissed, setShowDismissed] = useState(false);
-  const [reload, setReload] = useState(0);
+
+  // Re-fetches the list; actions await it so their busy state lasts until the
+  // updated list is on screen.
+  const refresh = async () => {
+    try { setData(await findNameDuplicates(showDismissed)); }
+    catch { setError('Failed to look for duplicate names.'); }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -106,7 +114,7 @@ export default function DuplicateNamesTab() {
       .then(d => { if (!cancelled) setData(d); })
       .catch(() => { if (!cancelled) setError('Failed to look for duplicate names.'); });
     return () => { cancelled = true; };
-  }, [reload, showDismissed]);
+  }, [showDismissed]);
 
   const key = (kind: string, ids: number[]) => `${kind}:${[...ids].sort((a, b) => a - b).join(',')}`;
 
@@ -114,7 +122,7 @@ export default function DuplicateNamesTab() {
     setError(''); setNotice('');
     try {
       if (dismiss) await dismissNameGroup(kind, ids); else await undismissNameGroup(kind, ids);
-      setReload(r => r + 1);
+      await refresh();
     } catch {
       setError('Failed to update the group.');
     }
@@ -126,7 +134,7 @@ export default function DuplicateNamesTab() {
       const ids = merge.map(m => m.id);
       if (kind === 'payee') await mergePayees(keep.id, ids); else await mergeCategories(keep.id, ids);
       setNotice(`Merged ${merge.map(m => `"${m.name}"`).join(', ')} into "${keep.name}".`);
-      setReload(r => r + 1);
+      await refresh();
     } catch (err) {
       setError((err as ApiError)?.response?.data?.message ?? 'Merge failed.');
     }
