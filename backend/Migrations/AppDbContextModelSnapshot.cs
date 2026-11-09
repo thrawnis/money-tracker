@@ -466,6 +466,39 @@ namespace MoneyTracker.Migrations
                     b.ToTable("DismissedDuplicateGroups");
                 });
 
+            modelBuilder.Entity("MoneyTracker.Models.DismissedNameGroup", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("MemberIds")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "Kind", "MemberIds")
+                        .IsUnique();
+
+                    b.ToTable("DismissedNameGroups");
+                });
+
             modelBuilder.Entity("MoneyTracker.Models.ExportToken", b =>
                 {
                     b.Property<int>("Id")
@@ -1435,6 +1468,17 @@ namespace MoneyTracker.Migrations
                 });
 
             modelBuilder.Entity("MoneyTracker.Models.DismissedDuplicateGroup", b =>
+                {
+                    b.HasOne("MoneyTracker.Models.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("MoneyTracker.Models.DismissedNameGroup", b =>
                 {
                     b.HasOne("MoneyTracker.Models.ApplicationUser", "User")
                         .WithMany()
