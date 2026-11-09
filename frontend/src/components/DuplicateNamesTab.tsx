@@ -1,0 +1,157 @@
+import { useEffect, useState } from 'react';
+import {
+  findNameDuplicates, mergePayees, mergeCategories,
+  type NameDuplicates, type DuplicatePayee, type DuplicateCategory,
+} from '../api/nameDuplicates';
+import styles from '../pages/Settings.module.css';
+
+type ApiError = { response?: { data?: { message?: string } } };
+type Item = { id: number; name: string; transactionCount: number; detail?: string };
+
+/**
+ * One suggested group: pick the name to keep and which others to merge into it.
+ * Defaults to keeping the most-used name and merging all the rest.
+ */
+function MergeGroup({ items, kind, onMerge, onSkip }: {
+  items: Item[];
+  kind: 'payee' | 'category';
+  onMerge: (keep: Item, merge: Item[]) => Promise<void>;
+  onSkip: () => void;
+}) {
+  const [keepId, setKeepId] = useState(items[0].id);
+  const [selected, setSelected] = useState<Set<number>>(new Set(items.map(i => i.id)));
+  const [busy, setBusy] = useState(false);
+  const keep = items.find(i => i.id === keepId)!;
+  const merge = items.filter(i => i.id !== keepId && selected.has(i.id));
+
+  const toggle = (id: number) => {
+    const next = new Set(selected);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    setSelected(next);
+  };
+
+  const run = async () => {
+    const what = kind === 'payee' ? 'payee' : 'category';
+    if (!confirm(
+      `Merge ${merge.map(m => `"${m.name}"`).join(', ')} into "${keep.name}"?\n\n`
+      + `Their transactions${kind === 'category' ? ', splits, subcategories' : ''} and bills move to "${keep.name}", `
+      + `and the merged ${what}${merge.length === 1 ? ' is' : 's are'} deleted. This can't be undone.`
+      + (kind === 'payee' ? '\n\nThe old names become payee mapping rules, so future imports use the kept name.' : ''),
+    )) return;
+    setBusy(true);
+    try { await onMerge(keep, merge); } finally { setBusy(false); }
+  };
+
+  return (
+    <div className={styles.prefGroup} style={{ marginBottom: 10 }}>
+      <table className={styles.dupTable} style={{ marginBottom: 8 }}>
+        <thead>
+          <tr><th style={{ width: 60 }}>Keep</th><th style={{ width: 60 }}>Merge</th><th>Name</th><th style={{ textAlign: 'right' }}>Used by</th></tr>
+        </thead>
+        <tbody>
+          {items.map(i => (
+            <tr key={i.id}>
+              <td>
+                <input type="radio" name={`keep-${kind}-${items[0].id}`} checked={keepId === i.id}
+                  onChange={() => setKeepId(i.id)} aria-label={`Keep ${i.name}`} />
+              </td>
+              <td>
+                <input type="checkbox" checked={i.id !== keepId && selected.has(i.id)} disabled={i.id === keepId}
+                  onChange={() => toggle(i.id)} aria-label={`Merge ${i.name}`} />
+              </td>
+              <td>{i.name}{i.detail && <span className={styles.hint} style={{ margin: '0 0 0 6px' }}>{i.detail}</span>}</td>
+              <td style={{ textAlign: 'right' }}>{i.transactionCount} transaction{i.transactionCount === 1 ? '' : 's'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button className={styles.btnPrimary} onClick={run} disabled={busy || merge.length === 0}>
+          {busy ? 'Merging…' : merge.length === 0 ? 'Select names to merge' : `Merge ${merge.length} into "${keep.name}"`}
+        </button>
+        <button className={styles.btnSecondary} onClick={onSkip} disabled={busy}>Not duplicates</button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Utilities → Duplicate Names: likely-duplicate payees and categories (store
+ * numbers, punctuation, plurals, typos — exact duplicates are merged
+ * automatically at sign-in), merged on the user's say-so.
+ */
+export default function DuplicateNamesTab() {
+  const [data, setData] = useState<NameDuplicates | null>(null);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  // "Not duplicates" hides a group for this visit only.
+  const [skipped, setSkipped] = useState<Set<string>>(new Set());
+  const [reload, setReload] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    findNameDuplicates()
+      .then(d => { if (!cancelled) setData(d); })
+      .catch(() => { if (!cancelled) setError('Failed to look for duplicate names.'); });
+    return () => { cancelled = true; };
+  }, [reload]);
+
+  const key = (kind: string, ids: number[]) => `${kind}:${[...ids].sort((a, b) => a - b).join(',')}`;
+
+  const doMerge = (kind: 'payee' | 'category') => async (keep: Item, merge: Item[]) => {
+    setError(''); setNotice('');
+    try {
+      const ids = merge.map(m => m.id);
+      if (kind === 'payee') await mergePayees(keep.id, ids); else await mergeCategories(keep.id, ids);
+      setNotice(`Merged ${merge.map(m => `"${m.name}"`).join(', ')} into "${keep.name}".`);
+      setReload(r => r + 1);
+    } catch (err) {
+      setError((err as ApiError)?.response?.data?.message ?? 'Merge failed.');
+    }
+  };
+
+  const payeeItems = (g: DuplicatePayee[]): Item[] =>
+    g.map(p => ({ id: p.id, name: p.name, transactionCount: p.transactionCount, detail: p.hasDefaultCategory ? 'has a default category' : undefined }));
+  const categoryItems = (g: DuplicateCategory[]): Item[] =>
+    g.map(c => ({
+      id: c.id,
+      name: c.parentName ? `${c.parentName}: ${c.name}` : c.name,
+      transactionCount: c.transactionCount,
+      detail: c.subcategoryCount > 0 ? `${c.subcategoryCount} subcategor${c.subcategoryCount === 1 ? 'y' : 'ies'}` : undefined,
+    }));
+
+  const payeeGroups = (data?.payees ?? []).filter(g => !skipped.has(key('p', g.map(i => i.id))));
+  const categoryGroups = (data?.categories ?? []).filter(g => !skipped.has(key('c', g.map(i => i.id))));
+
+  return (
+    <div className={styles.tabSection}>
+      <p className={styles.hint}>
+        Payees and categories whose names are probably the same thing — differing by store numbers, punctuation,
+        "Inc"/".com", plurals, spacing or a typo (e.g. "Starbucks #1234" and "Starbucks"). Names that match exactly
+        apart from capitalization are already merged automatically. Choose the name to keep and which to merge
+        into it; categories are only compared with others under the same parent.
+      </p>
+      {error && <div className={styles.error}>{error}</div>}
+      {notice && <p className={styles.hint} style={{ color: '#1a7a40' }}>{notice}</p>}
+      {!data && !error && <p className={styles.hint}>Looking for duplicates…</p>}
+
+      {data && (
+        <>
+          <h3 style={{ fontSize: 15, margin: '16px 0 8px' }}>Payees ({payeeGroups.length})</h3>
+          {payeeGroups.length === 0 && <p className={styles.hint}>No likely duplicate payees.</p>}
+          {payeeGroups.map(g => (
+            <MergeGroup key={key('p', g.map(i => i.id))} items={payeeItems(g)} kind="payee" onMerge={doMerge('payee')}
+              onSkip={() => setSkipped(new Set(skipped).add(key('p', g.map(i => i.id))))} />
+          ))}
+
+          <h3 style={{ fontSize: 15, margin: '20px 0 8px' }}>Categories ({categoryGroups.length})</h3>
+          {categoryGroups.length === 0 && <p className={styles.hint}>No likely duplicate categories.</p>}
+          {categoryGroups.map(g => (
+            <MergeGroup key={key('c', g.map(i => i.id))} items={categoryItems(g)} kind="category" onMerge={doMerge('category')}
+              onSkip={() => setSkipped(new Set(skipped).add(key('c', g.map(i => i.id))))} />
+          ))}
+        </>
+      )}
+    </div>
+  );
+}

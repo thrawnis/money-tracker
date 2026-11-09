@@ -11,6 +11,7 @@ import {
 import { getPayees } from '../api/payees';
 import type { Account, Institution, Payee, Transaction } from '../types';
 import TransactionDetailPanel from '../components/TransactionDetailPanel';
+import DuplicateNamesTab from '../components/DuplicateNamesTab';
 // Reuses Settings' styling for visual consistency between the two tabbed
 // utility-page shells rather than duplicating the same CSS.
 import styles from './Settings.module.css';
@@ -592,7 +593,7 @@ function PayeeMappingRulesTab() {
 
 // ── Page shell ──
 
-type Tab = 'duplicates' | 'institutions' | 'payeeMappingRules';
+type Tab = 'duplicates' | 'duplicateNames' | 'institutions' | 'payeeMappingRules';
 
 export default function Utilities() {
   usePageTitle('Utilities');
@@ -611,6 +612,12 @@ export default function Utilities() {
           Find Duplicates
         </button>
         <button
+          className={`${styles.tab} ${tab === 'duplicateNames' ? styles.tabActive : ''}`}
+          onClick={() => setTab('duplicateNames')}
+        >
+          Duplicate Names
+        </button>
+        <button
           className={`${styles.tab} ${tab === 'institutions' ? styles.tabActive : ''}`}
           onClick={() => setTab('institutions')}
         >
@@ -625,6 +632,7 @@ export default function Utilities() {
       </div>
       <div className={styles.tabContent}>
         {tab === 'duplicates' && <DuplicatesTab />}
+        {tab === 'duplicateNames' && <DuplicateNamesTab />}
         {tab === 'institutions' && <InstitutionsTab />}
         {tab === 'payeeMappingRules' && <PayeeMappingRulesTab />}
       </div>
