@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Working Style
 
-- **Always work on the `dev` branch** unless explicitly told otherwise. Never push to `main` without permission.
+- **Work directly on `main`** and push all changes there. Do not create or use other branches.
 - **Quality over speed.** Thoroughly review code — especially frontend — before committing. Read the relevant files, understand the context, and verify the change is correct end-to-end.
 - **Accuracy over assumptions.** If the intent of a request is unclear, or a change touches something with non-obvious side effects, ask before proceeding.
 - **Consult REQUIREMENTS.md** before implementing features or making structural changes. Keep it updated when requirements change.
@@ -35,7 +35,7 @@ npm run lint     # ESLint
 
 **Full stack (Docker)**:
 ```bash
-./rebuild.sh     # pull dev branch, rebuild images, restart containers
+./rebuild.sh     # pull main branch, rebuild images, restart containers
 docker compose up
 ```
 

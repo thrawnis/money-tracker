@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# rebuild.sh — Pull latest dev branch and redeploy with Docker
+# rebuild.sh — Pull latest main branch and redeploy with Docker
 # Usage: ./rebuild.sh [--pull-base-images]
 #   --pull-base-images   Also re-pull the base images (postgres:16-alpine,
 #                         dotnet/sdk, node, nginx, etc.) from their registries
@@ -20,7 +20,7 @@ for arg in "$@"; do
 done
 
 REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
-BRANCH="dev"
+BRANCH="main"
 
 API_IMAGE="money-tracker-api:latest"
 FRONTEND_IMAGE="money-tracker-frontend:latest"
