@@ -1,11 +1,16 @@
 import BalanceHistoryReport from '../components/BalanceHistoryReport';
 import { getIous, type IouPage } from '../api/ious';
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState, type FormEvent } from 'react';
+import { bulkSetCategory } from '../api/transactions';
+import { getCategories } from '../api/categories';
+import CategoryAutocomplete from '../components/CategoryAutocomplete';
+import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
+import { flattenCategories } from '../utils/categories';
 import { Link } from 'react-router-dom';
 import { getDashboard, type DashboardData, type DashboardAccount } from '../api/dashboard';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { ACCOUNT_TYPE_GROUP_LABELS } from '../utils/accountTypes';
-import type { AccountType } from '../types';
+import type { AccountType, Category } from '../types';
 import styles from './Dashboard.module.css';
 
 const ACCOUNT_TYPE_ORDER = ['Checking', 'Savings', 'CreditCard', 'Cash', 'Investment', 'Loan', 'Other'];
@@ -139,6 +144,43 @@ export default function Dashboard() {
 
   const [ious, setIous] = useState<IouPage | null>(null);
 
+  // Categorizing a transaction straight from the Uncategorized list: clicking
+  // a row opens a category box under it.
+  const [categories, setCategories] = useState<Category[] | null>(null);
+  const [catTxId, setCatTxId] = useState<number | null>(null);
+  const [catText, setCatText] = useState('');
+  const [catSaving, setCatSaving] = useState(false);
+  const [catError, setCatError] = useState('');
+  useUnsavedChanges(catTxId !== null && catText.trim() !== '' && !catSaving);
+
+  const openCategorize = (txId: number) => {
+    if (catTxId === txId) { setCatTxId(null); return; }
+    setCatTxId(txId);
+    setCatText('');
+    setCatError('');
+    if (!categories) getCategories().then(setCategories).catch(() => setCatError('Failed to load categories.'));
+  };
+
+  const saveCategory = async (e: FormEvent, accountId: number, txId: number) => {
+    e.preventDefault();
+    const label = catText.trim();
+    const match = flattenCategories(categories ?? []).find(c => c.label.toLowerCase() === label.toLowerCase());
+    if (!match) { setCatError(label ? `No category called "${label}". Pick one from the suggestions.` : 'Choose a category.'); return; }
+    setCatSaving(true);
+    setCatError('');
+    try {
+      await bulkSetCategory(accountId, [txId], match.id);
+      setCatTxId(null);
+      setCatText('');
+      // Reload so the count drops and the next uncategorized transaction moves up.
+      setData(await getDashboard());
+    } catch (err) {
+      setCatError((err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Failed to set the category.');
+    } finally {
+      setCatSaving(false);
+    }
+  };
+
   useEffect(() => {
     getDashboard()
       .then(setData)
@@ -257,6 +299,7 @@ export default function Dashboard() {
               </h3>
               <p className={styles.uncatHint}>
                 {data.uncategorizedCount} transaction{data.uncategorizedCount !== 1 ? 's' : ''} need categorization.
+                {' '}Click one to set its category.
               </p>
               <table className={styles.uncatTable}>
                 <thead>
@@ -269,18 +312,46 @@ export default function Dashboard() {
                 </thead>
                 <tbody>
                   {data.uncategorizedSamples.map(tx => (
-                    <tr key={tx.id}>
-                      <td>{formatDate(tx.date)}</td>
-                      <td>
-                        <Link to={`/accounts/${tx.accountId}`} className={styles.txLink}>
-                          {tx.accountName}
-                        </Link>
-                      </td>
-                      <td>{tx.payee ?? '—'}</td>
-                      <td className={`${styles.amount} ${tx.amount < 0 ? styles.negative : ''}`}>
-                        {formatCurrency(tx.amount)}
-                      </td>
-                    </tr>
+                    <Fragment key={tx.id}>
+                      <tr
+                        className={`${styles.uncatRow} ${catTxId === tx.id ? styles.uncatRowOpen : ''}`}
+                        onClick={() => openCategorize(tx.id)}
+                        title="Click to set the category"
+                      >
+                        <td>{formatDate(tx.date)}</td>
+                        <td>
+                          <Link to={`/accounts/${tx.accountId}`} className={styles.txLink} onClick={e => e.stopPropagation()}>
+                            {tx.accountName}
+                          </Link>
+                        </td>
+                        <td>{tx.payee ?? '—'}</td>
+                        <td className={`${styles.amount} ${tx.amount < 0 ? styles.negative : ''}`}>
+                          {formatCurrency(tx.amount)}
+                        </td>
+                      </tr>
+                      {catTxId === tx.id && (
+                        <tr className={styles.uncatEditRow}>
+                          <td colSpan={4}>
+                            <form className={styles.uncatEditForm} onSubmit={e => saveCategory(e, tx.accountId, tx.id)}>
+                              <CategoryAutocomplete
+                                value={catText}
+                                onChange={v => { setCatText(v); setCatError(''); }}
+                                categories={categories ?? []}
+                                placeholder={categories ? 'Category or Category: Subcategory' : 'Loading categories…'}
+                                autoFocus
+                              />
+                              <button type="submit" className={styles.uncatSave} disabled={catSaving || !categories}>
+                                {catSaving ? 'Saving…' : 'Save'}
+                              </button>
+                              <button type="button" className={styles.uncatCancel} onClick={() => setCatTxId(null)} disabled={catSaving}>
+                                Cancel
+                              </button>
+                            </form>
+                            {catError && <div className={styles.uncatError}>{catError}</div>}
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
                   ))}
                 </tbody>
               </table>

@@ -287,3 +287,19 @@
 .iouMuted { color: var(--c-666677); font-size: 13px; margin: 4px 0 0; }
 .iouLink { margin: 8px 0 0; text-align: right; font-size: 13px; }
 .positive { color: var(--c-006600); }
+
+/* Uncategorized list: click a row to set its category inline. */
+.uncatRow { cursor: pointer; }
+.uncatRow:hover td { background: var(--c-f0f4f8, #f0f4f8); }
+.uncatRowOpen td { background: var(--c-f0f4f8, #f0f4f8); }
+.uncatEditRow td { background: var(--c-f0f4f8, #f0f4f8); padding-top: 4px; }
+.uncatEditForm { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.uncatEditForm > :first-child { flex: 1; min-width: 180px; }
+.uncatEditForm input { width: 100%; box-sizing: border-box; padding: 5px 8px; font-size: 13px; }
+.uncatSave, .uncatCancel {
+  padding: 5px 12px; font-size: 13px; border-radius: 3px; cursor: pointer; font-weight: 600;
+}
+.uncatSave { background: var(--c-003366); color: var(--c-ffffff); border: 1px solid var(--c-003366); }
+.uncatSave:disabled { opacity: 0.6; cursor: not-allowed; }
+.uncatCancel { background: transparent; color: var(--c-003366); border: 1px solid var(--c-cccccc, #ccc); }
+.uncatError { color: var(--c-cc0000); font-size: 12px; margin-top: 4px; }

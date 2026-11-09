@@ -95,6 +95,7 @@ public class DashboardController(
         var recentUncategorized = await db.Transactions
             .Where(t => t.Account.UserId == userId && t.CategoryId == null && t.TransferTransactionId == null && !t.IsVoided && !t.Splits.Any())
             .Include(t => t.Payee)
+            .Include(t => t.Account)
             .OrderByDescending(t => t.Date)
             .Take(5)
             .ToListAsync();
@@ -103,6 +104,7 @@ public class DashboardController(
         {
             id      = t.Id,
             accountId = t.AccountId,
+            accountName = t.Account.Name,
             date    = t.Date,
             payee   = t.Payee is null ? null : encryption.Decrypt(t.Payee.NameEncrypted, dek),
             amount  = t.Amount,
