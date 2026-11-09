@@ -5,12 +5,10 @@ import {
   setSimpleFinBalanceOnly,
   type SimpleFinStatus, type SimpleFinAccount,
 } from '../api/simplefin';
-import { createAccount } from '../api/accounts';
-import { getInstitutions, createInstitution } from '../api/institutions';
 import { useAuth } from '../contexts/auth-context';
-import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import { formatDateTime } from '../utils/timezone';
-import type { Account, AccountType } from '../types';
+import type { Account } from '../types';
+import NewLinkedAccountModal from './NewLinkedAccountModal';
 import { confirmLinkChange } from '../utils/bankLinks';
 import styles from '../pages/Settings.module.css';
 
@@ -26,28 +24,6 @@ function formatMoney(amount?: number | null, currency?: string | null) {
     return amount.toFixed(2);
   }
 }
-
-const ACCOUNT_TYPES: { value: AccountType; label: string }[] = [
-  { value: 'Checking', label: 'Checking' },
-  { value: 'Savings', label: 'Savings' },
-  { value: 'CreditCard', label: 'Credit Card' },
-  { value: 'Investment', label: 'Investment' },
-  { value: 'Loan', label: 'Loan' },
-  { value: 'Cash', label: 'Cash' },
-  { value: 'Other', label: 'Other' },
-];
-
-/** A best guess at the account type from the bank's account name. */
-function guessType(name: string): AccountType {
-  const n = name.toLowerCase();
-  if (/credit|card|visa|mastercard|amex|discover/.test(n)) return 'CreditCard';
-  if (/401|403b|ira\b|roth|brokerage|invest|retire|hsa|529|pension/.test(n)) return 'Investment';
-  if (/loan|mortgage|heloc|auto ?loan/.test(n)) return 'Loan';
-  if (/saving|money market/.test(n)) return 'Savings';
-  return 'Checking';
-}
-
-interface NewAccountDraft { sfId: number; name: string; type: AccountType; openingBalance: string }
 
 function formatDay(d?: string | null) {
   if (!d) return '—';
@@ -76,9 +52,8 @@ export default function BankSyncSettings({ status, onStatus: setStatus, accounts
   const [token, setToken] = useState('');
   const [busy, setBusy] = useState<'connect' | 'disconnect' | number | null>(null);
   const [error, setError] = useState('');
-  // The inline "new account" form, open on at most one bank account's row.
-  const [newAccount, setNewAccount] = useState<NewAccountDraft | null>(null);
-  useUnsavedChanges(newAccount !== null);
+  // The bank account whose "+ New account…" popup is open.
+  const [newAccountFor, setNewAccountFor] = useState<SimpleFinAccount | null>(null);
 
   const handleConnect = async () => {
     if (!token.trim()) return;
@@ -94,45 +69,12 @@ export default function BankSyncSettings({ status, onStatus: setStatus, accounts
     }
   };
 
-  const startNewAccount = (sf: SimpleFinAccount) => {
-    setError('');
-    const taken = new Set(accounts.map(a => a.name.toLowerCase()));
-    // Prefer the bank's own name; add the bank if that name is already used here.
-    let name = sf.name.trim();
-    if (taken.has(name.toLowerCase()) && sf.orgName) name = `${sf.orgName} ${name}`;
-    setNewAccount({ sfId: sf.id, name, type: guessType(sf.name), openingBalance: '0' });
-  };
-
-  // Creates the account (filed under the bank as its institution, created if
-  // needed), then links the bank account to it.
-  const handleCreateAndLink = async (sf: SimpleFinAccount) => {
-    if (!newAccount) return;
-    const name = newAccount.name.trim();
-    if (!name) { setError('Enter a name for the new account.'); return; }
-    const openingBalance = Number(newAccount.openingBalance || 0);
-    if (!Number.isFinite(openingBalance)) { setError('Enter a valid opening balance.'); return; }
+  // The popup created the account; link the bank account to it.
+  const linkNewAccount = async (sf: SimpleFinAccount, created: Account) => {
+    setNewAccountFor(null);
+    onAccountCreated();
     setBusy(sf.id);
     setError('');
-    let created: Account;
-    try {
-      let institutionId: number | undefined;
-      if (sf.orgName?.trim()) {
-        try {
-          const org = sf.orgName.trim();
-          const existing = (await getInstitutions()).find(i => i.name.toLowerCase() === org.toLowerCase());
-          institutionId = existing?.id ?? (await createInstitution(org)).id;
-        } catch {
-          institutionId = undefined;   // not worth failing over; the account is what matters
-        }
-      }
-      created = await createAccount({ name, type: newAccount.type, openingBalance, institutionId, isActive: true });
-    } catch (err) {
-      setError(apiMsg(err, 'Failed to create the account.'));
-      setBusy(null);
-      return;
-    }
-    onAccountCreated();
-    setNewAccount(null);
     try {
       setStatus(await linkSimpleFinAccount(sf.id, created.id));
     } catch (err) {
@@ -143,7 +85,7 @@ export default function BankSyncSettings({ status, onStatus: setStatus, accounts
   };
 
   const handleLink = async (sf: SimpleFinAccount, value: string) => {
-    if (value === 'new') { startNewAccount(sf); return; }
+    if (value === 'new') { setError(''); setNewAccountFor(sf); return; }
     const accountId = value ? Number(value) : null;
     if (accountId === (sf.linkedAccountId ?? null)) return;
     if (!confirmLinkChange(sf, accountId == null ? null : accounts.find(a => a.id === accountId) ?? null)) return;
@@ -251,6 +193,14 @@ export default function BankSyncSettings({ status, onStatus: setStatus, accounts
 
   return (
     <div className={styles.tabSection}>
+      {newAccountFor && (
+        <NewLinkedAccountModal
+          bankAccount={newAccountFor}
+          existingNames={accounts.map(a => a.name)}
+          onCreated={created => linkNewAccount(newAccountFor, created)}
+          onClose={() => setNewAccountFor(null)}
+        />
+      )}
       <p className={styles.hint}>
         Connected to SimpleFIN since {formatDateTime(status.createdAt, user?.timeZoneId)}
         {status.lastSyncAt ? <> · last synced {formatDateTime(status.lastSyncAt, user?.timeZoneId)}</> : <> · not synced yet</>}.
@@ -307,58 +257,11 @@ export default function BankSyncSettings({ status, onStatus: setStatus, accounts
                       Unlink
                     </button>
                   </span>
-                ) : newAccount?.sfId === sf.id ? (
-                  <form
-                    onSubmit={e => { e.preventDefault(); handleCreateAndLink(sf); }}
-                    style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 220 }}
-                  >
-                    <input
-                      className={styles.input}
-                      value={newAccount.name}
-                      onChange={e => setNewAccount({ ...newAccount, name: e.target.value })}
-                      aria-label="New account name"
-                      placeholder="Account name"
-                      autoFocus
-                    />
-                    <div style={{ display: 'flex', gap: 6, alignItems: 'flex-end' }}>
-                      <label style={{ display: 'flex', flexDirection: 'column', fontSize: 12, gap: 2 }}>
-                        Type
-                        <select
-                          value={newAccount.type}
-                          onChange={e => setNewAccount({ ...newAccount, type: e.target.value as AccountType })}
-                          aria-label="New account type"
-                        >
-                          {ACCOUNT_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                        </select>
-                      </label>
-                      <label style={{ display: 'flex', flexDirection: 'column', fontSize: 12, gap: 2 }}>
-                        Opening balance
-                        <input
-                          className={styles.input}
-                          type="number"
-                          step="0.01"
-                          value={newAccount.openingBalance}
-                          onChange={e => setNewAccount({ ...newAccount, openingBalance: e.target.value })}
-                          aria-label="Opening balance"
-                          title="The balance before the first transaction that will be synced"
-                          style={{ width: 120 }}
-                        />
-                      </label>
-                    </div>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button type="submit" className={styles.btnPrimary} disabled={busy !== null}>
-                        {busy === sf.id ? 'Creating…' : 'Create & Link'}
-                      </button>
-                      <button type="button" className={styles.btnSecondary} onClick={() => { setNewAccount(null); setError(''); }} disabled={busy !== null}>
-                        Cancel
-                      </button>
-                    </div>
-                  </form>
                 ) : (
                   <select
                     value=""
                     onChange={e => handleLink(sf, e.target.value)}
-                    disabled={busy !== null || newAccount !== null}
+                    disabled={busy !== null}
                     aria-label={`Account to sync ${sf.name} into`}
                   >
                     <option value="">— Don't sync —</option>
