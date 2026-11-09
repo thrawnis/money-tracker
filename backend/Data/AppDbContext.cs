@@ -42,6 +42,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         modelBuilder.Entity<Account>(e =>
         {
             e.Property(a => a.OpeningBalance).HasPrecision(18, 2);
+            e.Property(a => a.LowBalanceThreshold).HasPrecision(18, 2);
             e.HasOne(a => a.User).WithMany().HasForeignKey(a => a.UserId).OnDelete(DeleteBehavior.Cascade);
             e.HasOne(a => a.Institution).WithMany(i => i.Accounts).HasForeignKey(a => a.InstitutionId).OnDelete(DeleteBehavior.Restrict);
         });

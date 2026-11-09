@@ -1,6 +1,7 @@
 import BalanceHistoryReport from '../components/BalanceHistoryReport';
 import { getIous, type IouPage } from '../api/ious';
 import { getSpendingTrends, type SpendingTrends } from '../api/reports';
+import { getForecast, type Forecast } from '../api/forecast';
 import { paceText } from '../utils/spendingTrends';
 import { Fragment, useEffect, useState, type FormEvent } from 'react';
 import { bulkSetCategory } from '../api/transactions';
@@ -86,6 +87,39 @@ function PieChart({ accounts }: { accounts: DashboardAccount[] }) {
           ))}
         </ul>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Next 30 days for checking, savings and cash: each account's projected low
+ * point, with a warning when it would drop below the account's warning level.
+ * Amounts follow the hide-balances toggle; warnings always show.
+ */
+function ForecastTile({ data, showBalances }: { data: Forecast; showBalances: boolean }) {
+  const money = (n: number) => (showBalances ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD' }) : '••••');
+  const day = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const warnings = data.accounts.filter(a => a.firstBelowThreshold);
+  return (
+    <div className={styles.billsSection}>
+      <h3 className={styles.sectionTitle}><Link to="/reports" state={{ report: 'forecast' }}>Cash-Flow Forecast (30 Days)</Link></h3>
+      {warnings.map(a => (
+        <p key={a.accountId} className={styles.forecastWarn}>
+          ⚠ {a.name} may drop below {money(a.threshold ?? 0)} on {day(a.firstBelowThreshold!)} (low of {money(a.lowestBalance)} on {day(a.lowestDate)})
+        </p>
+      ))}
+      {data.accounts.map(a => (
+        <p key={a.accountId} className={styles.iouLine}>
+          <span>{a.name}</span>
+          <span>
+            <span className={styles.iouMuted}>lowest </span>
+            <strong className={a.threshold !== null && a.lowestBalance < a.threshold ? styles.negative : undefined}>{money(a.lowestBalance)}</strong>
+            <span className={styles.iouMuted}> on {day(a.lowestDate)}</span>
+          </span>
+        </p>
+      ))}
+      {warnings.length === 0 && <p className={styles.iouMuted}>No account is projected to drop below its warning level.</p>}
+      <p className={styles.iouLink}><Link to="/reports" state={{ report: 'forecast' }}>View forecast →</Link></p>
     </div>
   );
 }
@@ -189,6 +223,7 @@ export default function Dashboard() {
 
   const [ious, setIous] = useState<IouPage | null>(null);
   const [trends, setTrends] = useState<SpendingTrends | null>(null);
+  const [forecast, setForecast] = useState<Forecast | null>(null);
 
   // Categorizing a transaction straight from the Uncategorized list: clicking
   // a row opens a category box under it.
@@ -242,6 +277,7 @@ export default function Dashboard() {
     // The IOUs tile is optional: if it fails, the rest of the Dashboard stands.
     getIous().then(setIous).catch(() => {});
     getSpendingTrends(6).then(setTrends).catch(() => {});
+    getForecast(30, true).then(setForecast).catch(() => {});
   }, []);
 
   if (loading) return <div className={styles.page}><p className={styles.loading}>Loading…</p></div>;
@@ -311,6 +347,7 @@ export default function Dashboard() {
               ? <BalanceHistoryReport compact defaultRange="1y" />
               : <p style={{ fontSize: 13, opacity: 0.75, margin: 0 }}>Show balances to see your net worth over time.</p>}
           </div>
+          {forecast && forecast.accounts.length > 0 && <ForecastTile data={forecast} showBalances={showBalances} />}
           {ious && ious.people.length > 0 && <IousTile data={ious} showBalances={showBalances} />}
           {trends && trends.categories.length > 0 && <SpendingTrendsTile data={trends} showBalances={showBalances} />}
 

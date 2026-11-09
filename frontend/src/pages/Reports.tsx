@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import BalanceHistoryReport from '../components/BalanceHistoryReport';
 import SpendingTrendsReport from '../components/SpendingTrendsReport';
+import CashFlowForecastReport from '../components/CashFlowForecastReport';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import {
@@ -70,10 +71,10 @@ export default function Reports() {
   const location = useLocation();
   // The self-contained reports (own controls, not saveable), shown in place of
   // the parameterized ones.
-  type SpecialReport = 'balances' | 'trends' | null;
+  type SpecialReport = 'balances' | 'trends' | 'forecast' | null;
   const [special, setSpecial] = useState<SpecialReport>(() => {
     const r = (location.state as { report?: string } | null)?.report;
-    return r === 'balances' || r === 'trends' ? r : null;
+    return r === 'balances' || r === 'trends' || r === 'forecast' ? r : null;
   });
   const showBalanceHistory = special !== null;
   const setShowBalanceHistory = (on: boolean) => setSpecial(on ? 'balances' : null);
@@ -283,6 +284,12 @@ export default function Reports() {
             >
               📉 Spending Trends
             </button>
+            <button
+              className={`${styles.listItem} ${special === 'forecast' ? styles.listItemActive : ''}`}
+              onClick={() => { setSpecial('forecast'); setActiveSavedId(null); }}
+            >
+              🔮 Cash-Flow Forecast
+            </button>
           </div>
 
           {savedReports.length > 0 && (
@@ -301,7 +308,14 @@ export default function Reports() {
         </div>
 
         {/* ── Main content ── */}
-        {special === 'trends' ? (
+        {special === 'forecast' ? (
+          <div className={styles.main}>
+            <div className={styles.mainHeader}>
+              <h2 className={styles.pageTitle}>Cash-Flow Forecast</h2>
+            </div>
+            <CashFlowForecastReport />
+          </div>
+        ) : special === 'trends' ? (
           <div className={styles.main}>
             <div className={styles.mainHeader}>
               <h2 className={styles.pageTitle}>Spending Trends</h2>

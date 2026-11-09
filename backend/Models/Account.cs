@@ -35,6 +35,11 @@ public class Account
     // Stored encrypted
     public string? NotesEncrypted { get; set; }
 
+    // Cash-flow forecast warns when the projected balance would drop below
+    // this. Null means the default: $0 for checking, savings and cash; no
+    // warning for other types (a credit card normally runs negative).
+    public decimal? LowBalanceThreshold { get; set; }
+
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
