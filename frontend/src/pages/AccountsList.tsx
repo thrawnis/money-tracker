@@ -177,7 +177,12 @@ export default function AccountsList() {
 
       <section id="bank-sync" className={styles.bankSync}>
         <h3 className={styles.sectionTitle}>Bank Sync</h3>
-        <BankSyncSettings status={syncStatus} onStatus={setSyncStatus} accounts={accounts} />
+        <BankSyncSettings
+          status={syncStatus}
+          onStatus={setSyncStatus}
+          accounts={accounts}
+          onAccountCreated={() => { getAccounts(true).then(setAccounts).catch(() => {}); }}
+        />
       </section>
     </div>
   );
