@@ -35,7 +35,7 @@ npm run lint     # ESLint
 
 **Full stack (Docker)**:
 ```bash
-./rebuild.sh     # pull main branch, rebuild images, restart containers
+./rebuild.sh     # pull main; rebuild + restart only if the running images aren't from the latest commit (--force to always rebuild)
 docker compose up
 ```
 

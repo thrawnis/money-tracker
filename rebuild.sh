@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # rebuild.sh — Pull latest main branch and redeploy with Docker
-# Usage: ./rebuild.sh [--pull-base-images]
+# Usage: ./rebuild.sh [--force] [--pull-base-images]
+#   Rebuilds only when the running api/frontend containers weren't built from
+#   the latest commit on main (each image is labeled with its commit), or
+#   when a container isn't running. Otherwise it reports "up to date" and exits.
+#   --force              Rebuild and redeploy even if already up to date.
 #   --pull-base-images   Also re-pull the base images (postgres:16-alpine,
 #                         dotnet/sdk, node, nginx, etc.) from their registries
 #                         before building. Off by default: skipping this check
@@ -12,9 +16,11 @@
 set -euo pipefail
 
 PULL_BASE_IMAGES=0
+FORCE=0
 for arg in "$@"; do
   case "$arg" in
     --pull-base-images) PULL_BASE_IMAGES=1 ;;
+    --force) FORCE=1 ;;
     *) echo "Unknown argument: $arg" >&2; exit 1 ;;
   esac
 done
@@ -29,7 +35,43 @@ echo "==> Pulling latest code from branch: $BRANCH"
 cd "$REPO_DIR"
 git fetch origin "$BRANCH"
 git checkout "$BRANCH"
+SCRIPT_BEFORE="$(git hash-object "$REPO_DIR/rebuild.sh")"
 git reset --hard "origin/$BRANCH"
+
+# If this pull changed rebuild.sh itself, restart with the new version (bash
+# reads a script as it runs, so carrying on would mix old and new lines).
+if [ "$(git hash-object "$REPO_DIR/rebuild.sh")" != "$SCRIPT_BEFORE" ] && [ -z "${REBUILD_REEXEC:-}" ]; then
+  echo "==> rebuild.sh was updated; restarting it"
+  REBUILD_REEXEC=1 exec "$REPO_DIR/rebuild.sh" "$@"
+fi
+
+COMMIT="$(git rev-parse HEAD)"
+echo "==> Latest commit: $(git log -1 --format='%h %s' HEAD)"
+
+# -- Is the latest version already running? ------------------------------------
+# Each image carries the commit it was built from (see the build step); a
+# container keeps the labels of the image it was created from.
+REVISION_LABEL="org.opencontainers.image.revision"
+running_revision() {
+  local id
+  id="$(docker compose ps -q --status running "$1" 2>/dev/null | head -n1)"
+  [ -n "$id" ] || { echo "not running"; return; }
+  docker inspect -f "{{ index .Config.Labels \"$REVISION_LABEL\" }}" "$id" 2>/dev/null || echo "unknown"
+}
+API_RUNNING="$(running_revision api)"
+FRONTEND_RUNNING="$(running_revision frontend)"
+echo "    api running:      ${API_RUNNING:0:12}"
+echo "    frontend running: ${FRONTEND_RUNNING:0:12}"
+
+if [ "$FORCE" -eq 0 ] && [ "$API_RUNNING" = "$COMMIT" ] && [ "$FRONTEND_RUNNING" = "$COMMIT" ]; then
+  echo "==> Already running the latest version; nothing to do (use --force to rebuild anyway)."
+  exit 0
+fi
+if [ "$FORCE" -eq 1 ]; then
+  echo "==> --force: rebuilding"
+else
+  echo "==> Running version is not the latest; rebuilding"
+fi
 
 echo "==> Ensuring data directories exist"
 mkdir -p "$REPO_DIR/data/postgres" || { echo "ERROR: cannot create data/postgres"; exit 1; }
@@ -80,10 +122,10 @@ if [ "$PULL_BASE_IMAGES" -eq 1 ]; then
 fi
 
 echo "==> Building api image: $API_IMAGE"
-docker buildx build "${BUILDX_PULL_FLAG[@]}" --tag "$API_IMAGE" --load "$REPO_DIR/backend"
+docker buildx build "${BUILDX_PULL_FLAG[@]}" --label "$REVISION_LABEL=$COMMIT" --tag "$API_IMAGE" --load "$REPO_DIR/backend"
 
 echo "==> Building frontend image: $FRONTEND_IMAGE"
-docker buildx build "${BUILDX_PULL_FLAG[@]}" --tag "$FRONTEND_IMAGE" --load "$REPO_DIR/frontend"
+docker buildx build "${BUILDX_PULL_FLAG[@]}" --label "$REVISION_LABEL=$COMMIT" --tag "$FRONTEND_IMAGE" --load "$REPO_DIR/frontend"
 
 # --no-build everywhere below: the images above are already built, and
 # Compose must never attempt (and fail) to build its own.
@@ -117,6 +159,14 @@ if [ -n "$OLLAMA_PROFILE" ]; then
   done
   docker compose exec -T ollama ollama pull "$OLLAMA_MODEL" || \
     echo "   Warning: could not pull model '$OLLAMA_MODEL' -- it may already be cached."
+fi
+
+# Confirm the new containers really are the new build.
+API_RUNNING="$(running_revision api)"; FRONTEND_RUNNING="$(running_revision frontend)"
+if [ "$API_RUNNING" = "$COMMIT" ] && [ "$FRONTEND_RUNNING" = "$COMMIT" ]; then
+  echo "==> Verified: api and frontend are running ${COMMIT:0:12}"
+else
+  echo "WARNING: expected ${COMMIT:0:12} but api=${API_RUNNING:0:12} frontend=${FRONTEND_RUNNING:0:12}" >&2
 fi
 
 echo "==> Removing dangling images"
