@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import BalanceHistoryReport from '../components/BalanceHistoryReport';
+import SpendingTrendsReport from '../components/SpendingTrendsReport';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import {
@@ -67,8 +68,15 @@ export default function Reports() {
   // "Balances over time" is self-contained (its own controls, not saveable),
   // so it's shown in place of the parameterized reports rather than as a ReportType.
   const location = useLocation();
-  const [showBalanceHistory, setShowBalanceHistory] = useState(
-    (location.state as { report?: string } | null)?.report === 'balances');
+  // The self-contained reports (own controls, not saveable), shown in place of
+  // the parameterized ones.
+  type SpecialReport = 'balances' | 'trends' | null;
+  const [special, setSpecial] = useState<SpecialReport>(() => {
+    const r = (location.state as { report?: string } | null)?.report;
+    return r === 'balances' || r === 'trends' ? r : null;
+  });
+  const showBalanceHistory = special !== null;
+  const setShowBalanceHistory = (on: boolean) => setSpecial(on ? 'balances' : null);
   const [activeSavedId, setActiveSavedId] = useState<number | null>(null);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -264,10 +272,16 @@ export default function Reports() {
               🏷️ Transactions by Category
             </button>
             <button
-              className={`${styles.listItem} ${showBalanceHistory ? styles.listItemActive : ''}`}
+              className={`${styles.listItem} ${special === 'balances' ? styles.listItemActive : ''}`}
               onClick={() => { setShowBalanceHistory(true); setActiveSavedId(null); }}
             >
               📈 Balances Over Time
+            </button>
+            <button
+              className={`${styles.listItem} ${special === 'trends' ? styles.listItemActive : ''}`}
+              onClick={() => { setSpecial('trends'); setActiveSavedId(null); }}
+            >
+              📉 Spending Trends
             </button>
           </div>
 
@@ -287,7 +301,14 @@ export default function Reports() {
         </div>
 
         {/* ── Main content ── */}
-        {showBalanceHistory ? (
+        {special === 'trends' ? (
+          <div className={styles.main}>
+            <div className={styles.mainHeader}>
+              <h2 className={styles.pageTitle}>Spending Trends</h2>
+            </div>
+            <SpendingTrendsReport />
+          </div>
+        ) : special === 'balances' ? (
           <div className={styles.main}>
             <div className={styles.mainHeader}>
               <h2 className={styles.pageTitle}>Balances Over Time</h2>

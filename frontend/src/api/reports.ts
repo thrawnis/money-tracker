@@ -99,3 +99,35 @@ export interface BalanceHistory {
 
 export const getBalanceHistory = (range: BalanceRange, accountId?: number): Promise<BalanceHistory> =>
   api.get('/reports/balance-history', { params: { range, accountId } }).then(r => r.data);
+
+// ── Spending trends ──
+
+export interface SpendingTrendCategory {
+  /** Top-level category; null = uncategorized. Subcategories roll up into their parent. */
+  categoryId: number | null;
+  name: string;
+  /** Spent so far this month (positive = money out). */
+  thisMonth: number;
+  /** Average per month over the previous full months. */
+  average: number;
+  /** What was usually spent by this day of the month (previous months' average up to the same day). */
+  expectedSoFar: number;
+  /** thisMonth - expectedSoFar: positive means spending faster than usual. */
+  aheadOfPace: number;
+  /** Spent per month, oldest first; the last entry is the current month so far. */
+  monthly: number[];
+}
+
+export interface SpendingTrends {
+  /** YYYY-MM, oldest first; the last is the current month. */
+  months: string[];
+  asOf: string;
+  monthFraction: number;
+  totalThisMonth: number;
+  totalAverage: number;
+  totalExpectedSoFar: number;
+  categories: SpendingTrendCategory[];
+}
+
+export const getSpendingTrends = (months = 6): Promise<SpendingTrends> =>
+  api.get('/reports/spending-trends', { params: { months } }).then(r => r.data);

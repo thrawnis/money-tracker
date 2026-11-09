@@ -1,5 +1,7 @@
 import BalanceHistoryReport from '../components/BalanceHistoryReport';
 import { getIous, type IouPage } from '../api/ious';
+import { getSpendingTrends, type SpendingTrends } from '../api/reports';
+import { paceText } from '../utils/spendingTrends';
 import { Fragment, useEffect, useState, type FormEvent } from 'react';
 import { bulkSetCategory } from '../api/transactions';
 import { getCategories } from '../api/categories';
@@ -89,6 +91,48 @@ function PieChart({ accounts }: { accounts: DashboardAccount[] }) {
 }
 
 /**
+ * Categories running ahead of their usual pace this month (vs what was
+ * usually spent by this day of the month over the last 6 months). Amounts follow the
+ * hide-balances toggle; percentages always show.
+ */
+function SpendingTrendsTile({ data, showBalances }: { data: SpendingTrends; showBalances: boolean }) {
+  const money = (n: number) => (showBalances ? n.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }) : '••••');
+  const ahead = data.categories.filter(c => c.aheadOfPace > 0 && c.average > 0).slice(0, 5);
+  const totalPct = data.totalExpectedSoFar > 0
+    ? Math.round((data.totalThisMonth / data.totalExpectedSoFar - 1) * 100) : null;
+  return (
+    <div className={styles.billsSection}>
+      <h3 className={styles.sectionTitle}><Link to="/reports" state={{ report: 'trends' }}>Spending Trends</Link></h3>
+      <p className={styles.iouLine}>
+        <span>This month so far</span>
+        <span>
+          <strong>{money(data.totalThisMonth)}</strong>
+          {totalPct !== null && (
+            <span className={styles.iouMuted}> ({totalPct > 0 ? `${totalPct}% above` : totalPct < 0 ? `${-totalPct}% below` : 'on'} usual pace)</span>
+          )}
+        </span>
+      </p>
+      {ahead.length === 0 ? (
+        <p className={styles.iouMuted}>No category is running ahead of its usual pace.</p>
+      ) : (
+        <>
+          <p className={styles.iouMuted} style={{ marginTop: 6 }}>Ahead of usual pace:</p>
+          {ahead.map(c => (
+            <p key={c.categoryId ?? 'none'} className={styles.iouLine}>
+              <span>{c.name}</span>
+              <span>
+                {money(c.thisMonth)} <span className={styles.negative}>{paceText(c, showBalances)}</span>
+              </span>
+            </p>
+          ))}
+        </>
+      )}
+      <p className={styles.iouLink}><Link to="/reports" state={{ report: 'trends' }}>View spending trends →</Link></p>
+    </div>
+  );
+}
+
+/**
  * At-a-glance IOUs: what's owed each way, the net, and the oldest unpaid.
  * Follows the Dashboard's hide-balances toggle.
  */
@@ -144,6 +188,7 @@ export default function Dashboard() {
   const [error, setError] = useState('');
 
   const [ious, setIous] = useState<IouPage | null>(null);
+  const [trends, setTrends] = useState<SpendingTrends | null>(null);
 
   // Categorizing a transaction straight from the Uncategorized list: clicking
   // a row opens a category box under it.
@@ -196,6 +241,7 @@ export default function Dashboard() {
       .finally(() => setLoading(false));
     // The IOUs tile is optional: if it fails, the rest of the Dashboard stands.
     getIous().then(setIous).catch(() => {});
+    getSpendingTrends(6).then(setTrends).catch(() => {});
   }, []);
 
   if (loading) return <div className={styles.page}><p className={styles.loading}>Loading…</p></div>;
@@ -266,6 +312,7 @@ export default function Dashboard() {
               : <p style={{ fontSize: 13, opacity: 0.75, margin: 0 }}>Show balances to see your net worth over time.</p>}
           </div>
           {ious && ious.people.length > 0 && <IousTile data={ious} showBalances={showBalances} />}
+          {trends && trends.categories.length > 0 && <SpendingTrendsTile data={trends} showBalances={showBalances} />}
 
           <div className={styles.billsSection}>
             <h3 className={styles.sectionTitle}>Upcoming Bills (Next 14 Days)</h3>
