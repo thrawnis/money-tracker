@@ -32,6 +32,7 @@ public class AuthController(
     AppDbContext                    db,
     UrlEncoder                      urlEncoder,
     IAuditService                   audit,
+    ILogger<AuthController>         logger,
     VoidCategoryMigrationService    voidCategoryMigration,
     VoidPayeeMigrationService       voidPayeeMigration,
     DuplicateNameMergeService       duplicateNameMerge,
@@ -353,6 +354,7 @@ public class AuthController(
         }
         catch (Exception ex) when (ex is Fido2VerificationException or InvalidOperationException or System.Text.Json.JsonException)
         {
+            logger.LogWarning("Passkey verification failed: {Error}", ex.Message);
             return BadRequest(new { message = "The passkey couldn't be verified. Please try again." });
         }
 
@@ -405,6 +407,7 @@ public class AuthController(
         }
         catch (Exception ex) when (ex is Fido2VerificationException or InvalidOperationException or System.Text.Json.JsonException)
         {
+            logger.LogWarning("Passkey verification failed: {Error}", ex.Message);
             await userManager.AccessFailedAsync(user);
             return Unauthorized(new { message = "That passkey couldn't be verified for this account." });
         }
@@ -412,6 +415,49 @@ public class AuthController(
         await db.SaveChangesAsync();   // sign counter / last used
         await userManager.ResetAccessFailedCountAsync(user);
         return await IssueTokensAsync(user, "passkey");
+    }
+
+    // ── Passwordless sign-in (passkey only) ──────────────────────────────────
+    // A passkey with user verification is already two factors (the device and
+    // the PIN/biometric unlocking it), so it signs in on its own; email +
+    // password + second factor stays as the fallback. Failures are kept vague
+    // so the endpoint can't be used to probe which passkeys are registered.
+
+    [HttpPost("passkey/signin/begin")]
+    public IActionResult PasskeySigninBegin([FromBody] PasskeySigninBeginRequest? request)
+    {
+        HttpContext.Session.SetString("rememberMe", request?.RememberMe == true ? "1" : "0");
+        var optionsJson = passkeyService.BeginPasswordlessAuthentication();
+        HttpContext.Session.SetString("passkeySigninOptions", optionsJson);
+        return Content(optionsJson, "application/json");
+    }
+
+    [HttpPost("passkey/signin/complete")]
+    public async Task<IActionResult> PasskeySigninComplete([FromBody] PasskeySigninCompleteRequest request)
+    {
+        var optionsJson = HttpContext.Session.GetString("passkeySigninOptions");
+        if (optionsJson is null) return BadRequest(new { message = "Passkey sign-in timed out. Please try again." });
+        HttpContext.Session.Remove("passkeySigninOptions");
+
+        UserPasskeyCredential credential;
+        try
+        {
+            credential = await passkeyService.CompletePasswordlessAuthenticationAsync(request.AssertionResponseJson, optionsJson);
+        }
+        catch (Exception ex) when (ex is Fido2VerificationException or InvalidOperationException or System.Text.Json.JsonException)
+        {
+            logger.LogWarning("Passkey verification failed: {Error}", ex.Message);
+            await audit.LogSystemAsync("LOGIN_FAILED", details: new { method = "passkey-only" });
+            return Unauthorized(new { message = "That passkey couldn't be verified. Try again, or sign in with your email and password." });
+        }
+
+        var user = credential.User;
+        if (await userManager.IsLockedOutAsync(user))
+            return StatusCode(429, "Account locked due to too many failed attempts. Try again later.");
+
+        await db.SaveChangesAsync();   // sign counter / last used
+        await userManager.ResetAccessFailedCountAsync(user);
+        return await IssueTokensAsync(user, "passkey-only");
     }
 
     // ── Passkeys in Settings → Security (signed in; changes need a fresh
@@ -450,6 +496,7 @@ public class AuthController(
         }
         catch (Exception ex) when (ex is Fido2VerificationException or InvalidOperationException or System.Text.Json.JsonException)
         {
+            logger.LogWarning("Passkey verification failed: {Error}", ex.Message);
             return BadRequest(new { message = "The passkey couldn't be verified. Please try again." });
         }
 
@@ -794,6 +841,8 @@ public record PasskeyRegisterCompleteRequest(
     string UserId,
     string AttestationResponseJson,
     string? DeviceName);
+public record PasskeySigninBeginRequest(bool RememberMe);
+public record PasskeySigninCompleteRequest(string AssertionResponseJson);
 public record PasskeyLoginCompleteRequest(
     string UserId,
     string AssertionResponseJson);

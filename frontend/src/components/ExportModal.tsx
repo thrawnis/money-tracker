@@ -1,5 +1,6 @@
-import { useState, type FormEvent } from 'react';
+import { useState } from 'react';
 import api from '../api/client';
+import { ReauthForm } from './ReauthModal';
 import styles from './ExportModal.module.css';
 
 interface Props {
@@ -7,7 +8,6 @@ interface Props {
 }
 
 type Step = 'auth' | 'format';
-type AuthMethod = 'password' | 'totp';
 type ExportFormat = 'qif' | 'ofx' | 'csv' | 'xlsx' | 'json';
 
 interface FormatInfo {
@@ -63,30 +63,8 @@ const FORMATS: FormatInfo[] = [
 
 export default function ExportModal({ onClose }: Props) {
   const [step, setStep] = useState<Step>('auth');
-  const [authMethod, setAuthMethod] = useState<AuthMethod>('password');
-  const [password, setPassword] = useState('');
-  const [totpCode, setTotpCode] = useState('');
   const [exportToken, setExportToken] = useState('');
-  const [authError, setAuthError] = useState('');
-  const [authLoading, setAuthLoading] = useState(false);
   const [downloadError, setDownloadError] = useState('');
-
-  const handleAuth = async (e: FormEvent) => {
-    e.preventDefault();
-    setAuthError('');
-    setAuthLoading(true);
-    try {
-      const payload = authMethod === 'password' ? { password } : { totpCode };
-      const res = await api.post<{ exportToken: string }>('/export/confirm-identity', payload);
-      setExportToken(res.data.exportToken);
-      setStep('format');
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
-      setAuthError(msg ?? 'Authentication failed.');
-    } finally {
-      setAuthLoading(false);
-    }
-  };
 
   const handleExport = async (format: ExportFormat) => {
     setDownloadError('');
@@ -117,60 +95,10 @@ export default function ExportModal({ onClose }: Props) {
         </div>
 
         {step === 'auth' && (
-          <form onSubmit={handleAuth} className={styles.modalBody}>
-            <p className={styles.authHint}>Confirm your identity to export data.</p>
-            <div className={styles.authToggle}>
-              <button
-                type="button"
-                className={`${styles.toggleBtn} ${authMethod === 'password' ? styles.toggleActive : ''}`}
-                onClick={() => setAuthMethod('password')}
-              >
-                Password
-              </button>
-              <button
-                type="button"
-                className={`${styles.toggleBtn} ${authMethod === 'totp' ? styles.toggleActive : ''}`}
-                onClick={() => setAuthMethod('totp')}
-              >
-                Authenticator Code
-              </button>
-            </div>
-
-            {authMethod === 'password' ? (
-              <div className={styles.field}>
-                <label className={styles.label}>Password</label>
-                <input
-                  type="password"
-                  className={styles.input}
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  autoFocus
-                  autoComplete="current-password"
-                />
-              </div>
-            ) : (
-              <div className={styles.field}>
-                <label className={styles.label}>6-digit code</label>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  maxLength={6}
-                  className={styles.input}
-                  value={totpCode}
-                  onChange={e => setTotpCode(e.target.value.replace(/\D/g, ''))}
-                  autoFocus
-                  autoComplete="one-time-code"
-                  placeholder="000000"
-                />
-              </div>
-            )}
-
-            {authError && <div className={styles.error}>{authError}</div>}
-
-            <button type="submit" className={styles.btnPrimary} disabled={authLoading}>
-              {authLoading ? 'Verifying…' : 'Continue'}
-            </button>
-          </form>
+          <ReauthForm
+            hint="Confirm your identity to export data."
+            onVerified={token => { setExportToken(token); setStep('format'); }}
+          />
         )}
 
         {step === 'format' && (

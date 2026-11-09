@@ -20,6 +20,7 @@ public class ExportController(
     IEncryptionService encryption,
     UserManager<ApplicationUser> userManager,
     SignInManager<ApplicationUser> signInManager,
+    IPasskeyService passkeyService,
     ExportService exportService) : ControllerBase
 {
     private string? GetUserId() => User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -28,6 +29,25 @@ public class ExportController(
 
     // Same per-IP throttle as login: this endpoint verifies passwords/TOTP codes,
     // so without it TOTP guessing here would be bounded only by account lockout.
+    // Passkey option for the identity check (users who sign in without a
+    // password still have a way to confirm it's them). Returns options limited
+    // to the signed-in user's own passkeys; the answer goes to confirm-identity.
+    [HttpPost("confirm-identity/passkey")]
+    [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("auth")]
+    public async Task<IActionResult> ConfirmIdentityPasskeyBegin()
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+        var user = await userManager.FindByIdAsync(userId);
+        if (user is null) return Unauthorized();
+        if (!await db.PasskeyCredentials.AnyAsync(c => c.UserId == userId))
+            return BadRequest(new { message = "No passkey is set up for this account." });
+
+        var optionsJson = await passkeyService.BeginAuthenticationAsync(user);
+        HttpContext.Session.SetString($"reauthPasskeyOptions:{userId}", optionsJson);
+        return Content(optionsJson, "application/json");
+    }
+
     [HttpPost("confirm-identity")]
     [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("auth")]
     public async Task<IActionResult> ConfirmIdentity(ConfirmIdentityRequest request)
@@ -58,6 +78,24 @@ public class ExportController(
                 userManager.Options.Tokens.AuthenticatorTokenProvider,
                 request.TotpCode);
             if (!verified) await userManager.AccessFailedAsync(user);
+        }
+        else if (!string.IsNullOrWhiteSpace(request.AssertionResponseJson))
+        {
+            var key = $"reauthPasskeyOptions:{userId}";
+            var optionsJson = HttpContext.Session.GetString(key);
+            HttpContext.Session.Remove(key);
+            if (optionsJson is not null)
+            {
+                try
+                {
+                    await passkeyService.CompleteAuthenticationAsync(user, request.AssertionResponseJson, optionsJson);
+                    verified = true;
+                }
+                catch (Exception ex) when (ex is Fido2NetLib.Fido2VerificationException or InvalidOperationException or JsonException)
+                {
+                    await userManager.AccessFailedAsync(user);
+                }
+            }
         }
 
         if (!verified)
@@ -234,4 +272,4 @@ public class ExportController(
     }
 }
 
-public record ConfirmIdentityRequest(string? Password, string? TotpCode);
+public record ConfirmIdentityRequest(string? Password, string? TotpCode, string? AssertionResponseJson = null);

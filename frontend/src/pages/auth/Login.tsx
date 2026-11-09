@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/auth-context';
 import * as authApi from '../../api/auth';
 import { getDemoInfo } from '../../api/demo';
+import { passkeysSupported, getPasskey, passkeyErrorMessage } from '../../utils/webauthn';
 import styles from './Login.module.css';
 
 export default function Login() {
@@ -37,6 +38,27 @@ export default function Login() {
       navigate('/');
     } catch {
       setGlobalError('Failed to start demo. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handlePasskeySignIn = async () => {
+    setGlobalError('');
+    setEmailError('');
+    setPasswordError('');
+    setSubmitting(true);
+    try {
+      const options = await authApi.passkeySigninBegin(rememberMe);
+      const assertion = await getPasskey(options);
+      const res = await authApi.passkeySigninComplete(assertion);
+      signIn(res.accessToken);
+      navigate('/');
+    } catch (err: unknown) {
+      // Cancelling and "this device has no passkey here" look the same to the page.
+      setGlobalError((err as { name?: string })?.name === 'NotAllowedError'
+        ? "No passkey was used. If this device doesn't have one for Money Tracker, sign in with your email and password."
+        : passkeyErrorMessage(err));
     } finally {
       setSubmitting(false);
     }
@@ -87,6 +109,14 @@ export default function Login() {
       <div className={styles.card}>
         <h1 className={styles.title}>Money Tracker — Sign In</h1>
         {globalError && <div className={styles.globalError}>{globalError}</div>}
+        {passkeysSupported() && (
+          <>
+            <button type="button" className={styles.btn} onClick={handlePasskeySignIn} disabled={submitting}>
+              Sign in with a passkey
+            </button>
+            <div className={styles.divider}>or use your email and password</div>
+          </>
+        )}
         <form onSubmit={handleSubmit} noValidate>
           <div className={styles.field}>
             <label className={styles.label} htmlFor="email">Email</label>

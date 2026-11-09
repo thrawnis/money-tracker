@@ -50,7 +50,7 @@ docker compose up
 - **Deployment**: Docker Compose — `api` (port 5012), `frontend` nginx (port 3012), `db` (Postgres)
 
 ### Authentication Flow
-1. `POST /auth/login` → password check → if MFA enrolled, returns `{ requiresMfa, userId, methods: { passkey, totp } }` → client calls `/auth/passkey/login/*` (default) or `/auth/mfa/totp/verify`; if not enrolled, `{ requiresMfaSetup }` → first-time setup offers a passkey (recommended) or TOTP
+1. `POST /auth/login` → password check → if MFA enrolled, returns `{ requiresMfa, userId, methods: { passkey, totp } }` → client calls `/auth/passkey/login/*` (default) or `/auth/mfa/totp/verify`; if not enrolled, `{ requiresMfaSetup }` → first-time setup offers a passkey (recommended) or TOTP. Passwordless: `/auth/passkey/signin/begin|complete` signs in with a passkey alone (no allow-list; the credential identifies the user)
 2. Tokens issued via `IssueTokensAsync`: JWT access token + refresh token stored in DB, set as httpOnly cookie
 3. Silent refresh on app load and tab focus (`AuthContext`)
 4. Demo user (`demo@example.com`) skips MFA when `DEMO_MODE=true`

@@ -27,4 +27,14 @@ public interface IPasskeyService
     /// </summary>
     Task<UserPasskeyCredential> CompleteAuthenticationAsync(
         ApplicationUser user, string assertionResponseJson, string optionsJson);
+
+    /// <summary>Options for passwordless sign-in: any of this site's passkeys on the device.</summary>
+    string BeginPasswordlessAuthentication();
+
+    /// <summary>
+    /// Verifies a passwordless assertion and returns the matching credential
+    /// (with its User loaded and counter updated, not yet saved). Throws if the
+    /// passkey is unknown, doesn't verify, or doesn't identify its account.
+    /// </summary>
+    Task<UserPasskeyCredential> CompletePasswordlessAuthenticationAsync(string assertionResponseJson, string optionsJson);
 }

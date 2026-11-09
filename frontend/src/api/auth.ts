@@ -43,6 +43,12 @@ export const passkeyLoginBegin = (userId: string) =>
 export const passkeyLoginComplete = (userId: string, assertionResponseJson: string) =>
   api.post<TokenResponse>('/auth/passkey/login/complete', { userId, assertionResponseJson }).then(r => r.data);
 
+// Passwordless sign-in: the passkey alone identifies and signs in the user.
+export const passkeySigninBegin = (rememberMe: boolean) =>
+  api.post<Record<string, unknown>>('/auth/passkey/signin/begin', { rememberMe }).then(r => r.data);
+export const passkeySigninComplete = (assertionResponseJson: string) =>
+  api.post<TokenResponse>('/auth/passkey/signin/complete', { assertionResponseJson }).then(r => r.data);
+
 // First-time setup (sign-up / first login without any second factor).
 export const passkeyRegisterBegin = (userId: string) =>
   api.post<Record<string, unknown>>('/auth/passkey/register/begin', JSON.stringify(userId), jsonBody).then(r => r.data);

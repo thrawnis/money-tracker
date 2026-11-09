@@ -9,10 +9,11 @@ using MoneyTracker.Models;
 namespace MoneyTracker.Auth.Services;
 
 /// <summary>
-/// Passkeys via the Fido2 library. Passkeys are a second factor here (after
-/// the password), so user verification (a PIN, fingerprint or face on the
-/// device) is required, and sign-in only ever offers and accepts the
-/// signing-in user's own passkeys.
+/// Passkeys via the Fido2 library. A passkey is used either as the second
+/// factor after a password (only that user's passkeys are offered/accepted)
+/// or on its own, for passwordless sign-in. Either way user verification (a
+/// PIN, fingerprint or face on the device) is required, so a passkey alone is
+/// still two factors: the device, plus what unlocks it.
 /// </summary>
 public class PasskeyService(IFido2 fido2, AppDbContext db) : IPasskeyService
 {
@@ -32,6 +33,9 @@ public class PasskeyService(IFido2 fido2, AppDbContext db) : IPasskeyService
             ExcludeCredentials = existing.Select(id => new PublicKeyCredentialDescriptor(id)).ToList(),
             AuthenticatorSelection = new AuthenticatorSelection
             {
+                // Preferred, not required: phone/computer passkeys are always stored on
+                // the device (so they work passwordless), while older security keys
+                // that can't store one still work as a second factor.
                 ResidentKey = ResidentKeyRequirement.Preferred,
                 UserVerification = UserVerificationRequirement.Required,
             },
@@ -105,6 +109,49 @@ public class PasskeyService(IFido2 fido2, AppDbContext db) : IPasskeyService
             IsUserHandleOwnerOfCredentialIdCallback = (args, _) =>
                 Task.FromResult(args.UserHandle.AsSpan().SequenceEqual(UserHandle(user))),
         });
+
+        credential.SignCount = result.SignCount;
+        credential.LastUsedAt = DateTime.UtcNow;
+        return credential;
+    }
+
+    public string BeginPasswordlessAuthentication() =>
+        // No allow-list: the browser offers whichever of this site's passkeys
+        // the device holds, and the chosen one identifies the account.
+        fido2.GetAssertionOptions(new GetAssertionOptionsParams
+        {
+            AllowedCredentials = [],
+            UserVerification = UserVerificationRequirement.Required,
+        }).ToJson();
+
+    public async Task<UserPasskeyCredential> CompletePasswordlessAuthenticationAsync(
+        string assertionResponseJson, string optionsJson)
+    {
+        var response = JsonSerializer.Deserialize<AuthenticatorAssertionRawResponse>(assertionResponseJson)
+            ?? throw new InvalidOperationException("Invalid passkey response.");
+        var options = AssertionOptions.FromJson(optionsJson);
+
+        var credential = await db.PasskeyCredentials
+            .Include(c => c.User)
+            .FirstOrDefaultAsync(c => c.CredentialId == response.RawId)
+            ?? throw new InvalidOperationException("That passkey isn't registered here.");
+
+        // Verify the signature first; only a verified assertion says anything
+        // about which account is signing in.
+        var result = await fido2.MakeAssertionAsync(new MakeAssertionParams
+        {
+            AssertionResponse = response,
+            OriginalOptions = options,
+            StoredPublicKey = credential.PublicKey,
+            StoredSignatureCounter = credential.SignCount,
+            // Passwordless sign-in must name its owner: the authenticator's user
+            // handle is required and must be the credential's user.
+            IsUserHandleOwnerOfCredentialIdCallback = (args, _) =>
+                Task.FromResult(args.UserHandle is { Length: > 0 }
+                    && args.UserHandle.AsSpan().SequenceEqual(UserHandle(credential.User))),
+        });
+        if (response.Response.UserHandle is not { Length: > 0 })
+            throw new InvalidOperationException("This passkey can't be used without a password.");
 
         credential.SignCount = result.SignCount;
         credential.LastUsedAt = DateTime.UtcNow;
