@@ -16,7 +16,7 @@ import DuplicateNamesTab from '../components/DuplicateNamesTab';
 // utility-page shells rather than duplicating the same CSS.
 import styles from './Settings.module.css';
 
-// ── Find Duplicates ──
+// ── Duplicate Transactions ──
 
 function formatCurrency(n: number) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
@@ -609,7 +609,7 @@ export default function Utilities() {
           className={`${styles.tab} ${tab === 'duplicates' ? styles.tabActive : ''}`}
           onClick={() => setTab('duplicates')}
         >
-          Find Duplicates
+          Duplicate Transactions
         </button>
         <button
           className={`${styles.tab} ${tab === 'duplicateNames' ? styles.tabActive : ''}`}

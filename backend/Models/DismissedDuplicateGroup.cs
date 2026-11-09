@@ -4,7 +4,7 @@ namespace MoneyTracker.Models;
 
 /// <summary>
 /// Records that a user chose to ignore a specific "possible duplicate" group
-/// (same account/date/amount) on the Find Duplicates screen. SignatureHash
+/// (same account/date/amount) on the Utilities → Duplicate Transactions screen. SignatureHash
 /// captures the identity/values of every transaction in the group at the
 /// time it was dismissed — if any of those change, or another transaction
 /// joins the group, the live signature no longer matches and the group is
