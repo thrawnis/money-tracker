@@ -33,6 +33,7 @@ public class AuthController(
     UrlEncoder                      urlEncoder,
     IAuditService                   audit,
     ILogger<AuthController>         logger,
+    LoginAlertQueue                 loginAlerts,
     VoidCategoryMigrationService    voidCategoryMigration,
     VoidPayeeMigrationService       voidPayeeMigration,
     DuplicateNameMergeService       duplicateNameMerge,
@@ -791,6 +792,9 @@ public class AuthController(
         SetRefreshCookie(refreshToken, rememberMe ? refreshExpiry : null);
         HttpContext.Session.Remove("mfaUserId");
         await audit.LogAsync("LOGIN", details: new { email = user.Email, method });
+        if (!(IsDemoMode && user.Email == MoneyTracker.Services.DemoSeeder.DemoEmail))
+            loginAlerts.Enqueue(new LoginAlertQueue.Alert(user.Id, DateTime.UtcNow, method,
+                HttpContext.Connection.RemoteIpAddress?.ToString(), Request.Headers.UserAgent.ToString()));
         return Ok(new TokenResponse(accessToken, expiry, role, user.MfaEnrolled,
             RequiresTimeZone: string.IsNullOrWhiteSpace(user.TimeZoneId)));
     }

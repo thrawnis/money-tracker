@@ -43,6 +43,19 @@ public class ApplicationUser : IdentityUser
     // (bank exports use that as a category placeholder for voided/reversed
     // transactions) get converted to real voided transactions instead.
     // See VoidCategoryMigrationService.
+    // Daily email digest (see EmailDigestService). Off by default; sent once a
+    // day at DigestHour in the user's time zone. Amounts are left out unless
+    // DigestIncludeAmounts, since email isn't end-to-end protected.
+    public bool DigestEnabled { get; set; } = false;
+    public int DigestHour { get; set; } = 7;
+    public bool DigestIncludeAmounts { get; set; } = false;
+    public bool DigestOnlyWhenNews { get; set; } = true;
+    public DateOnly? DigestLastSentOn { get; set; }
+
+    // Email on every sign-in (not silent session refreshes). On by default;
+    // only sent when the server has email set up.
+    public bool LoginAlertsEnabled { get; set; } = true;
+
     public bool VoidCategoriesMigrated { get; set; } = false;
 
     // Sibling to VoidCategoriesMigrated: the same "VOID ..." bank-export

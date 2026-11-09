@@ -200,6 +200,9 @@ Money other people owe the user, and money the user owes them.
 - **Audit Log**: users see their own activity; admins see all users
 - **Demo Reset** (demo mode only): wipes and re-seeds the demo user's data
 
+- **Email notifications** (Settings → Preferences), sent through the SMTP server configured in `.env` (SMTP_HOST, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD, SMTP_FROM, SMTP_SECURITY = starttls | ssl | none; APP_URL for links, defaulting to the first FIDO2_ORIGIN). Without SMTP_HOST/SMTP_FROM nothing is sent and the section says email isn't set up. The demo account can't turn on the digest or send a test, and never gets sign-in alerts
+  - **Daily email digest**: off by default; sent once a day at a chosen hour in the user's time zone (default 7 AM; checked every 10 minutes). Covers bank-sync reviews waiting (per account) and the last sync's errors, bills due within 3 days or overdue, checking/savings/cash accounts projected to drop below their warning level within 30 days, and the uncategorized count, with links into the app. "Skip days with nothing to report" (default on): uncategorized transactions alone don't count as news. Dollar amounts are left out unless "Include dollar amounts" is on. "Send a Test Digest" sends today's digest immediately. A failed send is retried on the next check; turning the digest on or changing the hour allows a send the same day
+  - **Sign-in alerts**: on by default (including for existing accounts); an email on every full sign-in — any method, including first-time setup, but not silent token refreshes — with the time in the user's time zone, sign-in method, browser/OS and IP address, and what to do if it wasn't them. Queued and sent in the background so sign-in is never delayed or blocked by email
 ---
 
 ## Data Integrity & Security

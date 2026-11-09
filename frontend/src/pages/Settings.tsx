@@ -26,6 +26,7 @@ import TimeZoneSelect from '../components/TimeZoneSelect';
 import type { Account, Payee } from '../types';
 import { getPayees } from '../api/payees';
 import ExportModal from '../components/ExportModal';
+import EmailDigestSettings from '../components/EmailDigestSettings';
 import ReauthModal from '../components/ReauthModal';
 import styles from './Settings.module.css';
 
@@ -385,6 +386,10 @@ function PreferencesTab() {
           Reset to Default
         </button>
         {saved && <span style={{ color: '#1a7a40', fontSize: 13 }}>Saved.</span>}
+      </div>
+
+      <div style={{ marginTop: 24 }}>
+        <EmailDigestSettings />
       </div>
     </div>
   );

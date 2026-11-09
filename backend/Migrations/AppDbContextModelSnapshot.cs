@@ -271,6 +271,21 @@ namespace MoneyTracker.Migrations
                     b.Property<string>("DefaultRegisterSortDir")
                         .HasColumnType("text");
 
+                    b.Property<bool>("DigestEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("DigestHour")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("DigestIncludeAmounts")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateOnly?>("DigestLastSentOn")
+                        .HasColumnType("date");
+
+                    b.Property<bool>("DigestOnlyWhenNews")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Email")
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
@@ -287,6 +302,9 @@ namespace MoneyTracker.Migrations
 
                     b.Property<DateTimeOffset?>("LockoutEnd")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("LoginAlertsEnabled")
+                        .HasColumnType("boolean");
 
                     b.Property<bool>("MfaEnrolled")
                         .HasColumnType("boolean");
