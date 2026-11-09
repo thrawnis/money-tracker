@@ -1,6 +1,6 @@
 import PayeeResolveInput, { type PayeeChoice } from '../components/PayeeResolveInput';
 import { Fragment, useCallback, useState, useEffect, type FormEvent } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { useAuth } from '../contexts/auth-context';
@@ -31,6 +31,7 @@ import ReauthModal from '../components/ReauthModal';
 import styles from './Settings.module.css';
 
 type Tab = 'preferences' | 'security' | 'export' | 'import' | 'backups' | 'audit';
+const TABS: Tab[] = ['preferences', 'security', 'export', 'import', 'backups', 'audit'];
 
 // ── Change Password ──
 
@@ -741,7 +742,8 @@ function ImportTab() {
   useEffect(() => {
     const id = (location.state as { resumeDraftId?: number } | null)?.resumeDraftId;
     if (!id) return;
-    navigate('.', { replace: true, state: null });
+    // Clear the one-shot state but keep ?tab=import in the address.
+    navigate({ search: location.search }, { replace: true, state: null });
     setNotice('');
     loadDraft(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1616,19 +1618,13 @@ function AuditLogTab() {
 
 export default function Settings() {
   usePageTitle('Settings');
-  const location = useLocation();
-  const initialTab = (location.state as { tab?: Tab } | null)?.tab;
-  const [tab, setTab] = useState<Tab>(initialTab ?? 'preferences');
-  // A navigation that targets a tab while Settings is already open (the
-  // unfinished-import banner's Resume, Bank Sync's Review) doesn't remount
-  // this page, so the initial useState above never sees it. Follow the new
-  // location's tab — the render-time "adjust state on prop change" pattern,
-  // keyed on location.key so repeated navigations to the same tab still work.
-  const [seenLocationKey, setSeenLocationKey] = useState(location.key);
-  if (location.key !== seenLocationKey) {
-    setSeenLocationKey(location.key);
-    if (initialTab) setTab(initialTab);
-  }
+  // The open tab lives in the address (?tab=…), so a refresh, the back button
+  // or a bookmark comes back to it, and links can open a tab directly
+  // (e.g. /settings?tab=import to resume an import).
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab') as Tab | null;
+  const tab: Tab = tabParam && TABS.includes(tabParam) ? tabParam : 'preferences';
+  const setTab = (t: Tab) => setSearchParams({ tab: t }, { replace: true });
 
   return (
     <div className={styles.page}>

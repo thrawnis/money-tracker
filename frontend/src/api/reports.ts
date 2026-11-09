@@ -60,14 +60,28 @@ export const getMonthlyReport = (params: MonthlyReportParams) =>
 export const getCategoryReport = (params: CategoryReportParams) =>
   api.get<CategoryReport>('/reports/category', { params }).then(r => r.data);
 
+// The API names report types by its enum and stores parameters as a JSON
+// string; this layer translates to the page's 'monthly' / 'category' + params.
+type ApiReportType = 'MonthlyIncomeExpense' | 'TransactionsByCategory';
+interface ApiSavedReport { id: number; name: string; type: ApiReportType; parametersJson?: string | null; createdAt?: string }
+
+const toApiType = (t: SavedReport['type']): ApiReportType => (t === 'monthly' ? 'MonthlyIncomeExpense' : 'TransactionsByCategory');
+const fromApi = (r: ApiSavedReport): SavedReport => {
+  let params: object = {};
+  try { params = r.parametersJson ? JSON.parse(r.parametersJson) : {}; } catch { /* keep {} */ }
+  return { id: r.id, name: r.name, type: r.type === 'MonthlyIncomeExpense' ? 'monthly' : 'category', params, createdAt: r.createdAt ?? '' };
+};
+
 export const getSavedReports = () =>
-  api.get<SavedReport[]>('/reports/saved').then(r => r.data);
+  api.get<ApiSavedReport[]>('/reports/saved').then(r => r.data.map(fromApi));
 
 export const createSavedReport = (data: Omit<SavedReport, 'id' | 'createdAt'>) =>
-  api.post<SavedReport>('/reports/saved', data).then(r => r.data);
+  api.post<ApiSavedReport>('/reports/saved', { name: data.name, type: toApiType(data.type), parameters: data.params })
+    .then(r => fromApi(r.data));
 
-export const updateSavedReport = (id: number, data: Partial<SavedReport>) =>
-  api.put<SavedReport>(`/reports/saved/${id}`, data).then(r => r.data);
+export const updateSavedReport = (id: number, data: Omit<SavedReport, 'id' | 'createdAt'>) =>
+  api.put<ApiSavedReport>(`/reports/saved/${id}`, { name: data.name, type: toApiType(data.type), parameters: data.params })
+    .then(r => fromApi(r.data));
 
 export const deleteSavedReport = (id: number) =>
   api.delete(`/reports/saved/${id}`);

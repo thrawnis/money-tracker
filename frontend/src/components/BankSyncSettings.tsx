@@ -137,7 +137,7 @@ export default function BankSyncSettings({ status, onStatus: setStatus, accounts
   };
 
   const review = (draftId: number) =>
-    navigate('/settings', { state: { tab: 'import', resumeDraftId: draftId } });
+    navigate('/settings?tab=import', { state: { resumeDraftId: draftId } });
 
   if (!status) {
     return (

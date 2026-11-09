@@ -182,12 +182,14 @@ Money other people owe the user, and money the user owes them.
 - The Dashboard shows a compact net-worth chart, hidden while balances are hidden
 - The Dashboard's Uncategorized Transactions list (the 5 newest uncategorized, non-transfer, non-split, non-voided transactions, with date, account, payee and amount): clicking a row opens a category box under it (the same category/subcategory autocomplete as the register); Save sets the category and the list refreshes (count drops, the next one moves up). An unknown name is refused; the account name still links to the register. When the transaction's payee has no default category, a checkbox (ticked by default) reads "Also use for future “Payee” transactions" (plus "and its N other uncategorized ones" when there are some): ticked, Save makes the category the payee's default (clearing any block on automatic defaults) and sets it on all of that payee's uncategorized transactions; unticked, only this transaction changes
 - Reports can be saved (name, type, parameters); one report can be set as the default
+- The Reports page keeps the selected report in the address (?report=monthly|category|balances|trends|forecast|saved-<id>), so a refresh, the back button or a bookmark returns to it; Dashboard tiles link straight to their report this way
 - Date range defaults: current month or last 6 months depending on report type
 
 ---
 
 ## Settings
 
+- Settings keeps its open tab in the address (?tab=preferences|security|export|import|backups|audit), so a refresh, the back button or a bookmark returns to it; links open a tab directly (e.g. /settings?tab=import to resume an import)
 - Settings tab order: Preferences, Security, Export Data, Import Data, Account Backups, Audit Log (Duplicate Transactions, Duplicate Names, Institutions, and Payee Mapping Rules live under Utilities — the open Utilities tab is kept in the address as ?tab=transactions|names|institutions|mapping-rules, so a refresh, the back button or a bookmark returns to it; password change is part of Security)
 - **Preferences**: default sort field and direction the account register uses when first opened (falls back to Date / newest-first if never set); manually changing the sort while viewing a register is a one-visit override and doesn't change the saved default. Also sets how many days ahead the register's "upcoming scheduled transactions" preview section looks (falls back to 31 days if never set) — this replaced the old per-register "Days ahead" control, which is now a single account-wide preference rather than something set per visit. Separately, "Auto-create upcoming recurring transactions" (default off) and its own "days ahead" window control whether/how far ahead recurring transactions are pre-created as real, editable transactions (see Bills & Reminders)
 - **Security**: view MFA enrollment status; reset or set up the authenticator app (see Authentication & Security)

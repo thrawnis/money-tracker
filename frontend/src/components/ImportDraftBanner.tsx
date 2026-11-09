@@ -35,7 +35,7 @@ export default function ImportDraftBanner() {
   if (visible.length === 0) return null;
 
   const handleResume = (d: ImportDraftSummary) => {
-    navigate('/settings', { state: { tab: 'import', resumeDraftId: d.id } });
+    navigate('/settings?tab=import', { state: { resumeDraftId: d.id } });
   };
 
   const handleDiscard = async (d: ImportDraftSummary) => {

@@ -102,7 +102,7 @@ function ForecastTile({ data, showBalances }: { data: Forecast; showBalances: bo
   const warnings = data.accounts.filter(a => a.firstBelowThreshold);
   return (
     <div className={styles.billsSection}>
-      <h3 className={styles.sectionTitle}><Link to="/reports" state={{ report: 'forecast' }}>Cash-Flow Forecast (30 Days)</Link></h3>
+      <h3 className={styles.sectionTitle}><Link to="/reports?report=forecast">Cash-Flow Forecast (30 Days)</Link></h3>
       {warnings.map(a => (
         <p key={a.accountId} className={styles.forecastWarn}>
           ⚠ {a.name} may drop below {money(a.threshold ?? 0)} on {day(a.firstBelowThreshold!)} (low of {money(a.lowestBalance)} on {day(a.lowestDate)})
@@ -119,7 +119,7 @@ function ForecastTile({ data, showBalances }: { data: Forecast; showBalances: bo
         </p>
       ))}
       {warnings.length === 0 && <p className={styles.iouMuted}>No account is projected to drop below its warning level.</p>}
-      <p className={styles.iouLink}><Link to="/reports" state={{ report: 'forecast' }}>View forecast →</Link></p>
+      <p className={styles.iouLink}><Link to="/reports?report=forecast">View forecast →</Link></p>
     </div>
   );
 }
@@ -136,7 +136,7 @@ function SpendingTrendsTile({ data, showBalances }: { data: SpendingTrends; show
     ? Math.round((data.totalThisMonth / data.totalExpectedSoFar - 1) * 100) : null;
   return (
     <div className={styles.billsSection}>
-      <h3 className={styles.sectionTitle}><Link to="/reports" state={{ report: 'trends' }}>Spending Trends</Link></h3>
+      <h3 className={styles.sectionTitle}><Link to="/reports?report=trends">Spending Trends</Link></h3>
       <p className={styles.iouLine}>
         <span>This month so far</span>
         <span>
@@ -161,7 +161,7 @@ function SpendingTrendsTile({ data, showBalances }: { data: SpendingTrends; show
           ))}
         </>
       )}
-      <p className={styles.iouLink}><Link to="/reports" state={{ report: 'trends' }}>View spending trends →</Link></p>
+      <p className={styles.iouLink}><Link to="/reports?report=trends">View spending trends →</Link></p>
     </div>
   );
 }
@@ -340,7 +340,7 @@ export default function Dashboard() {
         <div className={styles.rightPanel}>
           <div className={styles.billsSection}>
             <h3 className={styles.sectionTitle}>
-              <Link to="/reports" state={{ report: 'balances' }}>Net Worth</Link>
+              <Link to="/reports?report=balances">Net Worth</Link>
             </h3>
             {/* Follows the balance toggle: hidden balances stay hidden here too. */}
             {showBalances

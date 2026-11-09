@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import BalanceHistoryReport from '../components/BalanceHistoryReport';
 import SpendingTrendsReport from '../components/SpendingTrendsReport';
 import CashFlowForecastReport from '../components/CashFlowForecastReport';
@@ -65,17 +65,20 @@ type ReportType = 'monthly' | 'category';
 
 export default function Reports() {
   usePageTitle('Reports');
-  const [reportType, setReportType] = useState<ReportType>('monthly');
-  // "Balances over time" is self-contained (its own controls, not saveable),
-  // so it's shown in place of the parameterized reports rather than as a ReportType.
-  const location = useLocation();
+  // The selected report lives in the address (?report=monthly | category |
+  // balances | trends | forecast | saved-<id>), so a refresh, the back button
+  // or a bookmark comes back to it.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [initialReport] = useState(() => searchParams.get('report') ?? '');
+  const [reportType, setReportType] = useState<ReportType>(initialReport === 'category' ? 'category' : 'monthly');
   // The self-contained reports (own controls, not saveable), shown in place of
   // the parameterized ones.
   type SpecialReport = 'balances' | 'trends' | 'forecast' | null;
-  const [special, setSpecial] = useState<SpecialReport>(() => {
-    const r = (location.state as { report?: string } | null)?.report;
-    return r === 'balances' || r === 'trends' || r === 'forecast' ? r : null;
-  });
+  const [special, setSpecial] = useState<SpecialReport>(() =>
+    initialReport === 'balances' || initialReport === 'trends' || initialReport === 'forecast' ? initialReport : null);
+  // Until saved reports have loaded, a ?report=saved-<id> can't be applied, so
+  // the address isn't rewritten before then.
+  const [savedLoaded, setSavedLoaded] = useState(false);
   const showBalanceHistory = special !== null;
   const setShowBalanceHistory = (on: boolean) => setSpecial(on ? 'balances' : null);
   const [activeSavedId, setActiveSavedId] = useState<number | null>(null);
@@ -114,12 +117,6 @@ export default function Reports() {
   const [catError, setCatError] = useState('');
   const [visibleCols, setVisibleCols] = useState({ date: true, account: true, payee: true, memo: true, amount: true });
 
-  useEffect(() => {
-    Promise.all([getAccounts(), getCategories(), getPayees(), getSavedReports()])
-      .then(([accs, cats, pays, saved]) => {
-        setAccounts(accs); setCategories(cats); setPayees(pays); setSavedReports(saved);
-      }).catch(console.error);
-  }, []);
 
   const allCategories: { id: number; label: string }[] = [];
   for (const cat of categories) {
@@ -154,6 +151,27 @@ export default function Reports() {
       setCPayees(Array.isArray(p.payeeIds) ? p.payeeIds.map(Number) : []);
     }
   };
+
+  useEffect(() => {
+    Promise.all([getAccounts(), getCategories(), getPayees(), getSavedReports()])
+      .then(([accs, cats, pays, saved]) => {
+        setAccounts(accs); setCategories(cats); setPayees(pays); setSavedReports(saved);
+        const savedId = /^saved-(\d+)$/.exec(initialReport)?.[1];
+        const r = savedId ? saved.find(x => x.id === Number(savedId)) : undefined;
+        if (r) loadSavedReport(r);
+      })
+      .catch(console.error)
+      .finally(() => setSavedLoaded(true));
+    // Mount only: initialReport is fixed, and loadSavedReport only sets state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Keep the address in step with what's selected.
+  const reportKey = activeSavedId !== null ? `saved-${activeSavedId}` : special ?? reportType;
+  useEffect(() => {
+    if (savedLoaded && searchParams.get('report') !== reportKey)
+      setSearchParams({ report: reportKey }, { replace: true });
+  }, [savedLoaded, reportKey, searchParams, setSearchParams]);
 
   const selectReportType = (t: ReportType) => {
     setShowBalanceHistory(false);
@@ -209,7 +227,7 @@ export default function Reports() {
     setSavedReportError('');
     try {
       if (activeSavedId !== null) {
-        const updated = await updateSavedReport(activeSavedId, { name: saveReportName, params: currentParams() });
+        const updated = await updateSavedReport(activeSavedId, { name: saveReportName, type: reportType, params: currentParams() });
         setSavedReports(prev => prev.map(r => r.id === activeSavedId ? updated : r));
       } else {
         const saved = await createSavedReport({ name: saveReportName, type: reportType, params: currentParams() });
