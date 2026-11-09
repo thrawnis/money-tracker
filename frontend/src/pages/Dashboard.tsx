@@ -3,11 +3,12 @@ import { getIous, type IouPage } from '../api/ious';
 import { Fragment, useEffect, useState, type FormEvent } from 'react';
 import { bulkSetCategory } from '../api/transactions';
 import { getCategories } from '../api/categories';
+import { setPayeeDefaultCategory } from '../api/payees';
 import CategoryAutocomplete from '../components/CategoryAutocomplete';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import { flattenCategories } from '../utils/categories';
 import { Link } from 'react-router-dom';
-import { getDashboard, type DashboardData, type DashboardAccount } from '../api/dashboard';
+import { getDashboard, type DashboardData, type DashboardAccount, type UncategorizedSample } from '../api/dashboard';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { ACCOUNT_TYPE_GROUP_LABELS } from '../utils/accountTypes';
 import type { AccountType, Category } from '../types';
@@ -151,6 +152,8 @@ export default function Dashboard() {
   const [catText, setCatText] = useState('');
   const [catSaving, setCatSaving] = useState(false);
   const [catError, setCatError] = useState('');
+  // "Also use for future <payee> transactions" — ticked by default.
+  const [catRemember, setCatRemember] = useState(true);
   useUnsavedChanges(catTxId !== null && catText.trim() !== '' && !catSaving);
 
   const openCategorize = (txId: number) => {
@@ -158,10 +161,11 @@ export default function Dashboard() {
     setCatTxId(txId);
     setCatText('');
     setCatError('');
+    setCatRemember(true);
     if (!categories) getCategories().then(setCategories).catch(() => setCatError('Failed to load categories.'));
   };
 
-  const saveCategory = async (e: FormEvent, accountId: number, txId: number) => {
+  const saveCategory = async (e: FormEvent, tx: UncategorizedSample) => {
     e.preventDefault();
     const label = catText.trim();
     const match = flattenCategories(categories ?? []).find(c => c.label.toLowerCase() === label.toLowerCase());
@@ -169,7 +173,11 @@ export default function Dashboard() {
     setCatSaving(true);
     setCatError('');
     try {
-      await bulkSetCategory(accountId, [txId], match.id);
+      if (tx.payeeId && !tx.payeeHasDefaultCategory && catRemember)
+        // Sets this transaction too, along with the payee's other uncategorized ones.
+        await setPayeeDefaultCategory(tx.payeeId, match.id, true);
+      else
+        await bulkSetCategory(tx.accountId, [tx.id], match.id);
       setCatTxId(null);
       setCatText('');
       // Reload so the count drops and the next uncategorized transaction moves up.
@@ -332,7 +340,7 @@ export default function Dashboard() {
                       {catTxId === tx.id && (
                         <tr className={styles.uncatEditRow}>
                           <td colSpan={4}>
-                            <form className={styles.uncatEditForm} onSubmit={e => saveCategory(e, tx.accountId, tx.id)}>
+                            <form className={styles.uncatEditForm} onSubmit={e => saveCategory(e, tx)}>
                               <CategoryAutocomplete
                                 value={catText}
                                 onChange={v => { setCatText(v); setCatError(''); }}
@@ -347,6 +355,13 @@ export default function Dashboard() {
                                 Cancel
                               </button>
                             </form>
+                            {tx.payeeId && !tx.payeeHasDefaultCategory && (
+                              <label className={styles.uncatRemember}>
+                                <input type="checkbox" checked={catRemember} onChange={e => setCatRemember(e.target.checked)} />
+                                Also use for future “{tx.payee}” transactions
+                                {tx.payeeUncategorizedCount > 1 && <> and its {tx.payeeUncategorizedCount - 1} other uncategorized one{tx.payeeUncategorizedCount === 2 ? '' : 's'}</>}
+                              </label>
+                            )}
                             {catError && <div className={styles.uncatError}>{catError}</div>}
                           </td>
                         </tr>

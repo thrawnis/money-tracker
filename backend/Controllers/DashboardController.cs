@@ -100,8 +100,21 @@ public class DashboardController(
             .Take(5)
             .ToListAsync();
 
+        // For "also use this category for future <payee> transactions": how many
+        // other uncategorized transactions each sample's payee has.
+        var samplePayeeIds = recentUncategorized.Where(t => t.PayeeId != null).Select(t => t.PayeeId!.Value).Distinct().ToList();
+        var uncategorizedByPayee = await db.Transactions
+            .Where(t => t.Account.UserId == userId && t.PayeeId != null && samplePayeeIds.Contains(t.PayeeId.Value)
+                && t.CategoryId == null && t.TransferTransactionId == null && !t.IsVoided && !t.Splits.Any())
+            .GroupBy(t => t.PayeeId!.Value)
+            .Select(g => new { PayeeId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.PayeeId, x => x.Count);
+
         var uncategorizedSamples = recentUncategorized.Select(t => new
         {
+            payeeId = t.PayeeId,
+            payeeHasDefaultCategory = t.Payee?.DefaultCategoryId != null,
+            payeeUncategorizedCount = t.PayeeId is int pid ? uncategorizedByPayee.GetValueOrDefault(pid) : 0,
             id      = t.Id,
             accountId = t.AccountId,
             accountName = t.Account.Name,

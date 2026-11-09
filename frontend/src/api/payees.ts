@@ -18,3 +18,8 @@ export const updatePayee = (id: number, data: { name: string; defaultCategoryId:
 
 export const deletePayee = (id: number) =>
   api.delete(`/payees/${id}`);
+
+/** Makes a category the payee's default; optionally sets it on the payee's uncategorized transactions too. */
+export const setPayeeDefaultCategory = (payeeId: number, categoryId: number, applyToUncategorized: boolean) =>
+  api.post<{ defaultCategoryId: number; applied: number }>(`/payees/${payeeId}/default-category`, { categoryId, applyToUncategorized })
+    .then(r => r.data);

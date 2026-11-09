@@ -27,6 +27,10 @@ export interface UncategorizedSample {
   amount: number;
   accountName: string;
   accountId: number;
+  payeeId?: number | null;
+  payeeHasDefaultCategory: boolean;
+  /** Uncategorized transactions this payee has, this one included. */
+  payeeUncategorizedCount: number;
 }
 
 export interface DashboardData {

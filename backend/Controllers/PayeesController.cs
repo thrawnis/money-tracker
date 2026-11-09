@@ -135,6 +135,48 @@ public class PayeesController(
         return Ok(new { id = payee.Id, name = dto.Name, payee.DefaultCategoryId, payee.BlockAutoDefaultCategory });
     }
 
+    public record DefaultCategoryDto(int CategoryId, bool ApplyToUncategorized);
+
+    /// <summary>
+    /// Makes a category the payee's default (so future imports and bank syncs
+    /// arrive categorized) and, optionally, sets it on the payee's existing
+    /// uncategorized transactions (not transfers, splits or voided ones).
+    /// Used when categorizing from the Dashboard.
+    /// </summary>
+    [HttpPost("{id}/default-category")]
+    public async Task<IActionResult> SetDefaultCategory(int id, DefaultCategoryDto dto)
+    {
+        var userId = GetUserId();
+        if (userId is null) return Unauthorized();
+
+        var payee = await db.Payees.FirstOrDefaultAsync(p => p.Id == id && p.UserId == userId);
+        if (payee is null) return NotFound();
+        if (!await db.Categories.AnyAsync(c => c.Id == dto.CategoryId && c.UserId == userId))
+            return BadRequest(new { message = "Category not found." });
+
+        payee.DefaultCategoryId = dto.CategoryId;
+        payee.BlockAutoDefaultCategory = false;   // an explicit choice overrides the block
+
+        var applied = 0;
+        if (dto.ApplyToUncategorized)
+        {
+            var txs = await db.Transactions
+                .Where(t => t.Account.UserId == userId && t.PayeeId == id && t.CategoryId == null
+                    && t.TransferTransactionId == null && !t.IsVoided && !t.Splits.Any())
+                .ToListAsync();
+            foreach (var t in txs)
+            {
+                t.CategoryId = dto.CategoryId;
+                t.UpdatedAt = DateTime.UtcNow;
+            }
+            applied = txs.Count;
+        }
+        await db.SaveChangesAsync();
+        await audit.LogAsync("UPDATE", "Payee", id, new { defaultCategoryId = dto.CategoryId, appliedToUncategorized = applied });
+
+        return Ok(new { defaultCategoryId = payee.DefaultCategoryId, applied });
+    }
+
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(int id)
     {
