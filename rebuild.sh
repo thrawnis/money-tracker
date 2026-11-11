@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# rebuild.sh — Pull latest main branch and redeploy with Docker
+# rebuild.sh — Pull the latest main branch (discarding local changes) and redeploy with Docker
 # Usage: ./rebuild.sh [--force] [--pull-base-images]
 #   Rebuilds only when the running api/frontend containers weren't built from
 #   the latest commit on main (each image is labeled with its commit), or
@@ -31,12 +31,36 @@ BRANCH="main"
 API_IMAGE="money-tracker-api:latest"
 FRONTEND_IMAGE="money-tracker-frontend:latest"
 
-echo "==> Pulling latest code from branch: $BRANCH"
+# -- Get the latest code, discarding anything changed locally ------------------
+# The server's copy always matches origin/$BRANCH exactly: local edits, local
+# commits and new files that aren't part of the repository are discarded.
+# Files git ignores — .env, data/ (the database, backups), node_modules and
+# build output — are kept.
+echo "==> Pulling latest code from branch: $BRANCH (local changes are discarded)"
 cd "$REPO_DIR"
-git fetch origin "$BRANCH"
-git checkout "$BRANCH"
 SCRIPT_BEFORE="$(git hash-object "$REPO_DIR/rebuild.sh")"
+
+fetched=0
+for attempt in 1 2 3 4; do
+  if git fetch --prune origin "$BRANCH"; then fetched=1; break; fi
+  [ "$attempt" -eq 4 ] && break
+  echo "    fetch failed (attempt $attempt); retrying in $((attempt * 5))s..."
+  sleep $((attempt * 5))
+done
+if [ "$fetched" -ne 1 ]; then
+  echo "ERROR: couldn't fetch from origin; not rebuilding from possibly stale code." >&2
+  exit 1
+fi
+
+if [ -n "$(git status --porcelain)" ]; then
+  echo "    discarding local changes:"
+  git status --porcelain | sed 's/^/      /'
+fi
+# -f/-B: switch to $BRANCH at origin's commit even if local edits or another
+# branch would normally block it.
+git checkout -f -B "$BRANCH" "origin/$BRANCH"
 git reset --hard "origin/$BRANCH"
+git clean -fd
 
 # If this pull changed rebuild.sh itself, restart with the new version (bash
 # reads a script as it runs, so carrying on would mix old and new lines).
