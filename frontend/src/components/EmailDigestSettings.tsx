@@ -127,7 +127,7 @@ export default function EmailDigestSettings() {
         <HourSelect id="weekly-hour" value={form.weeklyHour} onChange={h => set({ weeklyHour: h })} disabled={!form.weeklyEnabled} />
       </Check>
       <p className={styles.hint} style={{ margin: '0 0 0 24px' }}>
-        Net worth and how it changed, the week's spending against a usual week, categories that moved most,
+        Net worth and how it changed, the week's spending and top categories against a usual week,
         the month's pace, the biggest purchases, what's coming up, and anything waiting for you.
       </p>
 
