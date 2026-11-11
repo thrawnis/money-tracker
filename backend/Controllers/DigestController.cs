@@ -15,6 +15,7 @@ public class DigestController(
     UserManager<ApplicationUser> userManager,
     EmailSender sender,
     EmailDigestBuilder builder,
+    WeeklyDigestBuilder weekly,
     IConfiguration config,
     IAuditService audit) : ControllerBase
 {
@@ -34,6 +35,12 @@ public class DigestController(
         emailConfigured = sender.IsConfigured,
         lastSentOn = u.DigestLastSentOn,
         loginAlerts = u.LoginAlertsEnabled,
+        syncAlerts = u.SyncAlertsEnabled,
+        largeTxAlerts = u.LargeTxAlertsEnabled,
+        largeTxThreshold = u.LargeTxThreshold,
+        weeklyEnabled = u.WeeklyDigestEnabled,
+        weeklyDay = u.WeeklyDigestDay,
+        weeklyHour = u.WeeklyDigestHour,
     };
 
     [HttpGet("settings")]
@@ -43,7 +50,10 @@ public class DigestController(
         return user is null ? Unauthorized() : Ok(Settings(user));
     }
 
-    public record DigestSettingsDto(bool Enabled, int Hour, bool IncludeAmounts, bool OnlyWhenNews, bool? LoginAlerts = null);
+    public record DigestSettingsDto(
+        bool Enabled, int Hour, bool IncludeAmounts, bool OnlyWhenNews, bool? LoginAlerts = null,
+        bool? SyncAlerts = null, bool? LargeTxAlerts = null, decimal? LargeTxThreshold = null,
+        bool? WeeklyEnabled = null, int? WeeklyDay = null, int? WeeklyHour = null);
 
     [HttpPut("settings")]
     public async Task<IActionResult> UpdateSettings(DigestSettingsDto dto)
@@ -51,7 +61,10 @@ public class DigestController(
         var user = await CurrentUserAsync();
         if (user is null) return Unauthorized();
         if (dto.Hour is < 0 or > 23) return BadRequest(new { message = "Hour must be 0-23." });
-        if (dto.Enabled && IsDemo(user)) return BadRequest(new { message = "The demo account can't receive email." });
+        if (dto.WeeklyDay is < 0 or > 6 || dto.WeeklyHour is < 0 or > 23) return BadRequest(new { message = "Invalid weekly schedule." });
+        if (dto.LargeTxThreshold is <= 0) return BadRequest(new { message = "The large-transaction amount must be more than $0." });
+        var turningOn = dto.Enabled || dto.SyncAlerts == true || dto.LargeTxAlerts == true || dto.WeeklyEnabled == true;
+        if (turningOn && IsDemo(user)) return BadRequest(new { message = "The demo account can't receive email." });
 
         // Turning it on (or moving the hour) shouldn't wait until tomorrow just
         // because today's slot was already "used".
@@ -61,25 +74,45 @@ public class DigestController(
         user.DigestIncludeAmounts = dto.IncludeAmounts;
         user.DigestOnlyWhenNews = dto.OnlyWhenNews;
         if (dto.LoginAlerts is bool la) user.LoginAlertsEnabled = la;
+        if (dto.SyncAlerts is bool sa) user.SyncAlertsEnabled = sa;
+        if (dto.LargeTxAlerts is bool lt) user.LargeTxAlertsEnabled = lt;
+        if (dto.LargeTxThreshold is decimal amt) user.LargeTxThreshold = Math.Round(amt, 2);
+        if (dto.WeeklyEnabled is bool we)
+        {
+            // As with the daily digest: turning it on or moving it shouldn't skip this week's send.
+            if (we && (!user.WeeklyDigestEnabled || dto.WeeklyDay != user.WeeklyDigestDay || dto.WeeklyHour != user.WeeklyDigestHour))
+                user.WeeklyDigestLastSentOn = null;
+            user.WeeklyDigestEnabled = we;
+        }
+        if (dto.WeeklyDay is int wd) user.WeeklyDigestDay = wd;
+        if (dto.WeeklyHour is int wh) user.WeeklyDigestHour = wh;
         await userManager.UpdateAsync(user);
-        await audit.LogAsync("DIGEST_SETTINGS", details: new { dto.Enabled, dto.Hour, dto.IncludeAmounts, dto.OnlyWhenNews, dto.LoginAlerts });
+        await audit.LogAsync("DIGEST_SETTINGS", details: dto);
         return Ok(Settings(user));
     }
 
-    // Sends today's digest right now (even on a quiet day), to check delivery.
+    // Sends today's digest (or, with ?kind=weekly, this week's) right now — even
+    // on a quiet day — to check delivery and see what it looks like.
     [HttpPost("test")]
     [Microsoft.AspNetCore.RateLimiting.EnableRateLimiting("auth")]
-    public async Task<IActionResult> SendTest()
+    public async Task<IActionResult> SendTest([FromQuery] string? kind = null)
     {
         var user = await CurrentUserAsync();
         if (user is null) return Unauthorized();
         if (IsDemo(user)) return BadRequest(new { message = "The demo account can't receive email." });
         if (!sender.IsConfigured)
             return BadRequest(new { message = "Email isn't set up on the server yet. Add the SMTP settings to .env and rebuild." });
-        var digest = await builder.BuildAsync(user);
+        string subject, text, html;
+        if (kind == "weekly")
+            (subject, text, html) = await weekly.BuildAsync(user);
+        else
+        {
+            var daily = await builder.BuildAsync(user);
+            (subject, text, html) = (daily.Subject, daily.Text, daily.Html);
+        }
         try
         {
-            await sender.SendAsync(user.Email!, "[Test] " + digest.Subject, digest.Text, digest.Html);
+            await sender.SendAsync(user.Email!, "[Test] " + subject, text, html);
         }
         catch (Exception ex)
         {

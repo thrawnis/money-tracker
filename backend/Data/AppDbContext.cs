@@ -48,6 +48,11 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             e.HasOne(a => a.Institution).WithMany(i => i.Accounts).HasForeignKey(a => a.InstitutionId).OnDelete(DeleteBehavior.Restrict);
         });
 
+        modelBuilder.Entity<ApplicationUser>(e =>
+        {
+            e.Property(u => u.LargeTxThreshold).HasPrecision(18, 2);
+        });
+
         modelBuilder.Entity<Institution>(e =>
         {
             e.HasOne(i => i.User).WithMany().HasForeignKey(i => i.UserId).OnDelete(DeleteBehavior.Cascade);

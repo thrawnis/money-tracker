@@ -23,7 +23,20 @@ public enum SyncTrigger { Manual, Nightly }
 public record SimpleFinSyncAccountResult(
     int SimpleFinAccountId, string Name, int? LinkedAccountId, string? LinkedAccountName,
     DateOnly? From, int NewTransactions, int? DraftId, string? Note, bool Skipped = false,
-    decimal? ValueRecorded = null, DateOnly? ValueDate = null);
+    decimal? ValueRecorded = null, DateOnly? ValueDate = null)
+{
+    /// <summary>
+    /// Bank transactions this sync found for the first time — unlike
+    /// NewTransactions, which counts everything waiting in the account's review
+    /// (including rows an earlier, still unreviewed sync already found). Used for
+    /// email alerts; not serialized to the client.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public IReadOnlyList<SyncArrival> Arrived { get; init; } = [];
+}
+
+/// <summary>A bank transaction as first seen by a sync (payee is the bank's text).</summary>
+public record SyncArrival(DateOnly Date, decimal Amount, string? Payee);
 
 public record SimpleFinSyncResult(List<SimpleFinSyncAccountResult> Accounts, List<string> Errors);
 
@@ -40,7 +53,8 @@ public class SimpleFinService(
     IEncryptionService encryption,
     SimpleFinClient client,
     IAuditService audit,
-    IConfiguration config)
+    IConfiguration config,
+    BankSyncAlertQueue alerts)
 {
     // Re-fetch this far behind the cursor on every sync: transactions often post
     // days after they happen, so without an overlap a late-posting charge dated
@@ -503,6 +517,14 @@ public class SimpleFinService(
                 continue;
             }
 
+            // What this sync found for the first time: rows not already waiting
+            // in the account's unreviewed review from an earlier sync.
+            var previouslyStaged = existingDraft is null ? new HashSet<string>(StringComparer.Ordinal)
+                : ImportDraftJson.ReadStrings(existingDraft.SimpleFinTxIdsJson).ToHashSet(StringComparer.Ordinal);
+            var arrived = fresh.Where(r => !previouslyStaged.Contains(r.Tx.Id))
+                .Select(r => new SyncArrival(r.Date, r.Tx.Amount, (r.Tx.Payee ?? r.Tx.Description)?.Trim()))
+                .ToList();
+
             var csv = BuildCsv(fresh);
             var encrypted = encryption.Encrypt(Convert.ToBase64String(csv), dek)!;
             var fileName = $"Bank sync {today:yyyy-MM-dd}.csv";
@@ -540,7 +562,7 @@ public class SimpleFinService(
             existingDraft.UpdatedAt = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
 
-            results.Add(Result(fresh.Count, existingDraft.Id, capped ? CappedNote() : null));
+            results.Add(Result(fresh.Count, existingDraft.Id, capped ? CappedNote() : null) with { Arrived = arrived });
         }
 
         conn.LastSyncAt = DateTime.UtcNow;
@@ -552,6 +574,11 @@ public class SimpleFinService(
             accounts = results.Count,
             newTransactions = results.Sum(r => r.NewTransactions),
         });
+
+        // Email alerts (new transactions, large transactions) go out in the
+        // background so a slow mail server never holds up a sync.
+        if (results.Any(r => r.Arrived.Count > 0))
+            alerts.Enqueue(new BankSyncAlertQueue.Alert(user.Id, trigger, results.Where(r => r.Arrived.Count > 0).ToList()));
 
         return new SimpleFinSyncResult(results, set.Errors);
     }

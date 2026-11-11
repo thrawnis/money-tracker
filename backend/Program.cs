@@ -187,11 +187,16 @@ builder.Services.AddScoped<SimpleFinClient>();
 builder.Services.AddScoped<SimpleFinService>();
 builder.Services.AddScoped<IouLedger>();
 builder.Services.AddScoped<CashFlowForecast>();
+builder.Services.AddScoped<ReportData>();
 builder.Services.AddSingleton<EmailSender>();
 builder.Services.AddScoped<EmailDigestBuilder>();
 builder.Services.AddHostedService<EmailDigestService>();
 builder.Services.AddSingleton<LoginAlertQueue>();
 builder.Services.AddHostedService<LoginAlertService>();
+builder.Services.AddSingleton<BankSyncAlertQueue>();
+builder.Services.AddHostedService<BankSyncAlertService>();
+builder.Services.AddScoped<WeeklyDigestBuilder>();
+builder.Services.AddHostedService<WeeklyDigestService>();
 builder.Services.AddSingleton<IAccountBackupService, AccountBackupService>();
 // Registered as itself (not just IHostedService) so controllers can inject it
 // directly to trigger an immediate posting pass right after a schedule is

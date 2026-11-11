@@ -17,7 +17,8 @@ namespace MoneyTracker.Controllers;
 public class ReportsController(
     AppDbContext db,
     IEncryptionService encryption,
-    UserManager<ApplicationUser> userManager) : ControllerBase
+    UserManager<ApplicationUser> userManager,
+    ReportData reportData) : ControllerBase
 {
     private string? GetUserId() => User.FindFirstValue(ClaimTypes.NameIdentifier);
 
@@ -224,82 +225,7 @@ public class ReportsController(
         if (userId is null) return Unauthorized();
         var user = await userManager.FindByIdAsync(userId);
         if (user is null) return Unauthorized();
-        var dek = user.EncryptedDataKey;
-        months = Math.Clamp(months, 1, 24);
-
-        var today = UserClock.Today(user);
-        var thisMonth = new DateOnly(today.Year, today.Month, 1);
-        var from = thisMonth.AddMonths(-months);
-        var monthFraction = (double)today.Day / DateTime.DaysInMonth(today.Year, today.Month);
-
-        var categories = await db.Categories.Where(c => c.UserId == userId).ToListAsync();
-        var parentOf = categories.ToDictionary(c => c.Id, c => c.ParentId ?? c.Id);
-        var names = categories.ToDictionary(c => c.Id, c => encryption.Decrypt(c.NameEncrypted, dek) ?? "");
-
-        var query = db.Transactions
-            .Where(t => t.Account.UserId == userId && !t.IsVoided && t.TransferTransactionId == null
-                && t.Date >= from && t.Date <= today);
-        if (accountIds is { Length: > 0 })
-            query = query.Where(t => accountIds.Contains(t.AccountId));
-        var txs = await query.Select(t => new
-        {
-            t.Date, t.Amount, t.CategoryId,
-            Splits = t.Splits.Select(s => new { s.CategoryId, s.Amount }).ToList(),
-        }).ToListAsync();
-
-        // (top-level category id or 0 for uncategorized, month index 0..months) → spent
-        var monthKeys = Enumerable.Range(0, months + 1).Select(i => from.AddMonths(i)).ToList();
-        var spent = new Dictionary<int, decimal[]>();
-        var spentByDay = new Dictionary<int, decimal>();   // previous months, up to today's day-of-month
-        void Add(int? categoryId, DateOnly date, decimal amount)
-        {
-            var key = categoryId is int id && parentOf.TryGetValue(id, out var top) ? top : 0;
-            var idx = (date.Year - from.Year) * 12 + date.Month - from.Month;
-            if (!spent.TryGetValue(key, out var arr)) spent[key] = arr = new decimal[months + 1];
-            arr[idx] -= amount;   // spending is negative; store it as a positive amount
-            if (idx < months && date.Day <= today.Day)
-                spentByDay[key] = spentByDay.GetValueOrDefault(key) - amount;
-        }
-        foreach (var t in txs)
-        {
-            if (t.Splits.Count > 0) foreach (var s in t.Splits) Add(s.CategoryId, t.Date, s.Amount);
-            else Add(t.CategoryId, t.Date, t.Amount);
-        }
-
-        var rows = spent
-            .Select(kv =>
-            {
-                var monthly = kv.Value.Select(v => Math.Round(v, 2)).ToArray();
-                var average = Math.Round(monthly.Take(months).Sum() / months, 2);
-                var current = monthly[months];
-                var expected = Math.Round(spentByDay.GetValueOrDefault(kv.Key) / months, 2);
-                return new
-                {
-                    categoryId = kv.Key == 0 ? (int?)null : kv.Key,
-                    name = kv.Key == 0 ? "Uncategorized" : names.GetValueOrDefault(kv.Key, "?"),
-                    thisMonth = current,
-                    average,
-                    expectedSoFar = expected,
-                    // Positive: spending faster than usual for this point in the month.
-                    aheadOfPace = current - expected,
-                    monthly,
-                };
-            })
-            // Net income categories (salary, refunds) aren't spending.
-            .Where(r => r.average > 0 || r.thisMonth > 0)
-            .OrderByDescending(r => r.aheadOfPace)
-            .ToList();
-
-        return Ok(new
-        {
-            months = monthKeys.Select(m => m.ToString("yyyy-MM")).ToList(),
-            asOf = today,
-            monthFraction = Math.Round(monthFraction, 4),
-            totalThisMonth = rows.Sum(r => r.thisMonth),
-            totalAverage = rows.Sum(r => r.average),
-            totalExpectedSoFar = rows.Sum(r => r.expectedSoFar),
-            categories = rows,
-        });
+        return Ok(await reportData.SpendingTrendsAsync(user, months, accountIds));
     }
 
     // ── Saved Reports ─────────────────────────────────────────────────────────
@@ -317,34 +243,9 @@ public class ReportsController(
         var user = await userManager.FindByIdAsync(userId);
         if (user is null) return Unauthorized();
 
-        var accountsQuery = db.Accounts.Where(a => a.UserId == userId);
-        if (accountId.HasValue) accountsQuery = accountsQuery.Where(a => a.Id == accountId.Value);
-        var accounts = await accountsQuery.ToListAsync();
-        if (accountId.HasValue && accounts.Count == 0) return NotFound();
-        var ids = accounts.Select(a => a.Id).ToList();
-
+        var inputs = await reportData.BalanceInputsAsync(user, accountId);
+        if (accountId.HasValue && inputs.Count == 0) return NotFound();
         var today = UserClock.Today(user);
-        // Same as-of rule as current balances: effective date, voided excluded.
-        var daily = (await db.Transactions
-                .Where(t => ids.Contains(t.AccountId) && !t.IsVoided && (t.PostDate ?? t.Date) <= today)
-                .GroupBy(t => new { t.AccountId, Day = t.PostDate ?? t.Date })
-                .Select(g => new { g.Key.AccountId, g.Key.Day, Sum = g.Sum(t => t.Amount) })
-                .ToListAsync())
-            .ToLookup(x => x.AccountId, x => (x.Day, x.Sum));
-
-        // Accounts whose balance is the bank's reported value use their value history.
-        var reportedIds = (await ReportedBalances.ForUserAsync(db, userId)).Keys.ToHashSet();
-        var values = (await db.AccountValueSnapshots
-                .Where(v => v.UserId == userId && reportedIds.Contains(v.AccountId) && ids.Contains(v.AccountId) && v.Date <= today)
-                .Select(v => new { v.AccountId, v.Date, v.Balance })
-                .ToListAsync())
-            .ToLookup(v => v.AccountId, v => (v.Date, v.Balance));
-
-        var inputs = accounts.Select(a => new BalanceHistory.AccountInput(
-            a.Id, a.Name, a.Type.ToString(), a.OpeningBalance,
-            UserClock.ToLocalDate(new DateTimeOffset(DateTime.SpecifyKind(a.CreatedAt, DateTimeKind.Utc)), user.TimeZoneId),
-            daily[a.Id].ToList(),
-            reportedIds.Contains(a.Id) ? values[a.Id].ToList() : null)).ToList();
 
         var earliest = BalanceHistory.EarliestDate(inputs) ?? today;
         var from = (range ?? "1y") switch

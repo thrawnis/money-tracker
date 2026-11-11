@@ -45,7 +45,8 @@ public class ApplicationUser : IdentityUser
     // See VoidCategoryMigrationService.
     // Daily email digest (see EmailDigestService). Off by default; sent once a
     // day at DigestHour in the user's time zone. Amounts are left out unless
-    // DigestIncludeAmounts, since email isn't end-to-end protected.
+    // DigestIncludeAmounts, since email isn't end-to-end protected. That
+    // setting covers every email: amounts and payee names only when it's on.
     public bool DigestEnabled { get; set; } = false;
     public int DigestHour { get; set; } = 7;
     public bool DigestIncludeAmounts { get; set; } = false;
@@ -55,6 +56,21 @@ public class ApplicationUser : IdentityUser
     // Email on every sign-in (not silent session refreshes). On by default;
     // only sent when the server has email set up.
     public bool LoginAlertsEnabled { get; set; } = true;
+
+    // Bank sync alerts (see BankSyncAlertService). Both off by default.
+    // SyncAlertsEnabled: after a nightly sync, what arrived per account.
+    // LargeTxAlertsEnabled: any sync that brings in a transaction whose size
+    // (money in or out) is at least LargeTxThreshold.
+    public bool SyncAlertsEnabled { get; set; } = false;
+    public bool LargeTxAlertsEnabled { get; set; } = false;
+    public decimal LargeTxThreshold { get; set; } = 500m;
+
+    // Weekly email digest (see WeeklyDigestService): off by default; sent on
+    // WeeklyDigestDay (0 = Sunday) at WeeklyDigestHour in the user's time zone.
+    public bool WeeklyDigestEnabled { get; set; } = false;
+    public int WeeklyDigestDay { get; set; } = 0;
+    public int WeeklyDigestHour { get; set; } = 8;
+    public DateOnly? WeeklyDigestLastSentOn { get; set; }
 
     public bool VoidCategoriesMigrated { get; set; } = false;
 

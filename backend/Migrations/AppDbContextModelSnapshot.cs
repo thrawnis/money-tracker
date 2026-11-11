@@ -297,6 +297,13 @@ namespace MoneyTracker.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<bool>("LargeTxAlertsEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<decimal>("LargeTxThreshold")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
                     b.Property<bool>("LockoutEnabled")
                         .HasColumnType("boolean");
 
@@ -329,6 +336,9 @@ namespace MoneyTracker.Migrations
                     b.Property<string>("SecurityStamp")
                         .HasColumnType("text");
 
+                    b.Property<bool>("SyncAlertsEnabled")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("TimeZoneId")
                         .HasColumnType("text");
 
@@ -347,6 +357,18 @@ namespace MoneyTracker.Migrations
 
                     b.Property<bool>("VoidPayeesMigrated")
                         .HasColumnType("boolean");
+
+                    b.Property<int>("WeeklyDigestDay")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("WeeklyDigestEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("WeeklyDigestHour")
+                        .HasColumnType("integer");
+
+                    b.Property<DateOnly?>("WeeklyDigestLastSentOn")
+                        .HasColumnType("date");
 
                     b.HasKey("Id");
 
