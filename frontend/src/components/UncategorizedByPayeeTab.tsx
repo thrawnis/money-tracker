@@ -67,8 +67,9 @@ export default function UncategorizedByPayeeTab() {
   const selectedGroups = (groups ?? []).filter(g => selected.has(groupKey(g)));
   const selectedCount = selectedGroups.reduce((n, g) => n + g.count, 0);
 
-  const assign = async (key: string, payload: AssignPayload, what: string) => {
-    const match = resolve(text[key] ?? '');
+  // `chosen` skips the text box: a category picked from a payee's summary.
+  const assign = async (key: string, payload: AssignPayload, what: string, chosen?: { id: number; label: string }) => {
+    const match = chosen ?? resolve(text[key] ?? '');
     if (!match) {
       setError((text[key] ?? '').trim() ? `No category called "${text[key].trim()}". Pick one from the suggestions.` : 'Choose a category first.');
       return;
@@ -77,7 +78,7 @@ export default function UncategorizedByPayeeTab() {
     try {
       const r = await assignUncategorized({ ...payload, categoryId: match.id });
       await load();
-      setText(prev => ({ ...prev, [key]: '' }));
+      if (!chosen) setText(prev => ({ ...prev, [key]: '' }));
       setNotice(`Set "${match.label}" on ${r.updated} transaction${r.updated === 1 ? '' : 's'}${what}`
         + (r.defaultsSet ? ` and made it the default for ${r.defaultsSet} payee${r.defaultsSet === 1 ? '' : 's'}.` : '.'));
     } catch (err) {
@@ -87,13 +88,27 @@ export default function UncategorizedByPayeeTab() {
     }
   };
 
-  const assignGroups = (key: string, gs: UncategorizedGroup[]) => {
+  // defaultKey: whose "make it the default" checkbox applies (the group's own,
+  // even when the category came from its summary).
+  const assignGroups = (key: string, gs: UncategorizedGroup[], chosen?: { id: number; label: string }, defaultKey = key) => {
     const payeeIds = gs.filter(g => g.payeeId !== null).map(g => g.payeeId!);
     return assign(key, {
       payeeIds,
       includeNoPayee: gs.some(g => g.payeeId === null),
-      setPayeeDefault: payeeIds.length > 0 && !noDefault.has(key),
-    }, gs.length > 1 ? ` across ${gs.length} payees` : gs[0].payeeId === null ? ' with no payee' : ` from ${groupName(gs[0])}`);
+      setPayeeDefault: payeeIds.length > 0 && !noDefault.has(defaultKey),
+    }, gs.length > 1 ? ` across ${gs.length} payees` : gs[0].payeeId === null ? ' with no payee' : ` from ${groupName(gs[0])}`, chosen);
+  };
+
+  // Clicking a category in a payee's summary: confirm, then apply it to all of
+  // the payee's uncategorized transactions.
+  const reuseCategory = (g: UncategorizedGroup, c: { categoryId: number; label: string }) => {
+    const k = groupKey(g);
+    const makeDefault = !noDefault.has(`g:${k}`);
+    if (!confirm(
+      `Set "${c.label}" on ${g.count === 1 ? 'the 1 uncategorized transaction' : `all ${g.count} uncategorized transactions`} from ${groupName(g)}?`
+      + (makeDefault ? `\n\nIt will also become ${groupName(g)}'s default category (untick "Also make it…" to skip that).` : ''),
+    )) return;
+    void assignGroups(`u:${k}:${c.categoryId}`, [g], { id: c.categoryId, label: c.label }, `g:${k}`);
   };
 
   const applyBulk = () => {
@@ -195,6 +210,22 @@ export default function UncategorizedByPayeeTab() {
                     {busy === `g:${k}` ? 'Applying…' : g.count === 1 ? 'Apply' : `Apply to all ${g.count}`}
                   </button>
                 </div>
+                {g.usedCategories.length > 0 && (
+                  <div style={{ marginTop: 6, marginLeft: 26, display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', fontSize: 13 }}>
+                    <span className={styles.hint} style={{ margin: 0 }}>Already categorized as:</span>
+                    {g.usedCategories.map(c => {
+                      const ck = `u:${k}:${c.categoryId}`;
+                      return (
+                        <button key={c.categoryId} type="button" className={styles.btnSecondary}
+                          style={{ padding: '2px 8px', fontSize: 12 }} disabled={busy !== null}
+                          title={`Use "${c.label}" for all ${g.count} uncategorized`}
+                          onClick={() => reuseCategory(g, c)}>
+                          {busy === ck ? 'Applying…' : <>{c.label} <span style={{ opacity: 0.7 }}>({c.count})</span></>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
                 {g.payeeId !== null && (
                   <div style={{ marginTop: 4, marginLeft: 26 }}>
                     {defaultBox(`g:${k}`, g.hasDefaultCategory ? "Also replace this payee's default category" : "Also make it this payee's default category")}

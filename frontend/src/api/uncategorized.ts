@@ -14,6 +14,8 @@ export interface UncategorizedGroup {
   payeeId: number | null;
   payeeName: string | null;
   hasDefaultCategory: boolean;
+  /** How this payee's other transactions are categorized: per category, how many use it (most first). */
+  usedCategories: { categoryId: number; label: string; count: number }[];
   count: number;
   total: number;
   /** Newest first. */

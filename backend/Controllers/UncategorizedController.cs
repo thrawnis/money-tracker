@@ -45,6 +45,29 @@ public class UncategorizedController(
             .Select(t => new { t.Id, t.AccountId, AccountName = t.Account.Name, t.Date, t.Amount, t.MemoEncrypted, t.PayeeId, t.Payee })
             .ToListAsync();
 
+        // How each listed payee's other transactions are categorized, for reference
+        // and one-click reuse: per category, how many transactions use it (a split
+        // counts toward each of its categories). Transfers and voided ones aren't counted.
+        var payeeIds = txs.Where(t => t.PayeeId != null).Select(t => t.PayeeId!.Value).Distinct().ToList();
+        var used = await db.Transactions
+            .Where(t => t.Account.UserId == userId && t.PayeeId != null && payeeIds.Contains(t.PayeeId.Value)
+                && t.TransferTransactionId == null && !t.IsVoided)
+            .Select(t => new { PayeeId = t.PayeeId!.Value, t.CategoryId, SplitCategories = t.Splits.Select(s => s.CategoryId).ToList() })
+            .ToListAsync();
+        var categories = await db.Categories.Where(c => c.UserId == userId).ToListAsync();
+        var catName = categories.ToDictionary(c => c.Id, c => encryption.Decrypt(c.NameEncrypted, dek) ?? "");
+        var catLabel = categories.ToDictionary(c => c.Id,
+            c => c.ParentId is int p && catName.TryGetValue(p, out var parent) ? $"{parent}: {catName[c.Id]}" : catName[c.Id]);
+        var usedByPayee = used
+            .SelectMany(t => (t.SplitCategories.Count > 0 ? t.SplitCategories.Distinct() : [t.CategoryId])
+                .Where(c => c is not null).Select(c => (t.PayeeId, CategoryId: c!.Value)))
+            .GroupBy(x => x.PayeeId)
+            .ToDictionary(g => g.Key, g => g
+                .GroupBy(x => x.CategoryId)
+                .Select(c => new { categoryId = c.Key, label = catLabel.GetValueOrDefault(c.Key, "?"), count = c.Count() })
+                .OrderByDescending(c => c.count).ThenBy(c => c.label, StringComparer.OrdinalIgnoreCase)
+                .ToList());
+
         var groups = txs
             .GroupBy(t => t.PayeeId)
             .Select(g =>
@@ -55,6 +78,7 @@ public class UncategorizedController(
                     payeeId = g.Key,
                     payeeName = payee is null ? null : encryption.Decrypt(payee.NameEncrypted, dek),
                     hasDefaultCategory = payee?.DefaultCategoryId != null,
+                    usedCategories = g.Key is int pid && usedByPayee.TryGetValue(pid, out var u) ? u : [],
                     count = g.Count(),
                     total = g.Sum(t => t.Amount),
                     transactions = g.Select(t => new
