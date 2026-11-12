@@ -253,6 +253,12 @@
   transition: border-color 0.15s;
 }
 
+/* A styled select (see index.css) lays its text out inside the padding, so
+   the shared 5px padding left too little room in this fixed height and
+   clipped the text's descenders. */
+.filterField select { padding-top: 2px; padding-bottom: 2px; }
+
+
 .filterField input:focus, .filterField select:focus {
   outline: none;
   border-color: var(--c-005f5f);

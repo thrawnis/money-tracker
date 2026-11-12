@@ -39,6 +39,12 @@
   box-sizing: border-box;
 }
 
+/* A styled select (see index.css) lays its text out inside the padding, so
+   the shared 5px padding left too little room in this fixed height and
+   clipped the text's descenders. */
+.select { padding-top: 2px; padding-bottom: 2px; }
+
+
 .input:focus, .select:focus {
   outline: none;
   border-color: var(--c-006666);

@@ -43,6 +43,32 @@ a {
   animation: fadeUp 0.18s ease both;
 }
 
+/* Default look for every dropdown, matching the app's other controls (the
+   Reports filters). :where() keeps this at zero specificity, so a page or
+   component that styles its own selects still wins. color-scheme makes the
+   open list of options follow light/dark mode too. */
+:where(select) {
+  padding: 4px 6px;
+  border: 1.5px solid var(--c-c5d4e0);
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 13px;
+  min-height: 26px;
+  color: var(--c-1a1a2e);
+  background-color: var(--c-fafbfc);
+  color-scheme: light dark;
+  transition: border-color 0.15s;
+}
+:where(select):focus {
+  outline: none;
+  border-color: var(--c-005f5f);
+  box-shadow: 0 0 0 3px rgba(0, 95, 95, 0.1);
+}
+:where(select):disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 /* Prevent iOS auto-zoom on input focus (requires font-size >= 16px) */
 @media (max-width: 768px) {
   input, select, textarea {
