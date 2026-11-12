@@ -16,7 +16,8 @@ namespace MoneyTracker.Controllers;
 public class DashboardController(
     AppDbContext db,
     IEncryptionService encryption,
-    UserManager<ApplicationUser> userManager) : ControllerBase
+    UserManager<ApplicationUser> userManager,
+    TransferMatcher transferMatcher) : ControllerBase
 {
     private string? GetUserId() => User.FindFirstValue(ClaimTypes.NameIdentifier);
 
@@ -129,6 +130,9 @@ public class DashboardController(
             upcomingBills        = billSummaries,
             uncategorizedCount,
             uncategorizedSamples,
+            // Pairs that look like transfers entered as two ordinary transactions
+            // (Utilities → Possible Transfers), with the default settings.
+            possibleTransfers = await transferMatcher.CountAsync(user),
         });
     }
 }

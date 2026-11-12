@@ -38,6 +38,8 @@ export interface DashboardData {
   upcomingBills: UpcomingBill[];
   uncategorizedCount: number;
   uncategorizedSamples: UncategorizedSample[];
+  /** Pairs that look like transfers entered as separate transactions (Utilities → Possible Transfers). */
+  possibleTransfers: number;
 }
 
 export const getDashboard = () => api.get<DashboardData>('/dashboard').then(r => r.data);

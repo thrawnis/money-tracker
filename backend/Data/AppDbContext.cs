@@ -21,6 +21,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<DismissedDuplicateGroup> DismissedDuplicateGroups => Set<DismissedDuplicateGroup>();
     public DbSet<DismissedNameGroup> DismissedNameGroups => Set<DismissedNameGroup>();
+    public DbSet<DismissedTransferPair> DismissedTransferPairs => Set<DismissedTransferPair>();
     public DbSet<PayeeMappingRule> PayeeMappingRules => Set<PayeeMappingRule>();
     public DbSet<ImportDraft> ImportDrafts => Set<ImportDraft>();
     public DbSet<SimpleFinConnection> SimpleFinConnections => Set<SimpleFinConnection>();
@@ -104,6 +105,12 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         {
             e.HasOne(t => t.User).WithMany().HasForeignKey(t => t.UserId).OnDelete(DeleteBehavior.Cascade);
             e.HasIndex(t => t.Token).IsUnique();
+        });
+
+        modelBuilder.Entity<DismissedTransferPair>(e =>
+        {
+            e.HasOne(d => d.User).WithMany().HasForeignKey(d => d.UserId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(d => new { d.UserId, d.TransactionIdA, d.TransactionIdB }).IsUnique();
         });
 
         modelBuilder.Entity<DismissedNameGroup>(e =>

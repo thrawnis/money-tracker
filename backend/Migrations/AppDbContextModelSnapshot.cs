@@ -521,6 +521,35 @@ namespace MoneyTracker.Migrations
                     b.ToTable("DismissedNameGroups");
                 });
 
+            modelBuilder.Entity("MoneyTracker.Models.DismissedTransferPair", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("TransactionIdA")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TransactionIdB")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "TransactionIdA", "TransactionIdB")
+                        .IsUnique();
+
+                    b.ToTable("DismissedTransferPairs");
+                });
+
             modelBuilder.Entity("MoneyTracker.Models.ExportToken", b =>
                 {
                     b.Property<int>("Id")
@@ -1504,6 +1533,17 @@ namespace MoneyTracker.Migrations
                 });
 
             modelBuilder.Entity("MoneyTracker.Models.DismissedNameGroup", b =>
+                {
+                    b.HasOne("MoneyTracker.Models.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("MoneyTracker.Models.DismissedTransferPair", b =>
                 {
                     b.HasOne("MoneyTracker.Models.ApplicationUser", "User")
                         .WithMany()

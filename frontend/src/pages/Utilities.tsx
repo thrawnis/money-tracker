@@ -14,6 +14,7 @@ import type { Account, Institution, Payee, Transaction } from '../types';
 import TransactionDetailPanel from '../components/TransactionDetailPanel';
 import DuplicateNamesTab from '../components/DuplicateNamesTab';
 import UncategorizedByPayeeTab from '../components/UncategorizedByPayeeTab';
+import PossibleTransfersTab from '../components/PossibleTransfersTab';
 // Reuses Settings' styling for visual consistency between the two tabbed
 // utility-page shells rather than duplicating the same CSS.
 import styles from './Settings.module.css';
@@ -622,10 +623,11 @@ function PayeeMappingRulesTab() {
 
 // ── Page shell ──
 
-type Tab = 'uncategorized' | 'duplicates' | 'duplicateNames' | 'institutions' | 'payeeMappingRules';
+type Tab = 'uncategorized' | 'transfers' | 'duplicates' | 'duplicateNames' | 'institutions' | 'payeeMappingRules';
 
 const TAB_URL: Record<Tab, string> = {
   uncategorized: 'uncategorized',
+  transfers: 'transfers',
   duplicates: 'transactions',
   duplicateNames: 'names',
   institutions: 'institutions',
@@ -638,6 +640,7 @@ const TAB_FROM_URL: Record<string, Tab> = Object.fromEntries(
 // opens when no utility is chosen).
 const UTILITIES: { tab: Tab; label: string; description: string }[] = [
   { tab: 'uncategorized', label: 'Uncategorized by Payee', description: 'Every uncategorized transaction grouped by payee — set categories for one transaction, a whole payee, or several payees at once.' },
+  { tab: 'transfers', label: 'Possible Transfers', description: 'Transactions that look like the two sides of a transfer between your accounts (same amount out of one and into another within a few days) — link them as transfers.' },
   { tab: 'duplicates', label: 'Duplicate Transactions', description: 'Transactions with the same account, date and amount, e.g. from an import done twice — review and delete them.' },
   { tab: 'duplicateNames', label: 'Duplicate Names', description: 'Payees and categories that are probably the same (store numbers, punctuation, plurals, typos) — merge them.' },
   { tab: 'institutions', label: 'Institutions', description: 'Rename or remove the banks and institutions your accounts are filed under.' },
@@ -685,6 +688,7 @@ export default function Utilities() {
           </div>
         )}
         {tab === 'uncategorized' && <UncategorizedByPayeeTab />}
+        {tab === 'transfers' && <PossibleTransfersTab />}
         {tab === 'duplicates' && <DuplicatesTab />}
         {tab === 'duplicateNames' && <DuplicateNamesTab />}
         {tab === 'institutions' && <InstitutionsTab />}

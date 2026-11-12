@@ -66,7 +66,7 @@ public class EmailSender(IConfiguration config, ILogger<EmailSender> logger)
 /// bills due soon or overdue, low-balance forecast warnings and the count of
 /// uncategorized transactions. Amounts only when the user opted in.
 /// </summary>
-public class EmailDigestBuilder(AppDbContext db, IEncryptionService encryption, CashFlowForecast forecast, IConfiguration config)
+public class EmailDigestBuilder(AppDbContext db, IEncryptionService encryption, CashFlowForecast forecast, TransferMatcher transfers, IConfiguration config)
 {
     public record Digest(string Subject, string Text, string Html, bool HasNews);
 
@@ -128,8 +128,14 @@ public class EmailDigestBuilder(AppDbContext db, IEncryptionService encryption, 
         // Uncategorized: shown, but on its own not a reason to send.
         var uncategorized = await db.Transactions.CountAsync(t => t.Account.UserId == user.Id && t.CategoryId == null
             && t.TransferTransactionId == null && !t.IsVoided && !t.Splits.Any());
-        if (uncategorized > 0)
-            sections.Add(("To categorize", [$"{uncategorized} uncategorized transaction{(uncategorized == 1 ? "" : "s")}"], "/"));
+        // Possible transfers (Utilities → Possible Transfers): likewise not news on its own.
+        var possibleTransfers = await transfers.CountAsync(user);
+        var tidyUp = new List<string>();
+        if (uncategorized > 0) tidyUp.Add($"{uncategorized} uncategorized transaction{(uncategorized == 1 ? "" : "s")}");
+        if (possibleTransfers > 0)
+            tidyUp.Add($"{possibleTransfers} pair{(possibleTransfers == 1 ? "" : "s")} of transactions that look like transfers between your accounts (Utilities → Possible Transfers)");
+        if (tidyUp.Count > 0)
+            sections.Add(("To categorize", tidyUp, possibleTransfers > 0 && uncategorized == 0 ? "/utilities?tab=transfers" : "/"));
 
         var subject = news
             ? "Money Tracker: " + string.Join(", ", sections.Where(s => s.Title != "To categorize").Select(s => s.Title.ToLowerInvariant()))

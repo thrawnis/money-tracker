@@ -188,6 +188,7 @@ builder.Services.AddScoped<SimpleFinService>();
 builder.Services.AddScoped<IouLedger>();
 builder.Services.AddScoped<CashFlowForecast>();
 builder.Services.AddScoped<ReportData>();
+builder.Services.AddScoped<TransferMatcher>();
 builder.Services.AddSingleton<EmailSender>();
 builder.Services.AddScoped<EmailDigestBuilder>();
 builder.Services.AddHostedService<EmailDigestService>();

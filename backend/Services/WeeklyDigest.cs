@@ -15,7 +15,7 @@ namespace MoneyTracker.Services;
 /// changes are given as percentages.
 /// </summary>
 public class WeeklyDigestBuilder(
-    AppDbContext db, ReportData reports, CashFlowForecast forecast, IEncryptionService encryption, IConfiguration config)
+    AppDbContext db, ReportData reports, CashFlowForecast forecast, TransferMatcher transfers, IEncryptionService encryption, IConfiguration config)
 {
     private const int BaselineWeeks = 12;
 
@@ -133,6 +133,8 @@ public class WeeklyDigestBuilder(
         var todo = new List<string>();
         if (reviews > 0) todo.Add($"{reviews} bank-sync transaction{(reviews == 1 ? "" : "s")} to review");
         if (uncategorized > 0) todo.Add($"{uncategorized} uncategorized transaction{(uncategorized == 1 ? "" : "s")}");
+        var possibleTransfers = await transfers.CountAsync(user);
+        if (possibleTransfers > 0) todo.Add($"{possibleTransfers} possible transfer{(possibleTransfers == 1 ? "" : "s")} to link (Utilities → Possible Transfers)");
         layout.Section("Waiting for you", todo, "/", "Open Money Tracker");
 
         if (layout.IsEmpty) layout.Intro("No activity to report this week.");

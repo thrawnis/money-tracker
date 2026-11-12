@@ -381,6 +381,22 @@ export default function Dashboard() {
             )}
           </div>
 
+          {data.possibleTransfers > 0 && (
+            <div className={styles.billsSection}>
+              <h3 className={styles.sectionTitle}>
+                <Link to="/utilities?tab=transfers" className={styles.uncatTitleLink}>
+                  Possible Transfers
+                  <span className={styles.uncatBadge}>{data.possibleTransfers}</span>
+                </Link>
+              </h3>
+              <p className={styles.uncatHint}>
+                {data.possibleTransfers === 1 ? 'A pair' : `${data.possibleTransfers} pairs`} of transactions look like transfers
+                {' '}between your accounts but aren't linked as transfers.{' '}
+                <Link to="/utilities?tab=transfers">Review and link them →</Link>
+              </p>
+            </div>
+          )}
+
           {data.uncategorizedCount > 0 && (
             <div className={styles.uncatSection}>
               <h3 className={styles.sectionTitle}>
