@@ -228,7 +228,7 @@ export default function BankSyncSettings({ status, onStatus: setStatus, accounts
             <th style={{ textAlign: 'right' }}>Bank balance</th>
             <th>Sync into</th>
             <th>Records</th>
-            <th>Synced through</th>
+            <th>Last synced</th>
             <th></th>
           </tr>
         </thead>
@@ -294,10 +294,16 @@ export default function BankSyncSettings({ status, onStatus: setStatus, accounts
                 )}
               </td>
               <td>
-                {sf.linkedAccountId == null ? '—'
-                  : sf.balanceOnly
-                    ? (sf.valueDate ? <>{formatMoney(sf.valueRecorded, sf.currency)} on {formatDay(sf.valueDate)}</> : 'No value yet')
-                    : formatDay(sf.syncedThrough)}
+                {sf.linkedAccountId == null ? '—' : (
+                  <>
+                    {sf.lastSyncedAt ? formatDateTime(sf.lastSyncedAt, user?.timeZoneId) : 'Not yet'}
+                    {sf.balanceOnly && (
+                      <div className={styles.hint} style={{ margin: 0 }}>
+                        {sf.valueDate ? <>{formatMoney(sf.valueRecorded, sf.currency)} on {formatDay(sf.valueDate)}</> : 'No value yet'}
+                      </div>
+                    )}
+                  </>
+                )}
               </td>
               <td>
                 {sf.pendingDraftId != null && (

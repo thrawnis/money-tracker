@@ -115,6 +115,7 @@ public class SimpleFinService(
                         linkedAccountId = a.LinkedAccountId,
                         linkedAccountName = a.LinkedAccount?.Name,
                         syncedThrough = a.SyncedThrough,
+                        lastSyncedAt = a.LastSyncedAt,
                         balanceOnly = a.BalanceOnly,
                         valueRecorded = value?.Balance,
                         valueDate = value?.Date,
@@ -238,6 +239,7 @@ public class SimpleFinService(
         // longer applies, and any staged draft was built for the old target.
         sfAccount.LinkedAccountId = localAccountId;
         sfAccount.SyncedThrough = null;
+        sfAccount.LastSyncedAt = null;
         // Bank ids recorded against the old account's register mean nothing
         // for the new one.
         await db.SimpleFinImportedTransactions
@@ -398,6 +400,7 @@ public class SimpleFinService(
             var name = encryption.Decrypt(a.NameEncrypted, dek) ?? a.ExternalId;
             var sf = set.Accounts.FirstOrDefault(x => x.Id == a.ExternalId);
             var recorded = sf is null ? null : await RecordValueAsync(user, a.LinkedAccountId!.Value, sf, ct);
+            if (recorded is not null) a.LastSyncedAt = DateTime.UtcNow;
             results.Add(new SimpleFinSyncAccountResult(
                 a.Id, name, a.LinkedAccountId, a.LinkedAccount!.Name, null, 0, null,
                 recorded is null
@@ -513,6 +516,7 @@ public class SimpleFinService(
                 var upTo = existingDraft is null ? today : rows.Count > 0 ? rows[^1].Date : (DateOnly?)null;
                 if (upTo is DateOnly u && (a.SyncedThrough is null || u > a.SyncedThrough))
                     a.SyncedThrough = u;
+                a.LastSyncedAt = DateTime.UtcNow;
                 results.Add(Result(0, existingDraft?.Id, capped ? CappedNote() : null));
                 continue;
             }
@@ -562,6 +566,7 @@ public class SimpleFinService(
             existingDraft.UpdatedAt = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
 
+            a.LastSyncedAt = DateTime.UtcNow;
             results.Add(Result(fresh.Count, existingDraft.Id, capped ? CappedNote() : null) with { Arrived = arrived });
         }
 

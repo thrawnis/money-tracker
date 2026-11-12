@@ -93,6 +93,13 @@ public class SimpleFinAccount
     // next sync simply fetches the same range again and nothing is skipped.
     public DateOnly? SyncedThrough { get; set; }
 
+    // When a sync last processed this account (UTC): fetched its transactions
+    // (staged for review or nothing new) or recorded its balance. Unlike
+    // SyncedThrough it doesn't depend on reviews being approved. Not set when a
+    // sync skipped the account (missing from SimpleFIN's reply, an unfinished
+    // file import, a review in progress). Cleared when the link changes.
+    public DateTime? LastSyncedAt { get; set; }
+
     public DateTime LastSeenAt { get; set; } = DateTime.UtcNow;
 
     public ICollection<SimpleFinSkippedTransaction> SkippedTransactions { get; set; } = [];

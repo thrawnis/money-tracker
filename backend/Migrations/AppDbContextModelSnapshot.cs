@@ -1097,6 +1097,9 @@ namespace MoneyTracker.Migrations
                     b.Property<DateTime>("LastSeenAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<DateTime?>("LastSyncedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<int?>("LinkedAccountId")
                         .HasColumnType("integer");
 

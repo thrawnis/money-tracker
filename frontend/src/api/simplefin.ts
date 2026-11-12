@@ -10,6 +10,8 @@ export interface SimpleFinAccount {
   linkedAccountName?: string | null;
   /** Newest transaction date already imported from this bank account (YYYY-MM-DD). */
   syncedThrough?: string | null;
+  /** When a sync last succeeded for this account (UTC), whatever was later approved. */
+  lastSyncedAt?: string | null;
   /** An unreviewed sync draft for this account, if one is waiting. */
   pendingDraftId?: number | null;
   pendingDraftRows?: number | null;

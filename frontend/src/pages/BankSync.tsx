@@ -189,7 +189,7 @@ export default function BankSync() {
                 <th>Bank account</th>
                 <th>Syncs into</th>
                 <th style={{ textAlign: 'right' }}>Bank balance</th>
-                <th>Synced through / value</th>
+                <th>Last synced</th>
                 <th></th>
               </tr>
             </thead>
@@ -224,10 +224,16 @@ export default function BankSync() {
                         </td>
                         <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{formatMoney(sf.balance, sf.currency)}</td>
                         <td style={{ whiteSpace: 'nowrap' }}>
-                          {!linkedHere ? '—'
-                            : sf.balanceOnly
-                              ? <>Balance only{sf.valueDate && <>: {formatMoney(sf.valueRecorded, sf.currency)} on {formatDay(sf.valueDate)}</>}</>
-                              : formatDay(sf.syncedThrough)}
+                          {!linkedHere ? '—' : (
+                            <>
+                              {sf.lastSyncedAt ? formatDateTime(sf.lastSyncedAt, user?.timeZoneId) : 'Not yet'}
+                              {sf.balanceOnly && (
+                                <div className={styles.hint} style={{ margin: 0 }}>
+                                  Balance only{sf.valueDate && <>: {formatMoney(sf.valueRecorded, sf.currency)} on {formatDay(sf.valueDate)}</>}
+                                </div>
+                              )}
+                            </>
+                          )}
                         </td>
                         <td style={{ whiteSpace: 'nowrap' }}>
                           {sf.pendingDraftId != null && (
