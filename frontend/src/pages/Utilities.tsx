@@ -13,6 +13,7 @@ import { getPayees } from '../api/payees';
 import type { Account, Institution, Payee, Transaction } from '../types';
 import TransactionDetailPanel from '../components/TransactionDetailPanel';
 import DuplicateNamesTab from '../components/DuplicateNamesTab';
+import UncategorizedByPayeeTab from '../components/UncategorizedByPayeeTab';
 // Reuses Settings' styling for visual consistency between the two tabbed
 // utility-page shells rather than duplicating the same CSS.
 import styles from './Settings.module.css';
@@ -594,9 +595,10 @@ function PayeeMappingRulesTab() {
 
 // ── Page shell ──
 
-type Tab = 'duplicates' | 'duplicateNames' | 'institutions' | 'payeeMappingRules';
+type Tab = 'uncategorized' | 'duplicates' | 'duplicateNames' | 'institutions' | 'payeeMappingRules';
 
 const TAB_URL: Record<Tab, string> = {
+  uncategorized: 'uncategorized',
   duplicates: 'transactions',
   duplicateNames: 'names',
   institutions: 'institutions',
@@ -605,12 +607,23 @@ const TAB_URL: Record<Tab, string> = {
 const TAB_FROM_URL: Record<string, Tab> = Object.fromEntries(
   Object.entries(TAB_URL).map(([t, u]) => [u, t as Tab]));
 
+// Tab order, labels, and what each utility is for (shown on the menu that
+// opens when no utility is chosen).
+const UTILITIES: { tab: Tab; label: string; description: string }[] = [
+  { tab: 'uncategorized', label: 'Uncategorized by Payee', description: 'Every uncategorized transaction grouped by payee — set categories for one transaction, a whole payee, or several payees at once.' },
+  { tab: 'duplicates', label: 'Duplicate Transactions', description: 'Transactions with the same account, date and amount, e.g. from an import done twice — review and delete them.' },
+  { tab: 'duplicateNames', label: 'Duplicate Names', description: 'Payees and categories that are probably the same (store numbers, punctuation, plurals, typos) — merge them.' },
+  { tab: 'institutions', label: 'Institutions', description: 'Rename or remove the banks and institutions your accounts are filed under.' },
+  { tab: 'payeeMappingRules', label: 'Payee Mapping Rules', description: 'Rules that turn bank payee text (e.g. "AMZN MKTP 123") into your payees, and applying them to uncategorized transactions.' },
+];
+
 export default function Utilities() {
   usePageTitle('Utilities');
   // The open tab lives in the address (?tab=…), so a refresh, the back button
   // or a bookmark comes back to it.
   const [searchParams, setSearchParams] = useSearchParams();
-  const tab: Tab = TAB_FROM_URL[searchParams.get('tab') ?? ''] ?? 'duplicates';
+  // No ?tab (or an unknown one) shows the menu rather than opening a utility.
+  const tab: Tab | null = TAB_FROM_URL[searchParams.get('tab') ?? ''] ?? null;
   const setTab = (t: Tab) => setSearchParams({ tab: TAB_URL[t] }, { replace: true });
 
   return (
@@ -619,32 +632,32 @@ export default function Utilities() {
         <h2 className={styles.pageTitle}>Utilities</h2>
       </div>
       <div className={styles.tabs}>
-        <button
-          className={`${styles.tab} ${tab === 'duplicates' ? styles.tabActive : ''}`}
-          onClick={() => setTab('duplicates')}
-        >
-          Duplicate Transactions
-        </button>
-        <button
-          className={`${styles.tab} ${tab === 'duplicateNames' ? styles.tabActive : ''}`}
-          onClick={() => setTab('duplicateNames')}
-        >
-          Duplicate Names
-        </button>
-        <button
-          className={`${styles.tab} ${tab === 'institutions' ? styles.tabActive : ''}`}
-          onClick={() => setTab('institutions')}
-        >
-          Institutions
-        </button>
-        <button
-          className={`${styles.tab} ${tab === 'payeeMappingRules' ? styles.tabActive : ''}`}
-          onClick={() => setTab('payeeMappingRules')}
-        >
-          Payee Mapping Rules
-        </button>
+        {UTILITIES.map(u => (
+          <button
+            key={u.tab}
+            className={`${styles.tab} ${tab === u.tab ? styles.tabActive : ''}`}
+            onClick={() => setTab(u.tab)}
+          >
+            {u.label}
+          </button>
+        ))}
       </div>
       <div className={styles.tabContent}>
+        {tab === null && (
+          <div className={styles.tabSection}>
+            <p className={styles.hint}>Choose a utility:</p>
+            {UTILITIES.map(u => (
+              <div key={u.tab} className={styles.prefGroup} style={{ marginBottom: 10 }}>
+                <button type="button" className={styles.btnLink} style={{ fontSize: 15, fontWeight: 600, padding: 0 }}
+                  onClick={() => setTab(u.tab)}>
+                  {u.label}
+                </button>
+                <p className={styles.hint} style={{ margin: '4px 0 0' }}>{u.description}</p>
+              </div>
+            ))}
+          </div>
+        )}
+        {tab === 'uncategorized' && <UncategorizedByPayeeTab />}
         {tab === 'duplicates' && <DuplicatesTab />}
         {tab === 'duplicateNames' && <DuplicateNamesTab />}
         {tab === 'institutions' && <InstitutionsTab />}
