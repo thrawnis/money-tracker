@@ -441,6 +441,9 @@ function InstitutionsTab() {
 
 function PayeeMappingRulesTab() {
   const [rules, setRules] = useState<PayeeMappingRule[]>([]);
+  // Sorted by pattern by default; click a header to sort by it (again to reverse).
+  const [sortBy, setSortBy] = useState<'pattern' | 'type' | 'target'>('pattern');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const [payees, setPayees] = useState<Payee[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -513,6 +516,30 @@ function PayeeMappingRulesTab() {
     }
   };
 
+  const ruleType = (r: PayeeMappingRule) => (r.isRegex ? 'Regex' : 'Wildcard/Exact');
+  const sortedRules = [...rules].sort((a, b) => {
+    const key = (r: PayeeMappingRule) => (sortBy === 'pattern' ? r.pattern : sortBy === 'type' ? ruleType(r) : r.targetPayeeName);
+    const cmp = key(a).localeCompare(key(b), undefined, { sensitivity: 'base', numeric: true })
+      || a.pattern.localeCompare(b.pattern, undefined, { sensitivity: 'base', numeric: true });
+    return sortDir === 'desc' ? -cmp : cmp;
+  });
+
+  const sortHeader = (col: typeof sortBy, label: string) => (
+    <th
+      className={styles.sortable}
+      onClick={() => {
+        if (sortBy === col) setSortDir(d => (d === 'asc' ? 'desc' : 'asc'));
+        else { setSortBy(col); setSortDir('asc'); }
+      }}
+      aria-sort={sortBy === col ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+    >
+      {label}
+      {sortBy === col
+        ? <span className={styles.sortActive}>{sortDir === 'desc' ? ' ▼' : ' ▲'}</span>
+        : <span className={styles.sortIdle}> ⇅</span>}
+    </th>
+  );
+
   return (
     <div className={styles.tabSection}>
       <p className={styles.hint}>
@@ -567,17 +594,17 @@ function PayeeMappingRulesTab() {
         <table className={styles.dupTable}>
           <thead>
             <tr>
-              <th>Pattern</th>
-              <th>Type</th>
-              <th>Maps to</th>
+              {sortHeader('pattern', 'Pattern')}
+              {sortHeader('type', 'Type')}
+              {sortHeader('target', 'Maps to')}
               <th></th>
             </tr>
           </thead>
           <tbody>
-            {rules.map(r => (
+            {sortedRules.map(r => (
               <tr key={r.id}>
                 <td>{r.pattern}</td>
-                <td>{r.isRegex ? 'Regex' : 'Wildcard/Exact'}</td>
+                <td>{ruleType(r)}</td>
                 <td>{r.targetPayeeName}</td>
                 <td>
                   <button className={styles.btnDanger} onClick={() => handleDelete(r.id)} disabled={deletingId === r.id}>

@@ -630,3 +630,18 @@ p.hint { max-width: 110ch; }
   border-top: none;
   font-size: 13px;
 }
+
+/* Sortable table headers (same look as Bills & Reminders) */
+.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+.sortable:hover { background: linear-gradient(to bottom, var(--c-d4e4f0), var(--c-cddce8)); }
+.sortActive {
+  color: var(--c-1a6bbf);
+  font-size: 0.9em;
+}
+.sortIdle {
+  color: var(--c-9aabbb);
+  font-size: 0.9em;
+}
