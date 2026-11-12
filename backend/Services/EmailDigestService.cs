@@ -15,6 +15,10 @@ namespace MoneyTracker.Services;
 /// SMTP settings from configuration (Smtp:Host, Smtp:Port, Smtp:Username,
 /// Smtp:Password, Smtp:From, Smtp:Security = starttls | ssl | none). Email is
 /// "configured" once a host and a from-address are set.
+/// Smtp:AllowInvalidCertificate=true accepts any server certificate (e.g. a
+/// self-signed one on a home mail server). Off by default: without the check,
+/// anyone between the app and the mail server could pose as it and read the
+/// SMTP password and the emails.
 /// </summary>
 public class EmailSender(IConfiguration config, ILogger<EmailSender> logger)
 {
@@ -41,6 +45,13 @@ public class EmailSender(IConfiguration config, ILogger<EmailSender> logger)
         var port = int.TryParse(Get("Smtp:Port"), out var p) ? p : security == SecureSocketOptions.SslOnConnect ? 465 : 587;
 
         using var client = new SmtpClient();
+        if (config.GetValue<bool>("Smtp:AllowInvalidCertificate"))
+            client.ServerCertificateValidationCallback = (_, _, _, errors) =>
+            {
+                if (errors != System.Net.Security.SslPolicyErrors.None)
+                    logger.LogDebug("Accepting SMTP server certificate despite {Errors} (Smtp:AllowInvalidCertificate)", errors);
+                return true;
+            };
         await client.ConnectAsync(Get("Smtp:Host"), port, security, ct);
         if (Get("Smtp:Username") is string user)
             await client.AuthenticateAsync(user, Get("Smtp:Password") ?? "", ct);

@@ -84,6 +84,7 @@ services:
       Smtp__Password: ${SMTP_PASSWORD:-}
       Smtp__From: ${SMTP_FROM:-}
       Smtp__Security: ${SMTP_SECURITY:-starttls}
+      Smtp__AllowInvalidCertificate: ${SMTP_ALLOW_INVALID_CERT:-false}
       # Address used for links in emails (defaults to the first FIDO2_ORIGIN)
       App__Url: ${APP_URL:-}
       # Receipt extraction provider: ollama (default) | anthropic | openai | gemini
