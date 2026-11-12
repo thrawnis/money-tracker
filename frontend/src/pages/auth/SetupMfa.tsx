@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import * as authApi from '../../api/auth';
 import { useAuth } from '../../contexts/auth-context';
 import { createPasskey, defaultPasskeyName, passkeyErrorMessage, passkeysSupported } from '../../utils/webauthn';
+import { finishSignIn } from '../../utils/finishSignIn';
 import styles from './Login.module.css';
 
 /**
@@ -27,8 +28,7 @@ export default function SetupMfa() {
       const attestation = await createPasskey(options);
       const res = await authApi.passkeyRegisterComplete(userId, attestation, defaultPasskeyName());
       sessionStorage.removeItem('mfa_setup_user_id');
-      signIn(res.accessToken);
-      navigate('/');
+      finishSignIn(res, signIn, navigate);
     } catch (err) {
       setError(passkeyErrorMessage(err));
     } finally {

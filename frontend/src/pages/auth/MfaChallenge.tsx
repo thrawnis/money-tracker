@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import * as authApi from '../../api/auth';
 import { useAuth } from '../../contexts/auth-context';
 import { getPasskey, passkeyErrorMessage, passkeysSupported } from '../../utils/webauthn';
+import { finishSignIn } from '../../utils/finishSignIn';
+import type { TokenResponse } from '../../types/auth';
 import styles from './Login.module.css';
 
 type ApiError = { response?: { data?: { message?: string } | string } };
@@ -28,11 +30,10 @@ export default function MfaChallenge() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const finish = (accessToken: string) => {
+  const finish = (res: TokenResponse) => {
     sessionStorage.removeItem('mfa_login_user_id');
     sessionStorage.removeItem('mfa_login_methods');
-    signIn(accessToken);
-    navigate('/');
+    finishSignIn(res, signIn, navigate);
   };
 
   const usePasskey = async () => {
@@ -43,7 +44,7 @@ export default function MfaChallenge() {
       const options = await authApi.passkeyLoginBegin(userId);
       const assertion = await getPasskey(options);
       const res = await authApi.passkeyLoginComplete(userId, assertion);
-      finish(res.accessToken);
+      finish(res);
     } catch (err) {
       setError(passkeyErrorMessage(err));
     } finally {
@@ -59,7 +60,7 @@ export default function MfaChallenge() {
     setBusy(true);
     try {
       const res = await authApi.verifyTotp(userId, code);
-      finish(res.accessToken);
+      finish(res);
     } catch (err) {
       setError(apiMessage(err, 'Invalid code. Please try again.'));
     } finally {

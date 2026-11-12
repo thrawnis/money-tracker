@@ -22,6 +22,7 @@ import SetupTotp from './pages/auth/SetupTotp';
 import MfaChallenge from './pages/auth/MfaChallenge';
 import SetupMfa from './pages/auth/SetupMfa';
 import RequireTimeZone from './pages/auth/RequireTimeZone';
+import VerifyEmail from './pages/auth/VerifyEmail';
 
 // Combined auth guard + layout — useAuth is available because AuthProvider wraps RouterProvider
 function AppShell() {
@@ -40,6 +41,7 @@ const router = createBrowserRouter(
   createRoutesFromElements(
     <>
       <Route path="/auth/login"      element={<Login />} />
+      <Route path="/auth/verify-email" element={<VerifyEmail />} />
       <Route path="/auth/register"   element={<Register />} />
       <Route path="/auth/setup-totp" element={<SetupTotp />} />
       <Route path="/auth/mfa"        element={<MfaChallenge />} />

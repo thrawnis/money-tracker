@@ -34,6 +34,7 @@ public class AuthController(
     IAuditService                   audit,
     ILogger<AuthController>         logger,
     LoginAlertQueue                 loginAlerts,
+    EmailSender                     emailSender,
     VoidCategoryMigrationService    voidCategoryMigration,
     VoidPayeeMigrationService       voidPayeeMigration,
     DuplicateNameMergeService       duplicateNameMerge,
@@ -565,6 +566,106 @@ public class AuthController(
         return NoContent();
     }
 
+    // ── Email verification ────────────────────────────────────────────────────
+    // When the server can send email (SMTP configured), every account except the
+    // demo one must verify its email address before it can sign in: after the
+    // password and second factor succeed, a 6-digit code is emailed and the
+    // sign-in finishes only once it's entered. Existing sessions are asked to
+    // sign in again (refresh refuses) so they verify too. Auth:RequireEmailVerification
+    // = false (REQUIRE_EMAIL_VERIFICATION in .env) turns it off — the way back
+    // in if email stops working.
+
+    private bool NeedsEmailVerification(ApplicationUser user) =>
+        !user.EmailConfirmed
+        && emailSender.IsConfigured
+        && config.GetValue("Auth:RequireEmailVerification", true)
+        && !(IsDemoMode && user.Email == MoneyTracker.Services.DemoSeeder.DemoEmail);
+
+    private const string EmailVerifyPurpose = "EmailVerification";
+    private static readonly TimeSpan ResendCooldown = TimeSpan.FromSeconds(60);
+
+    private async Task SendVerificationCodeAsync(ApplicationUser user)
+    {
+        var code = await userManager.GenerateUserTokenAsync(user, TokenOptions.DefaultEmailProvider, EmailVerifyPurpose);
+        var (text, html) = new EmailLayout("Verify your email address")
+            .Intro($"Your Money Tracker verification code is {code}")
+            .Intro("Enter it on the sign-in screen within 5 minutes to confirm this address and finish signing in.")
+            .Intro("If you didn't just try to sign in to Money Tracker, someone has your password: change it and check your passkeys in Settings → Security.")
+            .Render(EmailLayout.AppUrl(config), "This email was sent because someone signed in to a Money Tracker account using this address.");
+        await emailSender.SendAsync(user.Email!, $"Money Tracker verification code: {code}", text, html);
+        HttpContext.Session.SetString("emailVerifySentAt", DateTime.UtcNow.ToString("O"));
+    }
+
+    // Called by IssueTokensAsync instead of issuing tokens when verification is needed.
+    private async Task<IActionResult> BeginEmailVerificationAsync(ApplicationUser user, string method)
+    {
+        HttpContext.Session.SetString("emailVerifyUserId", user.Id);
+        HttpContext.Session.SetString("emailVerifyMethod", method);
+        HttpContext.Session.Remove("mfaUserId");
+        try
+        {
+            await SendVerificationCodeAsync(user);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Couldn't send the email verification code");
+            return StatusCode(503, new { message = "We couldn't send your verification email. Try again in a moment; if it keeps failing, the server's email settings need attention." });
+        }
+        await audit.LogAsync("EMAIL_VERIFICATION_SENT", details: new { email = user.Email });
+        return Ok(new { requiresEmailVerification = true, email = user.Email });
+    }
+
+    public record EmailVerifyRequest(string Code);
+
+    [HttpPost("email/verify")]
+    public async Task<IActionResult> VerifyEmail(EmailVerifyRequest request)
+    {
+        var userId = HttpContext.Session.GetString("emailVerifyUserId");
+        if (userId is null) return Unauthorized(new { message = "Your sign-in timed out. Please sign in again." });
+        var user = await userManager.FindByIdAsync(userId);
+        if (user is null) return Unauthorized(new { message = "Your sign-in timed out. Please sign in again." });
+        if (await userManager.IsLockedOutAsync(user))
+            return StatusCode(429, new { message = "Account locked due to too many failed attempts. Try again later." });
+
+        var ok = await userManager.VerifyUserTokenAsync(user, TokenOptions.DefaultEmailProvider, EmailVerifyPurpose, (request.Code ?? "").Trim());
+        if (!ok)
+        {
+            await userManager.AccessFailedAsync(user);
+            return Unauthorized(new { message = "That code isn't right or has expired. Check the latest email, or send a new code." });
+        }
+
+        user.EmailConfirmed = true;
+        await userManager.UpdateAsync(user);
+        await userManager.ResetAccessFailedCountAsync(user);
+        var method = HttpContext.Session.GetString("emailVerifyMethod") ?? "password";
+        HttpContext.Session.Remove("emailVerifyUserId");
+        HttpContext.Session.Remove("emailVerifyMethod");
+        await audit.LogAsync("EMAIL_VERIFIED", details: new { email = user.Email });
+        return await IssueTokensAsync(user, method);
+    }
+
+    [HttpPost("email/resend")]
+    public async Task<IActionResult> ResendVerificationEmail()
+    {
+        var userId = HttpContext.Session.GetString("emailVerifyUserId");
+        if (userId is null) return Unauthorized(new { message = "Your sign-in timed out. Please sign in again." });
+        var user = await userManager.FindByIdAsync(userId);
+        if (user is null) return Unauthorized(new { message = "Your sign-in timed out. Please sign in again." });
+        if (DateTime.TryParse(HttpContext.Session.GetString("emailVerifySentAt"), null, System.Globalization.DateTimeStyles.RoundtripKind, out var sentAt)
+            && DateTime.UtcNow - sentAt < ResendCooldown)
+            return StatusCode(429, new { message = "A code was just sent — wait a minute before asking for another." });
+        try
+        {
+            await SendVerificationCodeAsync(user);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Couldn't resend the email verification code");
+            return StatusCode(503, new { message = "We couldn't send the email. Try again in a moment." });
+        }
+        return Ok(new { email = user.Email });
+    }
+
     // ── Token refresh ─────────────────────────────────────────────────────────
 
     [HttpPost("refresh")]
@@ -609,6 +710,15 @@ public class AuthController(
         {
             stored.IsRevoked = true;
             stored.RevokedAt = DateTime.UtcNow;
+        }
+
+        // An unverified address can't keep a session going: sign in again, which
+        // asks for the emailed code.
+        if (NeedsEmailVerification(stored.User))
+        {
+            await db.SaveChangesAsync();
+            Response.Cookies.Delete("refreshToken");
+            return Unauthorized("Please sign in again to verify your email address.");
         }
 
         // Same one-time cleanup IssueTokensAsync runs. Refresh builds its
@@ -764,6 +874,11 @@ public class AuthController(
 
     private async Task<IActionResult> IssueTokensAsync(ApplicationUser user, string method = "password")
     {
+        // Every sign-in path ends here, so this is where an unverified email
+        // address stops it (see NeedsEmailVerification).
+        if (NeedsEmailVerification(user))
+            return await BeginEmailVerificationAsync(user, method);
+
         // Runs once per user (see VoidCategoriesMigrated) — this is the one
         // chokepoint every login path and silent token refresh funnels
         // through, so it fires "next time the app loads" for free.

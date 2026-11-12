@@ -85,6 +85,8 @@ services:
       Smtp__From: ${SMTP_FROM:-}
       Smtp__Security: ${SMTP_SECURITY:-starttls}
       Smtp__AllowInvalidCertificate: ${SMTP_ALLOW_INVALID_CERT:-false}
+      # With email set up, accounts must verify their address to sign in; false turns that off
+      Auth__RequireEmailVerification: ${REQUIRE_EMAIL_VERIFICATION:-true}
       # Address used for links in emails (defaults to the first FIDO2_ORIGIN)
       App__Url: ${APP_URL:-}
       # Receipt extraction provider: ollama (default) | anthropic | openai | gemini

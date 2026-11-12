@@ -74,3 +74,10 @@ export const refreshTokens = () =>
 
 export const logout = () =>
   api.post('/auth/logout');
+
+// Email verification: after a successful sign-in on an unverified address, the
+// server emails a code instead of issuing tokens; this finishes the sign-in.
+export const verifyEmailCode = (code: string) =>
+  api.post<TokenResponse>('/auth/email/verify', { code }).then(r => r.data);
+export const resendEmailCode = () =>
+  api.post<{ email: string }>('/auth/email/resend').then(r => r.data);

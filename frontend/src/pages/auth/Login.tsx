@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/auth-context';
 import * as authApi from '../../api/auth';
 import { getDemoInfo } from '../../api/demo';
 import { passkeysSupported, getPasskey, passkeyErrorMessage } from '../../utils/webauthn';
+import { finishSignIn } from '../../utils/finishSignIn';
 import styles from './Login.module.css';
 
 export default function Login() {
@@ -52,8 +53,7 @@ export default function Login() {
       const options = await authApi.passkeySigninBegin(rememberMe);
       const assertion = await getPasskey(options);
       const res = await authApi.passkeySigninComplete(assertion);
-      signIn(res.accessToken);
-      navigate('/');
+      finishSignIn(res, signIn, navigate);
     } catch (err: unknown) {
       // Cancelling and "this device has no passkey here" look the same to the page.
       setGlobalError((err as { name?: string })?.name === 'NotAllowedError'
@@ -87,9 +87,8 @@ export default function Login() {
       } else if (res.requiresMfaSetup && res.userId) {
         sessionStorage.setItem('mfa_setup_user_id', res.userId);
         navigate('/auth/setup-mfa');
-      } else if (res.accessToken) {
-        signIn(res.accessToken);
-        navigate('/');
+      } else if (finishSignIn(res, signIn, navigate)) {
+        // signed in, or on to email verification
       } else {
         // No MFA step and no token: nothing to sign in with. Say so instead of
         // navigating to a protected route, which just bounced straight back

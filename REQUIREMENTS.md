@@ -7,6 +7,7 @@ Update this file whenever requirements change or new features are defined.
 
 ## Authentication & Security
 
+- **Email verification** (only when the server can send email — SMTP_HOST and SMTP_FROM set — and REQUIRE_EMAIL_VERIFICATION isn't false): every account except the demo account must verify its email address before it can sign in, new and existing accounts alike. After the password and second factor (or a passkey alone) succeed, an unverified account isn't signed in: a 6-digit code is emailed (valid about 5 minutes) and the "Verify Your Email" page asks for it; the right code marks the address verified (EmailConfirmed) and finishes the sign-in, so it's asked only once. Wrong codes count toward account lockout and the endpoints are rate-limited; "send a new code" is allowed once a minute. If the email can't be sent the sign-in stops with a message. An existing session of an unverified account can't be refreshed, so it must sign in again (and verify). REQUIRE_EMAIL_VERIFICATION=false turns the requirement off (the way back in if email stops working)
 - Users register with email and password (12+ chars, mixed case, digit)
 - Login issues a short-lived JWT access token (15 min) and a httpOnly refresh token cookie
 - "Remember me" keeps the browser signed in for 2 months (60 days from the last visit, since each refresh renews the token); without it the refresh cookie is a session cookie, ending when the browser closes (and at most 1 day)

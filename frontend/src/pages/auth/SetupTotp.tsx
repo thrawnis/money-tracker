@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import * as authApi from '../../api/auth';
 import { useAuth } from '../../contexts/auth-context';
+import { finishSignIn } from '../../utils/finishSignIn';
 import styles from './Login.module.css';
 import localStyles from './SetupTotp.module.css';
 
@@ -45,8 +46,7 @@ export default function SetupTotp() {
     try {
       const res = await authApi.enrollTotp(userId, code);
       sessionStorage.removeItem('mfa_setup_user_id');
-      signIn(res.accessToken);
-      navigate('/');
+      finishSignIn(res, signIn, navigate);
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
       setError(msg ?? 'Invalid code. Please try again.');

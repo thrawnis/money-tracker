@@ -6,6 +6,9 @@ export interface TokenResponse {
   /** True for accounts predating the timezone requirement — the app holds them
    *  at a mandatory picker, and the API refuses everything else meanwhile. */
   requiresTimeZone?: boolean;
+  /** Sign-in paused until the emailed verification code is entered (no token yet). */
+  requiresEmailVerification?: boolean;
+  email?: string;
 }
 
 // /auth/login either asks for a second factor, or — when MFA is bypassed, as
@@ -21,6 +24,8 @@ export interface LoginStepOneResponse {
   requiresTimeZone?: boolean;
   /** Which second factors the account has (when requiresMfa). The passkey is the default. */
   methods?: { passkey: boolean; totp: boolean };
+  requiresEmailVerification?: boolean;
+  email?: string;
 }
 
 export interface TotpSetupResponse {
