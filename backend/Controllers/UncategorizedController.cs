@@ -68,8 +68,8 @@ public class UncategorizedController(
                     }).ToList(),
                 };
             })
-            // Most transactions first: those are the biggest wins.
-            .OrderByDescending(g => g.count).ThenBy(g => g.payeeName ?? "￿", StringComparer.OrdinalIgnoreCase)
+            // By payee name (the page re-sorts with natural number order); no payee last.
+            .OrderBy(g => g.payeeName is null).ThenBy(g => g.payeeName, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
         return Ok(new { total = txs.Count, groups });

@@ -19,7 +19,7 @@ const groupName = (g: UncategorizedGroup) => g.payeeName ?? '(No payee)';
 
 /**
  * Utilities → Uncategorized by Payee: every uncategorized transaction, grouped
- * by payee (most transactions first). Assign a category to one transaction,
+ * by payee (A→Z by payee name, no payee last). Assign a category to one transaction,
  * to all of a payee's, or to several payees at once (tick them). Assigning a
  * whole payee can also make the category its default for future imports.
  */
@@ -59,7 +59,11 @@ export default function UncategorizedByPayeeTab() {
   const flat = useMemo(() => flattenCategories(categories), [categories]);
   const resolve = (label: string) => flat.find(c => c.label.toLowerCase() === label.trim().toLowerCase());
 
-  const visible = (groups ?? []).filter(g => groupName(g).toLowerCase().includes(filter.trim().toLowerCase()));
+  // A→Z by payee name, ignoring case, numbers in natural order; "(No payee)" last.
+  const visible = (groups ?? [])
+    .filter(g => groupName(g).toLowerCase().includes(filter.trim().toLowerCase()))
+    .sort((a, b) => Number(a.payeeName === null) - Number(b.payeeName === null)
+      || (a.payeeName ?? '').localeCompare(b.payeeName ?? '', undefined, { sensitivity: 'base', numeric: true }));
   const selectedGroups = (groups ?? []).filter(g => selected.has(groupKey(g)));
   const selectedCount = selectedGroups.reduce((n, g) => n + g.count, 0);
 
@@ -135,7 +139,7 @@ export default function UncategorizedByPayeeTab() {
     <div className={styles.tabSection}>
       <p className={styles.hint}>
         Every uncategorized transaction (not counting transfers, split or voided transactions), grouped by payee —
-        most transactions first. Set a category on one transaction, on all of a payee's, or tick several payees to
+        A→Z by payee name. Set a category on one transaction, on all of a payee's, or tick several payees to
         do them together. Assigning a whole payee can also make the category that payee's default, so its future
         imports and bank syncs arrive categorized.
       </p>
