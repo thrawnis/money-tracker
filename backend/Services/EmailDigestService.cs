@@ -97,7 +97,7 @@ public class EmailDigestBuilder(AppDbContext db, IEncryptionService encryption, 
             news = true;
             var lines = drafts.Select(d => $"{d.Name}: {d.RowCount} new transaction{(d.RowCount == 1 ? "" : "s")} to review").ToList();
             lines.AddRange(syncErrors.Select(e => $"Sync problem: {e}"));
-            sections.Add(("Bank sync", lines, "/bank-sync"));
+            sections.Add(("Bank sync", lines, "/accounts#bank-sync"));
         }
 
         // Bills due in the next 3 days, or overdue.

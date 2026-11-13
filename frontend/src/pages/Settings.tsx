@@ -1081,7 +1081,7 @@ function ImportTab() {
               Untick any you don't want imported.
               {dups.length > 0 && <> Rows marked <strong>⚠ Possible duplicate</strong> match a transaction already in the account
                 and are left unticked; use Compare to see the match, and tick one only if it's really a separate transaction.</>}
-              {fromBankSync && <> Unticked bank transactions won't be offered by later syncs; you can restore them from the Bank Sync screen.</>}
+              {fromBankSync && <> Unticked bank transactions won't be offered by later syncs; you can restore them under Accounts → Bank Sync.</>}
             </p>
             <div style={{ maxHeight: 520, overflowY: 'auto', marginBottom: 12 }}>
               <table className={styles.dupTable}>

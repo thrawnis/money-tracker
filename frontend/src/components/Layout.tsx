@@ -59,9 +59,6 @@ export default function Layout({ onLogout }: Props) {
           <NavLink to="/ious" className={navItem} onClick={closeSidebar}>
             IOUs
           </NavLink>
-          <NavLink to="/bank-sync" className={navItem} onClick={closeSidebar}>
-            Bank Sync
-          </NavLink>
           <NavLink to="/bills" className={navItem} onClick={closeSidebar}>
             Bills &amp; Reminders
           </NavLink>

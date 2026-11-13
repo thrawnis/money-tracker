@@ -79,7 +79,7 @@ public class BankSyncAlertService(BankSyncAlertQueue queue, IServiceScopeFactory
                     $"{x.acc.LinkedAccountName}: " + (details
                         ? Row(x.a)
                         : $"{(x.a.Amount < 0 ? "money out" : "money in")} of {limit} or more, dated {x.a.Date.ToString("ddd MMM d", EmailLayout.Us)}")),
-                    "/bank-sync", "Review on the Bank Sync screen");
+                    "/accounts#bank-sync", "Review under Accounts → Bank Sync");
                 subjectParts.Add(large.Count == 1 ? "a large transaction" : $"{large.Count} large transactions");
             }
         }
@@ -95,14 +95,14 @@ public class BankSyncAlertService(BankSyncAlertQueue queue, IServiceScopeFactory
                 var lines = details
                     ? acc.Arrived.Take(MaxListed).Select(Row).Concat(n > MaxListed ? [$"…and {n - MaxListed} more"] : []).ToList()
                     : [$"{n} new transaction{(n == 1 ? "" : "s")} from bank sync"];
-                layout.Section(heading, lines, "/bank-sync", "Review on the Bank Sync screen");
+                layout.Section(heading, lines, "/accounts#bank-sync", "Review under Accounts → Bank Sync");
             }
             var total = alert.Accounts.Sum(a => a.Arrived.Count);
             subjectParts.Add($"{total} new transaction{(total == 1 ? "" : "s")}");
         }
 
         if (layout.IsEmpty) return null;
-        layout.Intro("New transactions wait on the Bank Sync screen for your review before they reach your registers.");
+        layout.Intro("New transactions wait under Accounts → Bank Sync for your review before they reach your registers.");
         var (text, html) = layout.Render(appUrl, EmailLayout.SettingsFooter);
         return ("Money Tracker: " + string.Join(", ", subjectParts), text, html);
     }

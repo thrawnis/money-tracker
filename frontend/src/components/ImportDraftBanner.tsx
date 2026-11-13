@@ -68,7 +68,7 @@ export default function ImportDraftBanner() {
                 so please review soon or older transactions will need importing from a bank file.</>
             )}
           </span>
-          <button className={styles.resumeBtn} onClick={() => navigate('/bank-sync')}>Review</button>
+          <button className={styles.resumeBtn} onClick={() => navigate('/accounts#bank-sync')}>Review</button>
           <button
             className={styles.hideBtn}
             onClick={() => setDismissedIds(prev => new Set([...prev, ...synced.map(d => d.id)]))}
