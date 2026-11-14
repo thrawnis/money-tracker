@@ -14,8 +14,8 @@ export interface TransferSide {
 /** from = money out, to = money in. alternatives: other transactions either side could have paired with. */
 export interface TransferMatch { from: TransferSide; to: TransferSide; dayGap: number; alternatives: number }
 
-export const findTransferMatches = (days: number, includeCategorized: boolean): Promise<{ days: number; matches: TransferMatch[] }> =>
-  api.get('/transfer-matches', { params: { days, includeCategorized } }).then(r => r.data);
+export const findTransferMatches = (days: number): Promise<{ days: number; matches: TransferMatch[] }> =>
+  api.get('/transfer-matches', { params: { days } }).then(r => r.data);
 
 export const linkTransferMatches = (pairs: { outId: number; inId: number }[]): Promise<{ linked: number; problems: string[] }> =>
   api.post('/transfer-matches/link', { pairs }).then(r => r.data);

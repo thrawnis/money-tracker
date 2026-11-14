@@ -23,11 +23,11 @@ public class TransferMatchesController(
         User.FindFirstValue(ClaimTypes.NameIdentifier) is string id ? await userManager.FindByIdAsync(id) : null;
 
     [HttpGet]
-    public async Task<IActionResult> Find([FromQuery] int days = TransferMatcher.DefaultDays, [FromQuery] bool includeCategorized = false)
+    public async Task<IActionResult> Find([FromQuery] int days = TransferMatcher.DefaultDays)
     {
         var user = await CurrentUserAsync();
         if (user is null) return Unauthorized();
-        var matches = await matcher.FindAsync(user, days, includeCategorized);
+        var matches = await matcher.FindAsync(user, days);
         return Ok(new { days = Math.Clamp(days, 0, TransferMatcher.MaxDays), matches });
     }
 

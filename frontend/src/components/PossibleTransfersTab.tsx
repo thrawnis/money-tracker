@@ -35,7 +35,6 @@ function SideRow({ side, label }: { side: TransferSide; label: string }) {
  */
 export default function PossibleTransfersTab() {
   const [days, setDays] = useState(3);
-  const [includeCategorized, setIncludeCategorized] = useState(false);
   const [matches, setMatches] = useState<TransferMatch[] | null>(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -44,17 +43,17 @@ export default function PossibleTransfersTab() {
   const [busy, setBusy] = useState<string | null>(null);
 
   const reload = async () => {
-    const d = await findTransferMatches(days, includeCategorized);
+    const d = await findTransferMatches(days);
     setMatches(d.matches);
   };
 
   useEffect(() => {
     let cancelled = false;
-    findTransferMatches(days, includeCategorized)
+    findTransferMatches(days)
       .then(d => { if (!cancelled) { setMatches(d.matches); setError(''); } })
       .catch(() => { if (!cancelled) setError('Failed to look for possible transfers.'); });
     return () => { cancelled = true; };
-  }, [days, includeCategorized]);
+  }, [days]);
 
   const run = async (key: string, action: () => Promise<string>) => {
     setBusy(key); setError(''); setNotice('');
@@ -110,10 +109,6 @@ export default function PossibleTransfersTab() {
           <select value={days} onChange={e => setDays(Number(e.target.value))} aria-label="Days apart">
             {[0, 1, 2, 3, 4, 5].map(d => <option key={d} value={d}>{d === 0 ? 'the same day' : `${d} day${d === 1 ? '' : 's'}`}</option>)}
           </select>
-        </label>
-        <label style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-          <input type="checkbox" checked={includeCategorized} onChange={e => setIncludeCategorized(e.target.checked)} />
-          Include pairs where both sides already have a category
         </label>
         <span style={{ flex: 1 }} />
         <button className={styles.btnSecondary} onClick={restore} disabled={busy !== null}>

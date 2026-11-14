@@ -11,11 +11,10 @@ namespace MoneyTracker.Services;
 /// same amount into another within a few days — and links them as a transfer.
 /// Used by Utilities → Possible Transfers, the Dashboard and the email digests.
 ///
-/// Candidates: not already a transfer, not voided, not split. By default a pair
-/// needs at least one uncategorized side (that's what slips through); with
-/// includeCategorized, categorized pairs count too (e.g. a card payment a
-/// payee default already filed under a category). Each transaction is used in
-/// at most one pair, closest dates first; pairs the user dismissed are skipped.
+/// Candidates: any transaction that isn't already a transfer, voided or split —
+/// categorized or not (a card payment a payee default filed under a category
+/// is still a transfer). Each transaction is used in at most one pair, closest
+/// dates first; pairs the user dismissed are skipped.
 /// </summary>
 public class TransferMatcher(AppDbContext db, IEncryptionService encryption)
 {
@@ -28,7 +27,7 @@ public class TransferMatcher(AppDbContext db, IEncryptionService encryption)
     /// <summary>From = money out, To = money in. Alternatives: other candidates either side could have paired with.</summary>
     public record Match(Side From, Side To, int DayGap, int Alternatives);
 
-    public async Task<List<Match>> FindAsync(ApplicationUser user, int days = DefaultDays, bool includeCategorized = false)
+    public async Task<List<Match>> FindAsync(ApplicationUser user, int days = DefaultDays)
     {
         days = Math.Clamp(days, 0, MaxDays);
         var txs = await db.Transactions
@@ -57,7 +56,6 @@ public class TransferMatcher(AppDbContext db, IEncryptionService encryption)
                     if (o.AccountId == i.AccountId) continue;
                     var gap = Math.Abs(o.Date.DayNumber - i.Date.DayNumber);
                     if (gap > days) continue;
-                    if (!includeCategorized && o.CategoryId != null && i.CategoryId != null) continue;
                     if (dismissed.Contains((Math.Min(o.Id, i.Id), Math.Max(o.Id, i.Id)))) continue;
                     possible.Add((o, i, gap));
                 }
