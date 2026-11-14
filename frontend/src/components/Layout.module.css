@@ -200,6 +200,7 @@
 .overlay { display: none; }
 
 .mobileBar { display: none; }
+.backButton { display: none; }
 
 @media (max-width: 768px) {
   .hamburger { display: flex; }
@@ -220,6 +221,27 @@
     font-size: 16px;
     box-shadow: var(--shadow-sm);
   }
+
+  /* Back button next to the menu button (only when there's a page to go back to). */
+  .backButton {
+    display: flex;
+    align-items: center;
+    position: fixed;
+    top: 10px;
+    left: 54px;
+    z-index: 300;
+    height: 36px;
+    padding: 0 12px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 5px;
+    background: transparent;
+    color: var(--ms-sidebar-text);
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .backButton:active { background: var(--ms-teal); }
+  .mobileBarWithBack { padding-left: 140px; }
 
   .overlay {
     display: block;

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import ImportDraftBanner from './ImportDraftBanner';
 import KeyboardShortcutsModal from './KeyboardShortcutsModal';
 import styles from './Layout.module.css';
@@ -13,6 +13,19 @@ export default function Layout({ onLogout }: Props) {
   const [showShortcuts, setShowShortcuts] = useState(false);
 
   const closeSidebar = () => setSidebarOpen(false);
+
+  // Phones: a Back button in the top bar, for when the app is pinned to the
+  // home screen and the browser's own back button isn't there. React Router
+  // numbers history entries (state.idx). This layout mounts on the first app
+  // page after sign-in (or a reload) and stays mounted while you move around,
+  // so Back shows only when there's an earlier *app* page to return to —
+  // never back to the sign-in screens. Reading idx during render is enough:
+  // useLocation re-renders on every navigation.
+  const navigate = useNavigate();
+  useLocation();
+  const historyIdx = () => (window.history.state as { idx?: number } | null)?.idx ?? 0;
+  const [firstAppIdx] = useState(historyIdx);
+  const canGoBack = historyIdx() > firstAppIdx;
 
   // "?" opens the shortcuts list from anywhere, except while typing in a
   // field (where Shift+/ should just type a literal "?") or another modal
@@ -36,7 +49,7 @@ export default function Layout({ onLogout }: Props) {
     <div className={styles.shell}>
       {/* Phones: a solid bar behind the menu button, so scrolled content passes
           under it instead of showing through around the button. */}
-      <div className={styles.mobileBar} aria-hidden="true">Money Tracker</div>
+      <div className={`${styles.mobileBar} ${canGoBack ? styles.mobileBarWithBack : ''}`} aria-hidden="true">Money Tracker</div>
       <button
         className={styles.hamburger}
         onClick={() => setSidebarOpen(o => !o)}
@@ -44,6 +57,11 @@ export default function Layout({ onLogout }: Props) {
       >
         ☰
       </button>
+      {canGoBack && (
+        <button className={styles.backButton} onClick={() => navigate(-1)} aria-label="Back">
+          ‹ Back
+        </button>
+      )}
 
       {sidebarOpen && (
         <div className={styles.overlay} onClick={closeSidebar} />
