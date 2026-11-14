@@ -40,6 +40,8 @@ export type SimpleFinStatus =
       lastErrors: string[];
       /** Hour (0-23, user's time zone) of the daily automatic balance update; null when off. */
       dailyUpdateHour?: number | null;
+      /** On (default): synced transactions wait for review. Off: they're imported straight away. */
+      requireApproval: boolean;
       /** Requests to SimpleFIN today (Pacific day) and the cap for manual syncs. */
       requestsToday: number;
       dailyRequestLimit: number;
@@ -56,6 +58,8 @@ export interface SimpleFinSyncAccountResult {
   linkedAccountName?: string | null;
   from?: string | null;
   newTransactions: number;
+  /** Imported straight away because approval is turned off. */
+  autoImported?: number | null;
   draftId?: number | null;
   note?: string | null;
   /** Nothing was checked for this account (see note), as opposed to "checked, nothing new". */
@@ -85,6 +89,10 @@ export const linkSimpleFinAccount = (simpleFinAccountId: number, accountId: numb
 /** accountIds: SimpleFIN accounts to sync this time; omit to sync every linked account. */
 export const syncSimpleFin = (accountIds?: number[]): Promise<SimpleFinSyncResult> =>
   api.post('/simplefin/sync', { accountIds: accountIds ?? null }).then(r => r.data);
+
+/** Turning approval off also imports the reviews already waiting (imported / failed report that). */
+export const setSimpleFinRequireApproval = (requireApproval: boolean): Promise<{ status: SimpleFinStatus; imported: number; failed: string[] }> =>
+  api.put('/simplefin/require-approval', { requireApproval }).then(r => r.data);
 
 export const setSimpleFinBalanceOnly = (simpleFinAccountId: number, balanceOnly: boolean): Promise<SimpleFinStatus> =>
   api.put(`/simplefin/accounts/${simpleFinAccountId}/mode`, { balanceOnly }).then(r => r.data);

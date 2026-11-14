@@ -403,7 +403,20 @@ public class ImportController(
     {
         var userId = GetUserId();
         if (userId is null) return Unauthorized();
+        return await CommitAsync(userId, file, includeDuplicateIds, accountId, draftId,
+            payeeOverrides, rememberPayeeMappings, excludeRows, payeeNewNames);
+    }
 
+    /// <summary>
+    /// The import itself, for a given user — also used without an HTTP request
+    /// by bank sync's auto-import (SimpleFinService.AutoImportAsync), so an
+    /// automatic import does exactly what approving the review would.
+    /// </summary>
+    [NonAction]
+    public async Task<IActionResult> CommitAsync(
+        string userId, IFormFile? file, string? includeDuplicateIds, int? accountId, int? draftId,
+        string? payeeOverrides, string? rememberPayeeMappings, string? excludeRows, string? payeeNewNames)
+    {
         string fileName;
         byte[] fileBytes;
         ImportDraft? sourceDraft = null;

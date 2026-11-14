@@ -33,6 +33,9 @@ public record SimpleFinSyncAccountResult(
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public IReadOnlyList<SyncArrival> Arrived { get; init; } = [];
+
+    /// <summary>Imported straight away because approval is turned off (null = not auto-imported).</summary>
+    public int? AutoImported { get; init; }
 }
 
 /// <summary>A bank transaction as first seen by a sync (payee is the bank's text).</summary>
@@ -54,7 +57,8 @@ public class SimpleFinService(
     SimpleFinClient client,
     IAuditService audit,
     IConfiguration config,
-    BankSyncAlertQueue alerts)
+    BankSyncAlertQueue alerts,
+    IServiceProvider services)
 {
     // Re-fetch this far behind the cursor on every sync: transactions often post
     // days after they happen, so without an overlap a late-posting charge dated
@@ -96,6 +100,7 @@ public class SimpleFinService(
             lastSyncAt = conn.LastSyncAt,
             lastErrors = DecryptErrors(conn.LastErrorsEncrypted, dek),
             dailyUpdateHour = conn.DailyUpdateHour,
+            requireApproval = conn.RequireApproval,
             requestsToday = RequestsTodayFor(conn),
             dailyRequestLimit = DailyRequestLimit,
             nextManualSyncAt = NextManualSyncAt(conn),
@@ -580,12 +585,62 @@ public class SimpleFinService(
             newTransactions = results.Sum(r => r.NewTransactions),
         });
 
+        // Approval turned off: import what each account staged, as approving
+        // the review unchanged would.
+        if (!conn.RequireApproval)
+            results = await AutoImportAsync(user, results);
+
         // Email alerts (new transactions, large transactions) go out in the
         // background so a slow mail server never holds up a sync.
         if (results.Any(r => r.Arrived.Count > 0))
             alerts.Enqueue(new BankSyncAlertQueue.Alert(user.Id, trigger, results.Where(r => r.Arrived.Count > 0).ToList()));
 
         return new SimpleFinSyncResult(results, set.Errors);
+    }
+
+    /// <summary>
+    /// For users who turned off "Require my approval before importing": commits
+    /// each account's staged review straight away through the normal import
+    /// (ImportController.CommitAsync) with the review's saved choices — so
+    /// payee mapping rules, default categories, transfer linking and bank-id
+    /// tracking all apply, and possible duplicates are left out (as they are
+    /// unticked by default). An import that fails leaves the review waiting.
+    /// </summary>
+    private async Task<List<SimpleFinSyncAccountResult>> AutoImportAsync(ApplicationUser user, List<SimpleFinSyncAccountResult> results)
+    {
+        var updated = new List<SimpleFinSyncAccountResult>();
+        foreach (var r in results)
+        {
+            if (r.DraftId is not int draftId || r.NewTransactions == 0)
+            {
+                updated.Add(r);
+                continue;
+            }
+            if (await ImportDraftAsync(user, draftId) is int imported)
+                updated.Add(r with { DraftId = null, NewTransactions = 0, AutoImported = imported });
+            else
+                updated.Add(r with { Note = "Couldn't import automatically — review it to import." + (r.Note is null ? "" : " " + r.Note) });
+        }
+        await audit.LogAsync("SIMPLEFIN_AUTO_IMPORT", "User", null, new { imported = updated.Sum(u => u.AutoImported ?? 0) });
+        return updated;
+    }
+
+    /// <summary>
+    /// Commits one sync review through the normal import with its saved choices
+    /// (possible duplicates left out unless the review included them). Returns
+    /// how many transactions were imported, or null if the import failed (the
+    /// review is then left waiting).
+    /// </summary>
+    private async Task<int?> ImportDraftAsync(ApplicationUser user, int draftId)
+    {
+        var draft = await db.ImportDrafts.AsNoTracking().FirstOrDefaultAsync(d => d.Id == draftId && d.UserId == user.Id);
+        if (draft is null) return null;
+        var importer = Microsoft.Extensions.DependencyInjection.ActivatorUtilities.CreateInstance<Controllers.ImportController>(services);
+        var outcome = await importer.CommitAsync(user.Id, null, draft.IncludeDuplicateIdsJson, draft.AccountId, draftId,
+            draft.PayeeOverridesJson, null, draft.ExcludedRowsJson, draft.PayeeNewNamesJson);
+        return outcome is Microsoft.AspNetCore.Mvc.OkObjectResult ok
+            ? ok.Value?.GetType().GetProperty("imported")?.GetValue(ok.Value) as int? ?? 0
+            : null;
     }
 
     /// <summary>
@@ -647,6 +702,35 @@ public class SimpleFinService(
             .Select(g => g.OrderByDescending(v => v.Date).First())
             .ToListAsync())
         .ToDictionary(v => v.AccountId);
+
+    /// <summary>
+    /// Turns "Require my approval before importing" on or off. Turning it off
+    /// also imports, right away, every sync review already waiting. Returns how
+    /// many transactions that imported, and the accounts it couldn't import.
+    /// </summary>
+    public Task<(int Imported, List<string> Failed)> SetRequireApprovalAsync(ApplicationUser user, bool requireApproval) =>
+        OneAtATimeAsync(async () =>
+        {
+            var conn = await db.SimpleFinConnections.FirstOrDefaultAsync(c => c.UserId == user.Id)
+                ?? throw new KeyNotFoundException();
+            conn.RequireApproval = requireApproval;
+            await db.SaveChangesAsync();
+            await audit.LogAsync("SIMPLEFIN_REQUIRE_APPROVAL", "User", null, new { requireApproval });
+            if (requireApproval) return (0, new List<string>());
+
+            var waiting = await db.ImportDrafts
+                .Where(d => d.UserId == user.Id && d.SimpleFinAccountId != null && d.RowCount > 0)
+                .Select(d => new { d.Id, d.Account.Name })
+                .ToListAsync();
+            var imported = 0;
+            var failed = new List<string>();
+            foreach (var d in waiting)
+            {
+                var n = await ImportDraftAsync(user, d.Id);
+                if (n is int count) imported += count; else failed.Add(d.Name);
+            }
+            return (imported, failed);
+        }, CancellationToken.None);
 
     public async Task SetBalanceOnlyAsync(ApplicationUser user, int simpleFinAccountId, bool balanceOnly)
     {

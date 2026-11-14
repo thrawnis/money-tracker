@@ -1197,6 +1197,9 @@ namespace MoneyTracker.Migrations
                     b.Property<DateOnly?>("RequestDay")
                         .HasColumnType("date");
 
+                    b.Property<bool>("RequireApproval")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("UserId")
                         .IsRequired()
                         .HasColumnType("text");

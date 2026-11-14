@@ -80,6 +80,24 @@ public class SimpleFinController(
         return Ok(await simpleFin.GetStatusAsync(user));
     }
 
+    public record ApprovalDto(bool RequireApproval);
+
+    // "Require my approval before importing": on (default) stages synced
+    // transactions for review; off imports them straight away.
+    [HttpPut("require-approval")]
+    public async Task<IActionResult> SetRequireApproval(ApprovalDto dto)
+    {
+        var user = await GetUserAsync();
+        if (user is null) return Unauthorized();
+        try
+        {
+            // Turning approval off also imports the reviews already waiting.
+            var (imported, failed) = await simpleFin.SetRequireApprovalAsync(user, dto.RequireApproval);
+            return Ok(new { status = await simpleFin.GetStatusAsync(user), imported, failed });
+        }
+        catch (KeyNotFoundException) { return NotFound(new { message = "SimpleFIN isn't connected." }); }
+    }
+
     public record ModeDto(bool BalanceOnly);
 
     // Switches a bank account between importing transactions and recording

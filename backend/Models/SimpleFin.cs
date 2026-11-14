@@ -36,6 +36,11 @@ public class SimpleFinConnection
     // possible by editing the database directly, for maintenance. LastAutoUpdateDate is the Pacific day it last succeeded;
     // LastAutoAttemptAt spaces out retries after a failure.
     public int? DailyUpdateHour { get; set; } = 20;
+
+    // On (the default): synced transactions wait in a review until the user
+    // approves them. Off: each sync imports them straight away, exactly as
+    // approving the review unchanged would (see SimpleFinService.AutoImportAsync).
+    public bool RequireApproval { get; set; } = true;
     public DateOnly? LastAutoUpdateDate { get; set; }
     public DateTime? LastAutoAttemptAt { get; set; }
 

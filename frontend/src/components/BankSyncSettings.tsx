@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   connectSimpleFin, disconnectSimpleFin, linkSimpleFinAccount,
-  setSimpleFinBalanceOnly, getSimpleFinStatus, syncSimpleFin, restoreSkippedTransaction,
+  setSimpleFinBalanceOnly, getSimpleFinStatus, syncSimpleFin, restoreSkippedTransaction, setSimpleFinRequireApproval,
   type SimpleFinStatus, type SimpleFinAccount, type SimpleFinSyncResult,
 } from '../api/simplefin';
 import { useAuth } from '../contexts/auth-context';
@@ -60,6 +60,8 @@ export default function BankSyncSettings({ status, onStatus: setStatus, accounts
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [syncing, setSyncing] = useState(false);
   const [restoringId, setRestoringId] = useState<number | null>(null);
+  const [savingApproval, setSavingApproval] = useState(false);
+  const [approvalNotice, setApprovalNotice] = useState('');
   const [syncResult, setSyncResult] = useState<SimpleFinSyncResult | null>(null);
   // Ticks so the "next sync available" wait counts down on its own.
   const [now, setNow] = useState(() => Date.now());
@@ -222,7 +224,31 @@ export default function BankSyncSettings({ status, onStatus: setStatus, accounts
   const waitMinutes = Math.max(1, Math.ceil((heldUntil - now) / 60_000));
   const selected = linked.filter(a => !unticked.has(a.id));
   const allSelected = selected.length === linked.length;
-  const working = busy !== null || syncing || restoringId !== null;
+  const working = busy !== null || syncing || restoringId !== null || savingApproval;
+  const waitingRows = status.accounts.reduce((n, a) => n + (a.pendingDraftId != null ? (a.pendingDraftRows ?? 0) : 0), 0);
+
+  const handleRequireApproval = async (requireApproval: boolean) => {
+    if (!requireApproval && !confirm(
+      'Import synced transactions without reviewing them first?\n\n'
+      + 'Each sync will import new transactions straight into your registers, applying your payee mapping rules and '
+      + 'default categories; possible duplicates are left out.'
+      + (waitingRows > 0 ? `\n\nThe ${waitingRows} transaction${waitingRows === 1 ? '' : 's'} waiting for review now will be imported right away.` : ''),
+    )) return;
+    setSavingApproval(true);
+    setError('');
+    setApprovalNotice('');
+    try {
+      const r = await setSimpleFinRequireApproval(requireApproval);
+      setStatus(r.status);
+      if (!requireApproval && (r.imported > 0 || r.failed.length > 0))
+        setApprovalNotice(`Imported ${r.imported} waiting transaction${r.imported === 1 ? '' : 's'}.`
+          + (r.failed.length ? ` Couldn't import ${r.failed.join(', ')} — review ${r.failed.length === 1 ? 'it' : 'them'} instead.` : ''));
+    } catch (err) {
+      setError(apiMsg(err, 'Failed to change the approval setting.'));
+    } finally {
+      setSavingApproval(false);
+    }
+  };
 
   const setTicked = (ids: number[], ticked: boolean) => {
     setUnticked(prev => {
@@ -296,8 +322,10 @@ export default function BankSyncSettings({ status, onStatus: setStatus, accounts
         Choose which Money Tracker account each bank account syncs into, then press Sync (untick any account to leave
         it out of one sync; it picks up where it left off next time). Each sync fetches posted transactions since the
         last one you imported (re-checking the previous two weeks, since banks often post late), skips any already in
-        the register, and stages the rest for your review — nothing is imported until you approve it. Pending
-        transactions are left until they post.
+        the register, and {status.requireApproval
+          ? <>stages the rest for your review — nothing is imported until you approve it.</>
+          : <>imports the rest straight away (approval is turned off below).</>} Pending transactions are left until
+        they post.
       </p>
 
       {status.lastErrors.length > 0 && (
@@ -463,6 +491,21 @@ export default function BankSyncSettings({ status, onStatus: setStatus, accounts
       </table>
       </div>
 
+      <div className={styles.prefGroup} style={{ marginTop: 10 }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600 }}>
+          <input type="checkbox" checked={status.requireApproval} disabled={working}
+            onChange={e => void handleRequireApproval(e.target.checked)} />
+          Require my approval before importing
+          {savingApproval && <span className={styles.hint} style={{ margin: 0, fontWeight: 400 }}>Saving…</span>}
+        </label>
+        <p className={styles.hint} style={{ margin: '4px 0 0 24px' }}>
+          {status.requireApproval
+            ? 'New transactions from each sync wait for your review (the Review buttons above) before anything reaches your registers.'
+            : 'New transactions from each sync, manual or nightly, are imported straight into your registers — with your payee mapping rules and default categories applied, and possible duplicates left out.'}
+        </p>
+        {approvalNotice && <p className={styles.hint} style={{ margin: '4px 0 0 24px', color: '#1a7a40' }}>{approvalNotice}</p>}
+      </div>
+
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginTop: 10 }}>
         <button className={styles.btnPrimary} onClick={handleSync} disabled={working || selected.length === 0 || held}>
           {syncing
@@ -494,7 +537,9 @@ export default function BankSyncSettings({ status, onStatus: setStatus, accounts
           {syncResult.accounts.map(r => (
             <div key={r.simpleFinAccountId} style={{ marginBottom: 6 }}>
               <strong>{r.name}</strong> → {r.linkedAccountName}:{' '}
-              {r.skipped ? 'not synced' : r.valueRecorded != null ? (
+              {r.skipped ? 'not synced' : r.autoImported != null ? (
+                <>{r.autoImported} new transaction{r.autoImported === 1 ? '' : 's'} imported</>
+              ) : r.valueRecorded != null ? (
                 <>balance recorded: {formatMoney(r.valueRecorded)}{r.valueDate && <> for {formatDay(r.valueDate)}</>}</>
               ) : r.newTransactions > 0 ? (
                 <>
@@ -519,11 +564,14 @@ export default function BankSyncSettings({ status, onStatus: setStatus, accounts
       <div className={styles.prefGroup}>
         <p className={styles.prefGroupTitle}>Nightly sync</p>
         <p className={styles.hint} style={{ marginBottom: 8 }}>
-          Syncs every linked account once a day without you pressing Sync. New transactions wait here for your
-          approval (the Review buttons above); if you don't get to them, the next nights add to the same review
-          (keeping the choices you've made) rather than starting over. Balance-only accounts get the day's value
-          recorded. A review you've worked on in the last hour is left alone until the next night. If the server is
-          down at the scheduled time, it catches up before midnight.
+          Syncs every linked account once a day without you pressing Sync.{' '}
+          {status.requireApproval
+            ? <>New transactions wait here for your approval (the Review buttons above); if you don't get to them, the
+                next nights add to the same review (keeping the choices you've made) rather than starting over. A
+                review you've worked on in the last hour is left alone until the next night.</>
+            : <>New transactions are imported straight away.</>}
+          {' '}Balance-only accounts get the day's value recorded. If the server is down at the scheduled time, it
+          catches up before midnight.
         </p>
         <p style={{ margin: 0, fontSize: 14 }}>
           <strong>Every day after {hourLabel(status.dailyUpdateHour ?? 20)} Pacific</strong>

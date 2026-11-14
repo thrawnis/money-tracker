@@ -102,7 +102,9 @@ public class BankSyncAlertService(BankSyncAlertQueue queue, IServiceScopeFactory
         }
 
         if (layout.IsEmpty) return null;
-        layout.Intro("New transactions wait under Accounts → Bank Sync for your review before they reach your registers.");
+        layout.Intro(alert.Accounts.Any(a => a.AutoImported is not null)
+            ? "These were imported into your registers automatically (approval before importing is turned off in Accounts → Bank Sync)."
+            : "New transactions wait under Accounts → Bank Sync for your review before they reach your registers.");
         var (text, html) = layout.Render(appUrl, EmailLayout.SettingsFooter);
         return ("Money Tracker: " + string.Join(", ", subjectParts), text, html);
     }
