@@ -311,7 +311,7 @@ export default function BankSyncSettings({ status, onStatus: setStatus, accounts
       {error && <div className={styles.error}>{error}</div>}
 
       <div style={{ overflowX: 'auto' }}>
-      <table className={styles.dupTable}>
+      <table className={`${styles.dupTable} ${styles.stackOnPhone}`}>
         <thead>
           <tr>
             <th style={{ width: 28 }}>
@@ -332,25 +332,25 @@ export default function BankSyncSettings({ status, onStatus: setStatus, accounts
           const bankAll = bankLinked.length > 0 && bankSelected.length === bankLinked.length;
           return (
             <tbody key={bank.org}>
-              <tr>
-                <th>
+              <tr className={styles.stackGroupHeader}>
+                <th className={styles.stackInline}>
                   {checkbox(bankAll, bankSelected.length > 0 && !bankAll,
                     () => setTicked(bankLinked.map(a => a.id), !bankAll), `Select all ${bank.org} accounts to sync`,
                     bankLinked.length === 0)}
                 </th>
-                <th colSpan={6}>{bank.org}</th>
+                <th colSpan={6} className={styles.stackInline}>{bank.org}</th>
               </tr>
               {bank.accounts.map(sf => {
                 const open = expanded.has(sf.id);
                 return [
                   <tr key={sf.id}>
-                    <td>
+                    <td className={styles.stackInline}>
                       {checkbox(isLinked(sf) && !unticked.has(sf.id), false,
                         () => setTicked([sf.id], unticked.has(sf.id)), `Sync ${sf.name}`, !isLinked(sf))}
                     </td>
-                    <td>{sf.name}</td>
-                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{formatMoney(sf.balance, sf.currency)}</td>
-                    <td>
+                    <td className={styles.stackInline} style={{ fontWeight: 600 }}>{sf.name}</td>
+                    <td data-label="Bank balance" style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>{formatMoney(sf.balance, sf.currency)}</td>
+                    <td data-label="Sync into">
                       {/* Once linked, the link is fixed: to send this bank account
                           somewhere else, unlink it first, then link it again. */}
                       {sf.linkedAccountId != null ? (
@@ -390,7 +390,7 @@ export default function BankSyncSettings({ status, onStatus: setStatus, accounts
                         </select>
                       )}
                     </td>
-                    <td>
+                    <td data-label={sf.linkedAccountId != null ? 'Records' : undefined}>
                       {sf.linkedAccountId != null && (
                         <select
                           value={sf.balanceOnly ? 'balance' : 'transactions'}
@@ -403,7 +403,7 @@ export default function BankSyncSettings({ status, onStatus: setStatus, accounts
                         </select>
                       )}
                     </td>
-                    <td>
+                    <td data-label="Last synced">
                       {sf.linkedAccountId == null ? '—' : (
                         <>
                           {sf.lastSyncedAt ? formatDateTime(sf.lastSyncedAt, user?.timeZoneId) : 'Not yet'}

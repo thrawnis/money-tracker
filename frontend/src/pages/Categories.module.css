@@ -256,3 +256,13 @@
   transition: background 0.12s;
 }
 .btnSmDelete:hover { background: var(--c-fce0de); }
+
+/* Phones: name and buttons on the first line, the dates and counts on a
+   second line, instead of the buttons running off the right edge. */
+@media (max-width: 600px) {
+  .categoryRow, .subRow { flex-wrap: wrap; row-gap: 4px; }
+  .categoryName, .subName { flex: 1 1 50%; min-width: 0; }
+  .rowActions { order: 2; flex-wrap: wrap; }
+  .stats { order: 3; width: 100%; flex-wrap: wrap; white-space: normal; margin-right: 0; }
+  .statsLegend { flex-wrap: wrap; gap: 4px 14px; }
+}

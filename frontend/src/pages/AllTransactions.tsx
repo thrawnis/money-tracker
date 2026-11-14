@@ -285,12 +285,12 @@ export default function AllTransactions() {
           <thead>
             <tr>
               <th>Date</th>
-              <th>Account</th>
+              <th className={styles.colWide}>Account</th>
               <th>Payee</th>
-              <th>Category</th>
-              <th>Memo</th>
+              <th className={styles.colWide}>Category</th>
+              <th className={styles.colWide}>Memo</th>
               <th className={styles.right}>Amount</th>
-              <th className={styles.center}>Status</th>
+              <th className={`${styles.center} ${styles.colWide}`}>Status</th>
             </tr>
           </thead>
           <tbody>
@@ -307,14 +307,20 @@ export default function AllTransactions() {
                 title="View transaction details"
               >
                 <td className={styles.noWrap}>{formatDate(tx.date)}</td>
-                <td className={styles.accountCell}>{tx.accountName}</td>
-                <td>{tx.payee ?? '—'}</td>
-                <td>{tx.splitCount ? `Split (${tx.splitCount})` : tx.category ?? ''}</td>
-                <td className={styles.memoCell}>{tx.memo ?? ''}</td>
+                <td className={`${styles.accountCell} ${styles.colWide}`}>{tx.accountName}</td>
+                <td>
+                  {tx.payee ?? '—'}
+                  {/* On phones the account and category columns are hidden; show them here. */}
+                  <span className={styles.mobileSub}>
+                    {tx.accountName}{(tx.splitCount || tx.category) && <> · {tx.splitCount ? `Split (${tx.splitCount})` : tx.category}</>}
+                  </span>
+                </td>
+                <td className={styles.colWide}>{tx.splitCount ? `Split (${tx.splitCount})` : tx.category ?? ''}</td>
+                <td className={`${styles.memoCell} ${styles.colWide}`}>{tx.memo ?? ''}</td>
                 <td className={`${styles.right} ${styles.noWrap} ${tx.amount < 0 ? styles.debit : styles.credit}`}>
                   {formatCurrency(tx.amount)}
                 </td>
-                <td className={styles.center}>
+                <td className={`${styles.center} ${styles.colWide}`}>
                   <span className={styles[`status${tx.status as 'Uncleared' | 'Cleared' | 'Reconciled'}`]}>
                     {tx.status === 'Uncleared' ? '○' : tx.status === 'Cleared' ? '✓' : '✓✓'}
                   </span>

@@ -22,6 +22,10 @@
   /* The date input is self-explanatory; drop its text label to keep the
      header row compact on small screens. */
   .jumpToDateLabel { display: none; }
+  /* Title on one row, the action buttons on the next, instead of the buttons
+     running off the right edge. */
+  .pageHeader { flex-wrap: wrap; gap: 8px; }
+  .headerActions { width: 100%; }
 }
 
 @keyframes fadeUp {
@@ -605,3 +609,27 @@
 }
 .iouBadge:hover { border-color: var(--c-336699); }
 .iouBadgeText { margin-left: 4px; font-weight: 500; }
+
+/* ── Phones ── (kept last so it overrides the table rules above) */
+/* Category shown under the payee on phones (the Category column is hidden there). */
+.mobileSub { display: none; }
+
+@media (max-width: 600px) {
+  .colCategory, .colBalance { display: none; }
+  /* Tighter cells so Date, Payee, Amount, Status and the ⋯ menu fit. */
+  .table { font-size: 12px; }
+  .table th, .table td { padding-left: 4px; padding-right: 4px; }
+  /* 11/04/26 instead of 11/04/2026, and just the sort arrow over Status. */
+  .century, .statusLabel { display: none; }
+  /* Upcoming rows already carry the ↻ mark by the date. */
+  .statusScheduled { display: none; }
+  .actions { padding-left: 0 !important; padding-right: 2px !important; }
+  .mobileSub {
+    display: block;
+    font-size: 11px;
+    color: var(--c-777777);
+    margin-top: 1px;
+    /* "Housing:Mortgage" has no space to wrap at; let it break anywhere. */
+    overflow-wrap: anywhere;
+  }
+}

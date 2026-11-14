@@ -645,3 +645,58 @@ p.hint { max-width: 110ch; }
   color: var(--c-9aabbb);
   font-size: 0.9em;
 }
+
+/* Phones: tables that don't fit scroll sideways inside their own box instead
+   of being cut off at the screen edge (most of these aren't in a scroll wrapper). */
+@media (max-width: 768px) {
+  .dupTable {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Phones: a table marked stackOnPhone shows each row as a small card — the
+   header row is hidden and each cell becomes its own line, labelled from its
+   data-label attribute. Cells marked stackInline share a line (e.g. a
+   checkbox next to a name). */
+@media (max-width: 600px) {
+  .stackOnPhone { display: block; overflow-x: visible; border: none; }
+  .stackOnPhone thead { display: none; }
+  .stackOnPhone tbody, .stackOnPhone tr { display: block; }
+  .stackOnPhone tr {
+    border: 1px solid var(--c-e0e8f0);
+    border-radius: 6px;
+    margin-bottom: 8px;
+    padding: 6px 8px;
+    background: var(--c-ffffff);
+  }
+  .stackOnPhone th, .stackOnPhone td {
+    display: block;
+    border: none !important;
+    padding: 3px 0 !important;
+    text-align: left !important;
+    white-space: normal !important;
+  }
+  .stackOnPhone .stackInline { display: inline-block; vertical-align: middle; margin-right: 8px; }
+  .stackOnPhone td:empty { display: none; }
+  .stackOnPhone td[data-label]::before {
+    content: attr(data-label);
+    display: inline-block;
+    min-width: 92px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--c-666677);
+  }
+}
+@media (max-width: 600px) {
+  /* A group heading row (e.g. the bank name) inside a stacked table. */
+  .stackOnPhone tr.stackGroupHeader {
+    border: none;
+    background: transparent;
+    padding: 8px 0 2px;
+    margin-bottom: 4px;
+    font-weight: 700;
+  }
+}

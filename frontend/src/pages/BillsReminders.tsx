@@ -423,8 +423,9 @@ export default function BillsReminders() {
     return sortDir === 'desc' ? -cmp : cmp;
   });
 
-  const sortHeader = (col: SortColumn, label: string) => (
-    <th className={styles.sortable} onClick={() => handleSort(col)}>
+  // wide: a column hidden on phones (its value shows under the name instead).
+  const sortHeader = (col: SortColumn, label: string, wide = false) => (
+    <th className={`${styles.sortable} ${wide ? styles.colWide : ''}`} onClick={() => handleSort(col)}>
       {label}
       {sortBy === col
         ? <span className={styles.sortActive}>{sortDir === 'desc' ? ' ▼' : ' ▲'}</span>
@@ -627,13 +628,13 @@ export default function BillsReminders() {
           <thead>
             <tr>
               {sortHeader('name', 'Name')}
-              {sortHeader('payee', 'Payee')}
-              {sortHeader('account', 'Account')}
+              {sortHeader('payee', 'Payee', true)}
+              {sortHeader('account', 'Account', true)}
               {sortHeader('amount', 'Amount')}
-              {sortHeader('frequency', 'Frequency')}
-              {sortHeader('nextDueDate', 'Next Due')}
-              {sortHeader('days', 'Days')}
-              {sortHeader('isActive', 'Active')}
+              {sortHeader('frequency', 'Frequency', true)}
+              {sortHeader('nextDueDate', 'Next Due', true)}
+              {sortHeader('days', 'Days', true)}
+              {sortHeader('isActive', 'Active', true)}
               <th></th>
             </tr>
           </thead>
@@ -645,20 +646,31 @@ export default function BillsReminders() {
                 const days = daysUntil(item.nextDueDate);
                 return (
                   <tr key={item.id} className={days < 0 ? styles.overdue : ''}>
-                    <td>{item.name || payeeLabel(item, accounts) || '—'}</td>
                     <td>
+                      {item.name || payeeLabel(item, accounts) || '—'}
+                      {/* On phones the other columns are hidden; the essentials show here. */}
+                      <span className={styles.mobileSub}>
+                        {item.account?.name ?? accounts.find(a => a.id === item.accountId)?.name ?? '—'}
+                        {' · '}{formatFrequency(item.frequencyInterval, item.frequencyUnit, item.daysOfWeekMask)}
+                        {' · '}<span className={days < 0 ? styles.overdueText : ''}>
+                          {days < 0 ? `Overdue (${formatDate(item.nextDueDate)})` : `Due ${formatDate(item.nextDueDate)}`}
+                        </span>
+                        {!item.isActive && ' · Inactive'}
+                      </span>
+                    </td>
+                    <td className={styles.colWide}>
                       {item.transferAccountId
                         ? <span className={styles.transferLabel}>
                             Transfer → {accounts.find(a => a.id === item.transferAccountId)?.name ?? 'account'}
                           </span>
                         : (item.payee?.name ?? '—')}
                     </td>
-                    <td>{item.account?.name ?? accounts.find(a => a.id === item.accountId)?.name ?? '—'}</td>
+                    <td className={styles.colWide}>{item.account?.name ?? accounts.find(a => a.id === item.accountId)?.name ?? '—'}</td>
                     <td className={styles.amount}>{formatCurrency(item.amount)}</td>
-                    <td>{formatFrequency(item.frequencyInterval, item.frequencyUnit, item.daysOfWeekMask)}</td>
-                    <td>{formatDate(item.nextDueDate)}</td>
-                    <td className={days < 0 ? styles.overdueText : ''}>{days < 0 ? 'Overdue' : `${days}d`}</td>
-                    <td>{item.isActive ? 'Yes' : 'No'}</td>
+                    <td className={styles.colWide}>{formatFrequency(item.frequencyInterval, item.frequencyUnit, item.daysOfWeekMask)}</td>
+                    <td className={styles.colWide}>{formatDate(item.nextDueDate)}</td>
+                    <td className={`${styles.colWide} ${days < 0 ? styles.overdueText : ''}`}>{days < 0 ? 'Overdue' : `${days}d`}</td>
+                    <td className={styles.colWide}>{item.isActive ? 'Yes' : 'No'}</td>
                     <td className={styles.actions}>
                       <button className={styles.btnEdit} onClick={() => handleEdit(item)}>Edit</button>
                       <button className={styles.btnDelete} onClick={() => handleDelete(item.id)}>Del</button>

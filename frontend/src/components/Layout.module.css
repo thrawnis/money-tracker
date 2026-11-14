@@ -199,8 +199,27 @@
 
 .overlay { display: none; }
 
+.mobileBar { display: none; }
+
 @media (max-width: 768px) {
   .hamburger { display: flex; }
+
+  .mobileBar {
+    display: flex;
+    align-items: center;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 56px;
+    padding-left: 58px;
+    z-index: 150;
+    background: var(--ms-navy);
+    color: var(--ms-sidebar-text);
+    font-weight: 700;
+    font-size: 16px;
+    box-shadow: var(--shadow-sm);
+  }
 
   .overlay {
     display: block;
@@ -233,6 +252,6 @@
     width: 100vw !important;
     max-width: 100vw;
     overflow-x: hidden;
-    padding-top: 48px;
+    padding-top: 56px;
   }
 }

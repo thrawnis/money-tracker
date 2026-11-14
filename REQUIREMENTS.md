@@ -229,6 +229,7 @@ Money other people owe the user, and money the user owes them.
 
 ## UX Standards
 
+- **Phones (portrait)**: nothing is cut off at the screen edge. A solid top bar holds the menu button and app name so scrolled content passes under it. Dropdowns and text boxes never exceed the screen width. Wide tables either scroll sideways inside their own box (shared Settings-style tables, the Audit Log) or get a phone layout: the register shows Date (MM/DD/YY), Payee with the category beneath, Amount, the status icon and the ⋯ menu (Category, Balance and Memo columns hidden); Transactions shows Date, Payee with "account · category" beneath, and Amount; Bills shows Name with "account · frequency · due date" beneath, Amount and Edit/Del; Payees hides the date/count columns (shown under the name) and stacks its buttons; Accounts → Bank Sync and Possible Transfers show each row as a small labelled card. Header buttons and category rows wrap onto extra lines instead of overflowing. Desktop layouts are unchanged
 - All forms with unsaved data warn before navigation (in-app via `useBlocker`, browser-level via `beforeunload`)
 - All destructive actions (delete, deactivate) require a `confirm()` dialog
 - Inactive accounts and categories remain visible in historical data but are excluded from new-entry dropdowns (or shown at the bottom, grayed out)

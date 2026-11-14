@@ -121,15 +121,15 @@ export default function Payees() {
             <tr>
               <th>Payee</th>
               <th>Default Category</th>
-              <th>
+              <th className={styles.colWide}>
                 First Transaction
                 <InfoIcon text={FIRST_TX_INFO} />
               </th>
-              <th>
+              <th className={styles.colWide}>
                 Last Transaction
                 <InfoIcon text={LAST_TX_INFO} />
               </th>
-              <th>
+              <th className={styles.colWide}>
                 # Transactions
                 <InfoIcon text={COUNT_INFO} />
               </th>
@@ -164,7 +164,14 @@ export default function Payees() {
                         <button className={styles.btnSmSecondary} onClick={() => setRenamingId(null)}>Cancel</button>
                       </div>
                     ) : (
-                      <span className={styles.payeeName}>{payee.name}</span>
+                      <>
+                        <span className={styles.payeeName}>{payee.name}</span>
+                        {/* On phones the date and count columns are hidden; show them here. */}
+                        <span className={styles.mobileSub}>
+                          {payee.transactionCount ?? 0} transaction{payee.transactionCount === 1 ? '' : 's'}
+                          {payee.lastUsed && <> · last {fmt(payee.lastUsed)}</>}
+                        </span>
+                      </>
                     )}
                   </td>
                   <td>
@@ -202,9 +209,9 @@ export default function Payees() {
                       </span>
                     )}
                   </td>
-                  <td className={styles.lastUsed}>{fmt(payee.firstUsed) ?? '—'}</td>
-                  <td className={styles.lastUsed}>{fmt(payee.lastUsed) ?? '—'}</td>
-                  <td className={styles.lastUsed}>{payee.transactionCount ?? 0}</td>
+                  <td className={`${styles.lastUsed} ${styles.colWide}`}>{fmt(payee.firstUsed) ?? '—'}</td>
+                  <td className={`${styles.lastUsed} ${styles.colWide}`}>{fmt(payee.lastUsed) ?? '—'}</td>
+                  <td className={`${styles.lastUsed} ${styles.colWide}`}>{payee.transactionCount ?? 0}</td>
                   <td>
                     <div className={styles.rowActions}>
                       <button className={styles.btnSm} onClick={() => { setRenamingId(payee.id); setRenameValue(payee.name); setEditingCatFor(null); }}>Rename</button>

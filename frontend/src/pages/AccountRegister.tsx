@@ -31,6 +31,12 @@ function formatDate(d: string) {
   return new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
 }
 
+/** MM/DD/YYYY for a table cell, whose century hides on phones (MM/DD/YY) to save width. */
+function DateCell({ d }: { d: string }) {
+  const text = formatDate(d);   // "11/04/2026"
+  return <>{text.slice(0, 6)}<span className={styles.century}>{text.slice(6, 8)}</span>{text.slice(8)}</>;
+}
+
 // 500 is the backend's own clamp ceiling (TransactionsController), so this is
 // the largest page the server will actually honor — anything higher would
 // silently get truncated back down to 500 anyway.
@@ -1118,12 +1124,12 @@ export default function AccountRegister() {
           <span className={styles.recurringIcon} title="Created from a recurring schedule">↻</span>
         )}
         {/* Transfer source side: always show transaction date (post date belongs to destination) */}
-        {tx.transferTransactionId && tx.amount < 0 ? formatDate(tx.date) :
+        {tx.transferTransactionId && tx.amount < 0 ? <DateCell d={tx.date} /> :
           tx.postDate ? (
             <span title={`Post date. Transaction date: ${formatDate(tx.date)}`}>
-              {formatDate(tx.postDate)}<span className={styles.postDateMark}>*</span>
+              <DateCell d={tx.postDate} /><span className={styles.postDateMark}>*</span>
             </span>
-          ) : formatDate(tx.date)}
+          ) : <DateCell d={tx.date} />}
       </td>
       <td>
         {tx.transferTransactionId
@@ -1136,8 +1142,12 @@ export default function AccountRegister() {
             <span className={styles.categoryMissing} title="No payee — click the row to set one">Missing</span>
           ))}
         <IouBadgeChip badge={iouBadges.get(tx.id)} onOpen={() => navigate('/ious')} />
+        {/* On phones the Category column is hidden; show it under the payee. */}
+        {!tx.transferTransactionId && (
+          <span className={styles.mobileSub}>{getCategoryLabel(tx, categories) || 'No category'}</span>
+        )}
       </td>
-      <td>
+      <td className={styles.colCategory}>
         {getCategoryLabel(tx, categories) === 'Transfer' && !tx.categoryId
           ? <span className={styles.transferLabel}>Transfer</span>
           : getCategoryLabel(tx, categories) || (
@@ -1148,7 +1158,7 @@ export default function AccountRegister() {
       <td className={`${styles.right} ${tx.amount < 0 ? styles.debit : styles.credit}`}>
         {formatCurrency(tx.amount)}
       </td>
-      <td className={`${styles.right} ${(tx.runningBalance ?? 0) < 0 ? styles.debit : ''}`}>
+      <td className={`${styles.right} ${styles.colBalance} ${(tx.runningBalance ?? 0) < 0 ? styles.debit : ''}`}>
         {tx.runningBalance != null ? formatCurrency(tx.runningBalance) : '—'}
       </td>
       <td className={styles.statusCell}>
@@ -1291,15 +1301,16 @@ export default function AccountRegister() {
         <td className={styles.selectCol}></td>
         <td>
           <span className={styles.recurringIcon} title="Recurring scheduled transaction">↻</span>
-          {formatDate(bill.nextDueDate)}
+          <DateCell d={bill.nextDueDate} />
         </td>
         <td>
           {bill.payee?.name
             ?? (bill.transferAccountId
               ? <span className={styles.transferLabel}>Transfer → {allAccounts.find(a => a.id === bill.transferAccountId)?.name ?? 'account'}</span>
               : (bill.name || '—'))}
+          {!bill.transferAccountId && <span className={styles.mobileSub}>{getBillCategoryLabel(bill, categories) || 'No category'}</span>}
         </td>
-        <td>
+        <td className={styles.colCategory}>
           {!bill.categoryId && bill.transferAccountId
             ? <span className={styles.transferLabel}>Transfer</span>
             : getBillCategoryLabel(bill, categories)}
@@ -1308,7 +1319,7 @@ export default function AccountRegister() {
         <td className={`${styles.right} ${bill.amount < 0 ? styles.debit : styles.credit}`}>
           {formatCurrency(bill.amount)}
         </td>
-        <td className={`${styles.right} ${(balance ?? 0) < 0 ? styles.debit : ''}`}>
+        <td className={`${styles.right} ${styles.colBalance} ${(balance ?? 0) < 0 ? styles.debit : ''}`}>
           {balance != null ? formatCurrency(balance) : '—'}
         </td>
         <td><span className={styles.statusScheduled}>Scheduled</span></td>
@@ -1595,7 +1606,7 @@ export default function AccountRegister() {
               {(['date','payee','category','memo'] as const).map(col => (
                 <th
                   key={col}
-                  className={`${styles.sortable} ${col === 'memo' ? styles.colMemo : ''}`}
+                  className={`${styles.sortable} ${col === 'memo' ? styles.colMemo : col === 'category' ? styles.colCategory : ''}`}
                   onClick={() => handleSort(col)}
                 >
                   {col.charAt(0).toUpperCase() + col.slice(1)}
@@ -1609,9 +1620,9 @@ export default function AccountRegister() {
                   ? <span className={styles.sortActive}>{sortDir === 'desc' ? ' ▼' : ' ▲'}</span>
                   : <span className={styles.sortIdle}> ⇅</span>}
               </th>
-              <th className={styles.right}>Balance</th>
-              <th className={styles.sortable} onClick={() => handleSort('status')}>
-                Status{sortBy === 'status'
+              <th className={`${styles.right} ${styles.colBalance}`}>Balance</th>
+              <th className={styles.sortable} onClick={() => handleSort('status')} title="Status">
+                <span className={styles.statusLabel}>Status</span>{sortBy === 'status'
                   ? <span className={styles.sortActive}>{sortDir === 'desc' ? ' ▼' : ' ▲'}</span>
                   : <span className={styles.sortIdle}> ⇅</span>}
               </th>

@@ -20,6 +20,14 @@
   .page { padding: 10px 10px; }
 }
 
+/* Phones: Date, Payee (with account · category under it) and Amount only;
+   tapping a row still opens every detail. */
+.mobileSub { display: none; }
+@media (max-width: 600px) {
+  .colWide { display: none; }
+  .mobileSub { display: block; font-size: 11px; color: var(--c-777777); margin-top: 1px; }
+}
+
 /* ── Header ── */
 
 .pageHeader {

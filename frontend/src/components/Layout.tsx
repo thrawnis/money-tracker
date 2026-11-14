@@ -34,6 +34,9 @@ export default function Layout({ onLogout }: Props) {
 
   return (
     <div className={styles.shell}>
+      {/* Phones: a solid bar behind the menu button, so scrolled content passes
+          under it instead of showing through around the button. */}
+      <div className={styles.mobileBar} aria-hidden="true">Money Tracker</div>
       <button
         className={styles.hamburger}
         onClick={() => setSidebarOpen(o => !o)}

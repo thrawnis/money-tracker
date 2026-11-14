@@ -16,13 +16,13 @@ const pairKey = (m: TransferMatch) => `${m.from.id}-${m.to.id}`;
 function SideRow({ side, label }: { side: TransferSide; label: string }) {
   return (
     <tr>
-      <td style={{ whiteSpace: 'nowrap', fontWeight: 600 }}>{label}</td>
-      <td style={{ whiteSpace: 'nowrap' }}>{day(side.date)}</td>
-      <td><Link to={`/accounts/${side.accountId}`}>{side.accountName}</Link></td>
-      <td>{side.payee || '—'}</td>
-      <td>{side.memo || '—'}</td>
-      <td>{side.category ?? <span className={styles.hint} style={{ margin: 0 }}>Uncategorized</span>}</td>
-      <td style={{ textAlign: 'right', whiteSpace: 'nowrap', color: side.amount < 0 ? 'var(--c-cc0000)' : 'var(--c-1a7a40)' }}>{money(side.amount)}</td>
+      <td className={styles.stackInline} style={{ whiteSpace: 'nowrap', fontWeight: 600 }}>{label}</td>
+      <td className={styles.stackInline} style={{ whiteSpace: 'nowrap' }}>{day(side.date)}</td>
+      <td data-label="Account"><Link to={`/accounts/${side.accountId}`}>{side.accountName}</Link></td>
+      <td data-label="Payee">{side.payee || '—'}</td>
+      <td data-label="Memo">{side.memo || '—'}</td>
+      <td data-label="Category">{side.category ?? <span className={styles.hint} style={{ margin: 0 }}>Uncategorized</span>}</td>
+      <td data-label="Amount" style={{ textAlign: 'right', whiteSpace: 'nowrap', color: side.amount < 0 ? 'var(--c-cc0000)' : 'var(--c-1a7a40)' }}>{money(side.amount)}</td>
     </tr>
   );
 }
@@ -158,7 +158,7 @@ export default function PossibleTransfersTab() {
                     {busy === `${k}:dismiss` ? 'Hiding…' : 'Not a transfer'}
                   </button>
                 </div>
-                <table className={styles.dupTable}>
+                <table className={`${styles.dupTable} ${styles.stackOnPhone}`}>
                   <thead>
                     <tr><th></th><th>Date</th><th>Account</th><th>Payee</th><th>Memo</th><th>Category</th><th style={{ textAlign: 'right' }}>Amount</th></tr>
                   </thead>

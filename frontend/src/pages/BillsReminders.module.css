@@ -282,3 +282,11 @@
   color: var(--c-ffffff);
 }
 .weekdayToggleActive:hover { background: var(--c-004488); }
+
+/* Phones: Name (with account · frequency · due date under it), Amount and the
+   Edit/Del buttons; the other columns are hidden. */
+.mobileSub { display: none; }
+@media (max-width: 600px) {
+  .colWide { display: none; }
+  .mobileSub { display: block; font-size: 11px; color: var(--c-777777); margin-top: 2px; }
+}

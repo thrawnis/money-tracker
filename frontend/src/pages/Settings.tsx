@@ -297,7 +297,7 @@ function PreferencesTab() {
           Choose the sort field and direction the account register uses when you first open it. Manually changing
           the sort while viewing a register only applies for that visit — it doesn't change this default.
         </p>
-        <div style={{ display: 'flex', gap: 20, alignItems: 'flex-end' }}>
+        <div style={{ display: 'flex', gap: 20, alignItems: 'flex-end', flexWrap: 'wrap' }}>
           <div>
             <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Sort field</label>
             <select value={sortBy} onChange={e => { setSortBy(e.target.value); setSaved(false); }}>

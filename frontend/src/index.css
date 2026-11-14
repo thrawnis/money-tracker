@@ -74,6 +74,11 @@ a {
   input, select, textarea {
     font-size: 16px !important;
   }
+  /* Never wider than the screen: a dropdown with long options (time zones,
+     "Descending (newest / highest first)") otherwise runs off the edge. */
+  :where(select, textarea, input:not([type=checkbox]):not([type=radio])) {
+    max-width: 100%;
+  }
 }
 @keyframes shimmer {
   0%   { background-position: -400px 0; }

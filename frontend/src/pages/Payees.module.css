@@ -180,3 +180,14 @@
   transition: background 0.12s;
 }
 .btnSmDelete:hover { background: var(--c-fce0de); }
+
+/* ── Phones ── (kept last so it overrides the rules above)
+   Payee (with its count and last use under it), Default Category and the
+   buttons stacked; the date and count columns are hidden. */
+.mobileSub { display: none; }
+@media (max-width: 600px) {
+  .colWide { display: none; }
+  .mobileSub { display: block; font-size: 11px; color: var(--c-777777); margin-top: 2px; }
+  .rowActions { flex-direction: column; align-items: stretch; }
+  .inlineEdit { flex-wrap: wrap; }
+}
