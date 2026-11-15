@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
 # rebuild.sh — Pull the latest main branch (discarding local changes) and redeploy with Docker
-# Usage: ./rebuild.sh [--force] [--pull-base-images]
+# Usage: ./rebuild.sh [--force] [--pull-base-images] [--ignore-sync]
 #   Rebuilds only when the running api/frontend containers weren't built from
 #   the latest commit on main (each image is labeled with its commit), or
 #   when a container isn't running. Otherwise it reports "up to date" and exits.
 #   --force              Rebuild and redeploy even if already up to date.
+#   --ignore-sync        Restart even if a bank sync is running. Normally the
+#                         script waits (up to 15 minutes) for a running bank
+#                         sync to finish before restarting the app, and stops
+#                         without restarting if it's still going.
 #   --pull-base-images   Also re-pull the base images (postgres:16-alpine,
 #                         dotnet/sdk, node, nginx, etc.) from their registries
 #                         before building. Off by default: skipping this check
@@ -17,10 +21,12 @@ set -euo pipefail
 
 PULL_BASE_IMAGES=0
 FORCE=0
+IGNORE_SYNC=0
 for arg in "$@"; do
   case "$arg" in
     --pull-base-images) PULL_BASE_IMAGES=1 ;;
     --force) FORCE=1 ;;
+    --ignore-sync) IGNORE_SYNC=1 ;;
     *) echo "Unknown argument: $arg" >&2; exit 1 ;;
   esac
 done
@@ -153,6 +159,33 @@ docker buildx build "${BUILDX_PULL_FLAG[@]}" --label "$REVISION_LABEL=$COMMIT" -
 
 # --no-build everywhere below: the images above are already built, and
 # Compose must never attempt (and fail) to build its own.
+
+# -- Don't restart in the middle of a bank sync ---------------------------------
+# Building above didn't touch the running app; restarting it (below) would cut
+# off a sync part-way. The API reports whether one is running on an endpoint
+# that only answers direct requests from this machine. If it can't be reached
+# (app not running, or a version from before this check), go ahead.
+API_URL="${REBUILD_API_URL:-http://127.0.0.1:5012}"
+SYNC_WAIT_SECONDS="${REBUILD_SYNC_WAIT_SECONDS:-900}"
+if [ "$SYNC_WAIT_SECONDS" -ge 60 ]; then WAIT_LABEL="$((SYNC_WAIT_SECONDS / 60)) min"; else WAIT_LABEL="${SYNC_WAIT_SECONDS}s"; fi
+sync_running() {
+  command -v curl >/dev/null 2>&1 || return 1
+  curl -fsS --max-time 5 "$API_URL/api/system/busy" 2>/dev/null | grep -q '"bankSync":true'
+}
+if [ "$IGNORE_SYNC" -eq 0 ] && sync_running; then
+  echo "==> A bank sync is running; waiting for it to finish before restarting (up to $WAIT_LABEL)..."
+  waited=0
+  while sync_running; do
+    if [ "$waited" -ge "$SYNC_WAIT_SECONDS" ]; then
+      echo "ERROR: the bank sync is still running after $WAIT_LABEL; not restarting." >&2
+      echo "       The new images are built. Run ./rebuild.sh again later, or ./rebuild.sh --ignore-sync to restart anyway." >&2
+      exit 1
+    fi
+    sleep 10
+    waited=$((waited + 10))
+  done
+  echo "    bank sync finished; continuing."
+fi
 
 # Bring up db without --force-recreate so existing connections are preserved.
 echo "==> Starting db"

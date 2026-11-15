@@ -35,7 +35,7 @@ npm run lint     # ESLint
 
 **Full stack (Docker)**:
 ```bash
-./rebuild.sh     # reset to latest origin/main (discards local changes; keeps .env and data/); rebuild + restart only if the running images aren't from the latest commit (--force to always rebuild)
+./rebuild.sh     # reset to latest origin/main (discards local changes; keeps .env and data/); rebuild + restart only if the running images aren't from the latest commit (--force to always rebuild); before restarting it waits up to 15 min for a running bank sync to finish (GET /api/system/busy, local requests only; --ignore-sync skips)
 docker compose up
 ```
 

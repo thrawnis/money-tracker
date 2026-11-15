@@ -149,6 +149,9 @@ public class SimpleFinService(
     // database work) onto the server or trip SimpleFIN's rate limits.
     private static readonly SemaphoreSlim Gate = new(1, 1);
 
+    /// <summary>True while any SimpleFIN work (a sync, connecting, an auto-import) holds the gate.</summary>
+    public static bool Busy => Gate.CurrentCount == 0;
+
     private static async Task<T> OneAtATimeAsync<T>(Func<Task<T>> work, CancellationToken ct)
     {
         await Gate.WaitAsync(ct);

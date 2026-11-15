@@ -59,6 +59,18 @@ public class SimpleFinDailyUpdateService(
 
     public async Task RunDueAsync(CancellationToken ct)
     {
+        // Flags the whole nightly run (it releases SimpleFIN's gate between
+        // users), so a redeploy waits for every user, not just the current one.
+        Running = true;
+        try { await RunDueCoreAsync(ct); }
+        finally { Running = false; }
+    }
+
+    /// <summary>True while a nightly sync run is in progress (see SystemController).</summary>
+    public static volatile bool Running;
+
+    private async Task RunDueCoreAsync(CancellationToken ct)
+    {
         using var scope = scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
