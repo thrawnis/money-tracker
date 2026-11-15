@@ -43,41 +43,36 @@ export default function PossibleTransfersTab() {
   const [matches, setMatches] = useState<TransferMatch[] | null>(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
-  // The action in progress ('restore', or a pair key + ':link'/':dismiss');
-  // held until the list has reloaded, so a pair doesn't reappear clickable.
+  // The action in progress ('restore', or a pair key + ':link'/':dismiss').
   const [busy, setBusy] = useState<string | null>(null);
-  // The pair animating out after a successful link / dismiss.
-  const [leaving, setLeaving] = useState<{ key: string; kind: 'linked' | 'dismissed' } | null>(null);
+  // Pairs handled on this screen: they stay in place, dimmed and without
+  // buttons, so the list doesn't shift while you work down it. Cleared when
+  // the list is fetched again.
+  const [done, setDone] = useState<Record<string, 'linked' | 'dismissed'>>({});
 
   const reload = async () => {
     const d = await findTransferMatches(days);
     setMatches(d.matches);
+    setDone({});
   };
 
   useEffect(() => {
     let cancelled = false;
     findTransferMatches(days)
-      .then(d => { if (!cancelled) { setMatches(d.matches); setError(''); } })
+      .then(d => { if (!cancelled) { setMatches(d.matches); setDone({}); setError(''); } })
       .catch(() => { if (!cancelled) setError('Failed to look for possible transfers.'); });
     return () => { cancelled = true; };
   }, [days]);
 
-  // leave: animate that pair out (after the action succeeds) before the list reloads.
-  const run = async (key: string, action: () => Promise<string>, leave?: { key: string; kind: 'linked' | 'dismissed' }) => {
+  // pair: mark that pair done in place; otherwise (restore) refetch the list.
+  const run = async (key: string, action: () => Promise<string>, pair?: { key: string; kind: 'linked' | 'dismissed' }) => {
     setBusy(key); setError(''); setNotice('');
     try {
       const message = await action();
-      if (leave) {
-        setLeaving(leave);
-        const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-        await new Promise(r => setTimeout(r, reduced ? 300 : 900));
-      }
-      await reload();
-      setLeaving(null);
-      setNotice(message);
+      if (pair) setDone(d => ({ ...d, [pair.key]: pair.kind }));
+      else { await reload(); setNotice(message); }
     } catch (err) {
       setError(errMsg(err, 'Something went wrong.'));
-      setLeaving(null);
     } finally {
       setBusy(null);
     }
@@ -134,18 +129,20 @@ export default function PossibleTransfersTab() {
         <>
           <p style={{ margin: '0 0 10px' }}>
             <strong>{matches.length} possible transfer{matches.length === 1 ? '' : 's'}</strong>
+            {Object.keys(done).length > 0 && (
+              <span className={styles.hint} style={{ margin: '0 0 0 8px' }}>
+                {Object.values(done).filter(k => k === 'linked').length} linked,{' '}
+                {Object.values(done).filter(k => k === 'dismissed').length} marked not a transfer,{' '}
+                {matches.length - Object.keys(done).length} left
+              </span>
+            )}
           </p>
           {matches.map(m => {
             const k = pairKey(m);
-            const out = leaving?.key === k ? leaving.kind : null;
+            const state = done[k];
             return (
               <div key={k} style={{ marginBottom: 10 }}
-                className={`${styles.prefGroup} ${anim.pairCard} ${out ? `${anim.leaving} ${out === 'linked' ? anim.linked : anim.dismissed}` : ''}`}>
-                {out && (
-                  <div className={`${anim.stamp} ${out === 'linked' ? anim.stampLinked : anim.stampDismissed}`} role="status">
-                    {out === 'linked' ? '✓ Linked as transfer' : 'Hidden — not a transfer'}
-                  </div>
-                )}
+                className={`${styles.prefGroup} ${anim.pairCard} ${state ? anim.done : ''}`}>
                 <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 6 }}>
                   <strong>{money(Math.abs(m.from.amount))}</strong>
                   <span>{m.from.accountName} → {m.to.accountName}</span>
@@ -158,12 +155,18 @@ export default function PossibleTransfersTab() {
                     </span>
                   )}
                   <span style={{ flex: 1 }} />
+                  {state ? (
+                    <span role="status" className={`${anim.badge} ${state === 'linked' ? anim.badgeLinked : anim.badgeDismissed}`}>
+                      {state === 'linked' ? '✓ Linked as transfer' : 'Not a transfer'}
+                    </span>
+                  ) : <>
                   <button className={styles.btnPrimary} disabled={busy !== null} onClick={() => void link(m)}>
                     {busy === `${k}:link` ? <><span className={anim.spinner} aria-hidden="true" />Linking…</> : 'Link as transfer'}
                   </button>
                   <button className={styles.btnSecondary} disabled={busy !== null} onClick={() => void dismiss(m)}>
-                    {busy === `${k}:dismiss` ? <><span className={anim.spinner} aria-hidden="true" />Hiding…</> : 'Not a transfer'}
+                    {busy === `${k}:dismiss` ? <><span className={anim.spinner} aria-hidden="true" />Saving…</> : 'Not a transfer'}
                   </button>
+                  </>}
                 </div>
                 <table className={`${styles.dupTable} ${styles.stackOnPhone}`}>
                   <thead>
