@@ -54,6 +54,12 @@ public class ScheduledTransaction
     // How many days before due date to show the reminder
     public int ReminderDays { get; set; } = 3;
 
+    // Opt-in per bill (default off): pre-create upcoming occurrences as real,
+    // editable transactions once they're within AutoCreateDaysAhead days of
+    // their due date, instead of only when they're actually due.
+    public bool AutoCreate { get; set; } = false;
+    public int AutoCreateDaysAhead { get; set; } = 31;
+
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

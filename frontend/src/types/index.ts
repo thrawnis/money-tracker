@@ -126,4 +126,8 @@ export interface ScheduledTransaction {
   reminderDays: number;
   isActive: boolean;
   transferAccountId?: number;
+  /** Pre-create upcoming occurrences as real transactions, autoCreateDaysAhead
+   *  days before they're due (off by default). */
+  autoCreate?: boolean;
+  autoCreateDaysAhead?: number;
 }

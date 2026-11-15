@@ -249,12 +249,6 @@ namespace MoneyTracker.Migrations
                     b.Property<int>("AccessFailedCount")
                         .HasColumnType("integer");
 
-                    b.Property<int?>("AutoCreateFutureDays")
-                        .HasColumnType("integer");
-
-                    b.Property<bool>("AutoCreateFutureTransactions")
-                        .HasColumnType("boolean");
-
                     b.Property<string>("ConcurrencyStamp")
                         .IsConcurrencyToken()
                         .HasColumnType("text");
@@ -1041,6 +1035,12 @@ namespace MoneyTracker.Migrations
                     b.Property<decimal>("Amount")
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
+
+                    b.Property<bool>("AutoCreate")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("AutoCreateDaysAhead")
+                        .HasColumnType("integer");
 
                     b.Property<int?>("CategoryId")
                         .HasColumnType("integer");

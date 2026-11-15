@@ -204,8 +204,6 @@ function PreferencesTab() {
   const [sortBy, setSortBy] = useState('date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [futureDays, setFutureDays] = useState(String(DEFAULT_FUTURE_DAYS));
-  const [autoCreate, setAutoCreate] = useState(false);
-  const [autoCreateDays, setAutoCreateDays] = useState(String(DEFAULT_FUTURE_DAYS));
   const [timeZoneId, setTimeZoneId] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -218,8 +216,6 @@ function PreferencesTab() {
         setSortBy(p.defaultRegisterSortBy ?? 'date');
         setSortDir(p.defaultRegisterSortDir ?? 'desc');
         setFutureDays(String(p.defaultFutureDays ?? DEFAULT_FUTURE_DAYS));
-        setAutoCreate(!!p.autoCreateFutureTransactions);
-        setAutoCreateDays(String(p.autoCreateFutureDays ?? DEFAULT_FUTURE_DAYS));
         setTimeZoneId(p.timeZoneId ?? '');
       })
       .catch(() => setError('Failed to load preferences.'))
@@ -229,7 +225,6 @@ function PreferencesTab() {
 
   const handleSave = async () => {
     const days = Math.max(1, Math.min(3650, Number(futureDays) || DEFAULT_FUTURE_DAYS));
-    const autoDays = Math.max(1, Math.min(3650, Number(autoCreateDays) || DEFAULT_FUTURE_DAYS));
     setSaving(true);
     setError('');
     setSaved(false);
@@ -238,12 +233,9 @@ function PreferencesTab() {
         defaultRegisterSortBy: sortBy,
         defaultRegisterSortDir: sortDir,
         defaultFutureDays: days,
-        autoCreateFutureTransactions: autoCreate,
-        autoCreateFutureDays: autoDays,
         timeZoneId: timeZoneId || null,
       });
       setFutureDays(String(days));
-      setAutoCreateDays(String(autoDays));
       setSaved(true);
     } catch {
       setError('Failed to save preferences.');
@@ -261,8 +253,6 @@ function PreferencesTab() {
         defaultRegisterSortBy: null,
         defaultRegisterSortDir: null,
         defaultFutureDays: null,
-        autoCreateFutureTransactions: false,
-        autoCreateFutureDays: null,
         // Deliberately preserved: a timezone is required, so resetting it to
         // null would drop the user back onto the mandatory picker.
         timeZoneId: timeZoneId || null,
@@ -270,8 +260,6 @@ function PreferencesTab() {
       setSortBy('date');
       setSortDir('desc');
       setFutureDays(String(DEFAULT_FUTURE_DAYS));
-      setAutoCreate(false);
-      setAutoCreateDays(String(DEFAULT_FUTURE_DAYS));
       setSaved(true);
     } catch {
       setError('Failed to reset preferences.');
@@ -344,36 +332,6 @@ function PreferencesTab() {
             max={3650}
             value={futureDays}
             onChange={e => { setFutureDays(e.target.value); setSaved(false); }}
-            style={{ width: 90 }}
-          />
-        </div>
-      </div>
-
-      <div className={styles.prefGroup}>
-        <p className={styles.prefGroupTitle}>Auto-create upcoming recurring transactions</p>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, cursor: 'pointer' }}>
-          <input
-            type="checkbox"
-            checked={autoCreate}
-            onChange={e => { setAutoCreate(e.target.checked); setSaved(false); }}
-          />
-          <span style={{ fontSize: 14, fontWeight: 700 }}>Enable auto-create</span>
-        </label>
-        <p className={styles.hint}>
-          When enabled, recurring transactions are created as real, future-dated transactions — editable in the
-          register — once they're within the window below, instead of only appearing when actually due. This is
-          separate from the preview window above: a recurring transaction can show in the preview well before it's
-          auto-created, or auto-create can be set further out than the preview shows.
-        </p>
-        <div>
-          <label style={{ display: 'block', fontSize: 13, fontWeight: 700, marginBottom: 4 }}>Days ahead (auto-create)</label>
-          <input
-            type="number"
-            min={1}
-            max={3650}
-            value={autoCreateDays}
-            disabled={!autoCreate}
-            onChange={e => { setAutoCreateDays(e.target.value); setSaved(false); }}
             style={{ width: 90 }}
           />
         </div>

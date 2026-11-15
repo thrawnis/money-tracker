@@ -27,6 +27,8 @@ public class ScheduledTransactionsController(
     /// </summary>
     private async Task<string?> ValidateReferences(ScheduledTransactionDto dto, string userId)
     {
+        if (dto.AutoCreateDaysAhead is < 1 or > 3650)
+            return "Days ahead must be between 1 and 3650.";
         if (!await db.Accounts.AnyAsync(a => a.Id == dto.AccountId && a.UserId == userId))
             return "Account not found.";
 
@@ -86,6 +88,8 @@ public class ScheduledTransactionsController(
         daysOfWeekMask      = s.DaysOfWeekMask,
         nextDueDate         = occurrenceDate ?? s.NextDueDate,
         reminderDays = s.ReminderDays,
+        autoCreate = s.AutoCreate,
+        autoCreateDaysAhead = s.AutoCreateDaysAhead,
         isActive     = s.IsActive,
         transferAccountId = s.TransferAccountId,
         createdAt    = s.CreatedAt,
@@ -206,6 +210,8 @@ public class ScheduledTransactionsController(
             DaysOfWeekMask     = NormalizedDaysOfWeekMask(dto),
             NextDueDate        = dto.NextDueDate,
             ReminderDays  = dto.ReminderDays,
+            AutoCreate    = dto.AutoCreate,
+            AutoCreateDaysAhead = dto.AutoCreateDaysAhead ?? 31,
             CreatedAt     = DateTime.UtcNow,
         };
 
@@ -250,6 +256,8 @@ public class ScheduledTransactionsController(
         scheduled.DaysOfWeekMask    = NormalizedDaysOfWeekMask(dto);
         scheduled.NextDueDate       = dto.NextDueDate;
         scheduled.ReminderDays  = dto.ReminderDays;
+        scheduled.AutoCreate    = dto.AutoCreate;
+        scheduled.AutoCreateDaysAhead = dto.AutoCreateDaysAhead ?? scheduled.AutoCreateDaysAhead;
 
         await db.SaveChangesAsync();
 
@@ -303,4 +311,7 @@ public record ScheduledTransactionDto(
     DateOnly NextDueDate,
     int ReminderDays,
     int? TransferAccountId,
-    int? DaysOfWeekMask = null);
+    int? DaysOfWeekMask = null,
+    // Pre-create upcoming occurrences as real transactions (off by default).
+    bool AutoCreate = false,
+    int? AutoCreateDaysAhead = null);

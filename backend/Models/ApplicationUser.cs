@@ -30,14 +30,6 @@ public class ApplicationUser : IdentityUser
     // section looks; null means the built-in default (31 days).
     public int? DefaultFutureDays { get; set; }
 
-    // Opt-in (default false): pre-create recurring transactions as real,
-    // editable Transaction rows once they're within AutoCreateFutureDays of
-    // their due date, instead of only materializing them when actually due.
-    public bool AutoCreateFutureTransactions { get; set; } = false;
-    // Null means the built-in default (31 days). Independent of DefaultFutureDays
-    // (that one only controls the register's preview window).
-    public int? AutoCreateFutureDays { get; set; }
-
     // One-time cleanup, run on first login/refresh after the Void feature
     // shipped: transactions whose category was literally named "VOID ..."
     // (bank exports use that as a category placeholder for voided/reversed

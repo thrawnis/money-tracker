@@ -79,6 +79,8 @@ interface FormState {
   nextDueDate: string;
   reminderDays: string;
   isActive: boolean;
+  autoCreate: boolean;
+  autoCreateDaysAhead: string;
 }
 
 // Passed via navigate('/bills', { state: { prefill } }) from a transaction's
@@ -126,6 +128,8 @@ const emptyForm = (): FormState => ({
   nextDueDate: new Date().toISOString().slice(0, 10),
   reminderDays: '3',
   isActive: true,
+  autoCreate: false,
+  autoCreateDaysAhead: '31',
 });
 
 export default function BillsReminders() {
@@ -328,6 +332,8 @@ export default function BillsReminders() {
         nextDueDate: form.nextDueDate,
         reminderDays: Number(form.reminderDays) || 0,
         isActive: form.isActive,
+        autoCreate: form.autoCreate,
+        autoCreateDaysAhead: Math.max(1, Math.min(3650, Number(form.autoCreateDaysAhead) || 31)),
         transferAccountId: form.isTransfer && form.transferAccountId ? Number(form.transferAccountId) : undefined,
       };
       if (editId !== null) {
@@ -366,6 +372,8 @@ export default function BillsReminders() {
       nextDueDate: item.nextDueDate.slice(0, 10),
       reminderDays: String(item.reminderDays),
       isActive: item.isActive,
+      autoCreate: !!item.autoCreate,
+      autoCreateDaysAhead: String(item.autoCreateDaysAhead ?? 31),
     };
     setForm(f);
     setFormBaseline(JSON.stringify(f));
@@ -606,6 +614,21 @@ export default function BillsReminders() {
                 <input type="checkbox" checked={form.isActive} onChange={e => setForm(f => ({ ...f, isActive: e.target.checked }))} />
                 {' '}Active
               </label>
+            </div>
+            <div className={styles.formField} style={{ gridColumn: '1 / -1', flexBasis: '100%' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', textTransform: 'none', fontSize: 13, fontWeight: 600, letterSpacing: 'normal' }}>
+                <input type="checkbox" checked={form.autoCreate}
+                  onChange={e => setForm(f => ({ ...f, autoCreate: e.target.checked }))} />
+                Create upcoming occurrences as transactions
+                <input type="number" min="1" max="3650" value={form.autoCreateDaysAhead} disabled={!form.autoCreate}
+                  aria-label="Days ahead to create" style={{ width: 70 }}
+                  onChange={e => setForm(f => ({ ...f, autoCreateDaysAhead: e.target.value }))} />
+                days before they're due
+              </label>
+              <span className={styles.hint}>
+                Off: each occurrence becomes a transaction on its due date. On: it's added to the register ahead of
+                time as a real, editable transaction, so your balances account for it early.
+              </span>
             </div>
           </div>
           <div className={styles.formActions}>

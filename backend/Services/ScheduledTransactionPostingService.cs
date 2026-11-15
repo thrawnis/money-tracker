@@ -12,9 +12,9 @@ namespace MoneyTracker.Services;
 ///  1. PostDueAsync — materializes every occurrence up to and including
 ///     today and advances NextDueDate past it (back-filling missed runs,
 ///     e.g. the app was down for a month).
-///  2. CreateFutureAsync — for users who opted in
-///     (ApplicationUser.AutoCreateFutureTransactions), pre-creates
-///     occurrences within their configured "days ahead" window WITHOUT
+///  2. CreateFutureAsync — for bills that opted in
+///     (ScheduledTransaction.AutoCreate), pre-creates occurrences within
+///     that bill's "days ahead" window WITHOUT
 ///     advancing NextDueDate, so they show up as real, editable
 ///     transactions before they're actually due.
 ///
@@ -29,7 +29,6 @@ public class ScheduledTransactionPostingService(
     ILogger<ScheduledTransactionPostingService> logger) : BackgroundService
 {
     private static readonly TimeSpan Interval = TimeSpan.FromHours(6);
-    private const int DefaultAutoCreateFutureDays = 31;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -131,13 +130,13 @@ public class ScheduledTransactionPostingService(
 
         var schedules = await db.ScheduledTransactions
             .Include(s => s.User)
-            .Where(s => s.IsActive && s.User.AutoCreateFutureTransactions)
+            .Where(s => s.IsActive && s.AutoCreate)
             .ToListAsync(ct);
 
         foreach (var s in schedules)
         {
             var today  = UserClock.Today(s.User);
-            var cutoff = today.AddDays(s.User.AutoCreateFutureDays ?? DefaultAutoCreateFutureDays);
+            var cutoff = today.AddDays(Math.Clamp(s.AutoCreateDaysAhead, 1, 3650));
             var date = s.NextDueDate;
             var guard = 0;
             while (date <= cutoff && guard++ < 366)
