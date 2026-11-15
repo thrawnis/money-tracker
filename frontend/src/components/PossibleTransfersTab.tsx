@@ -13,12 +13,16 @@ const money = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency',
 const day = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 const pairKey = (m: TransferMatch) => `${m.from.id}-${m.to.id}`;
 
-function SideRow({ side, label }: { side: TransferSide; label: string }) {
+function SideRow({ side }: { side: TransferSide }) {
+  const out = side.amount < 0;
   return (
     <tr>
-      <td className={styles.stackInline} style={{ whiteSpace: 'nowrap', fontWeight: 600 }}>{label}</td>
       <td className={styles.stackInline} style={{ whiteSpace: 'nowrap' }}>{day(side.date)}</td>
-      <td data-label="Account"><Link to={`/accounts/${side.accountId}`}>{side.accountName}</Link></td>
+      <td data-label="Account">
+        {/* Money out of this account (red) or into it (green). */}
+        <strong style={{ color: out ? 'var(--c-cc0000)' : 'var(--c-1a7a40)', marginRight: 6 }}>{out ? 'Out' : 'In'}</strong>
+        <Link to={`/accounts/${side.accountId}`}>{side.accountName}</Link>
+      </td>
       <td data-label="Payee">{side.payee || '—'}</td>
       <td data-label="Memo">{side.memo || '—'}</td>
       <td data-label="Category">{side.category ?? <span className={styles.hint} style={{ margin: 0 }}>Uncategorized</span>}</td>
@@ -38,7 +42,7 @@ export default function PossibleTransfersTab() {
   const [matches, setMatches] = useState<TransferMatch[] | null>(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
-  // The action in progress ('all', 'restore', or a pair key + ':link'/':dismiss');
+  // The action in progress ('restore', or a pair key + ':link'/':dismiss');
   // held until the list has reloaded, so a pair doesn't reappear clickable.
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -72,17 +76,6 @@ export default function PossibleTransfersTab() {
     const r = await linkTransferMatches(pairs.map(m => ({ outId: m.from.id, inId: m.to.id })));
     return `Linked ${r.linked} transfer${r.linked === 1 ? '' : 's'}.` + (r.problems.length ? ` Skipped ${r.problems.length}: ${r.problems[0]}` : '');
   });
-
-  const linkAll = () => {
-    if (!matches?.length) return;
-    const guesses = matches.filter(m => m.alternatives > 0).length;
-    if (!confirm(
-      `Link all ${matches.length} pairs as transfers? Their categories will be cleared.`
-      + (guesses ? `\n\n${guesses} of them had other possible matches — you may want to check those first.` : '')
-      + '\n\nOnce linked, deleting either side of a transfer deletes both.',
-    )) return;
-    void link(matches, 'all');
-  };
 
   const restore = () => {
     if (!confirm('Suggest again every pair you marked "Not a transfer"?')) return;
@@ -123,12 +116,9 @@ export default function PossibleTransfersTab() {
 
       {matches && matches.length > 0 && (
         <>
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center', margin: '0 0 10px' }}>
+          <p style={{ margin: '0 0 10px' }}>
             <strong>{matches.length} possible transfer{matches.length === 1 ? '' : 's'}</strong>
-            <button className={styles.btnPrimary} onClick={linkAll} disabled={busy !== null}>
-              {busy === 'all' ? 'Linking…' : `Link all ${matches.length}`}
-            </button>
-          </div>
+          </p>
           {matches.map(m => {
             const k = pairKey(m);
             return (
@@ -155,11 +145,11 @@ export default function PossibleTransfersTab() {
                 </div>
                 <table className={`${styles.dupTable} ${styles.stackOnPhone}`}>
                   <thead>
-                    <tr><th></th><th>Date</th><th>Account</th><th>Payee</th><th>Memo</th><th>Category</th><th style={{ textAlign: 'right' }}>Amount</th></tr>
+                    <tr><th>Date</th><th>Account</th><th>Payee</th><th>Memo</th><th>Category</th><th style={{ textAlign: 'right' }}>Amount</th></tr>
                   </thead>
                   <tbody>
-                    <SideRow side={m.from} label="Out" />
-                    <SideRow side={m.to} label="In" />
+                    <SideRow side={m.from} />
+                    <SideRow side={m.to} />
                   </tbody>
                 </table>
               </div>
