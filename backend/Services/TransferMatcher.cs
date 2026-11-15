@@ -13,8 +13,9 @@ namespace MoneyTracker.Services;
 ///
 /// Candidates: any transaction that isn't already a transfer, voided or split —
 /// categorized or not (a card payment a payee default filed under a category
-/// is still a transfer). Each transaction is used in at most one pair, closest
-/// dates first; pairs the user dismissed are skipped.
+/// is still a transfer). Pairs the user dismissed are skipped. Pairs that share
+/// a transaction are grouped, so when there's more than one possible match the
+/// user sees them together and picks the right one (if any).
 /// </summary>
 public class TransferMatcher(AppDbContext db, IEncryptionService encryption)
 {
@@ -24,10 +25,18 @@ public class TransferMatcher(AppDbContext db, IEncryptionService encryption)
     public record Side(int Id, int AccountId, string AccountName, DateOnly Date, decimal Amount,
         string? Payee, string? Memo, string? Category);
 
-    /// <summary>From = money out, To = money in. Alternatives: other candidates either side could have paired with.</summary>
-    public record Match(Side From, Side To, int DayGap, int Alternatives);
+    /// <summary>From = money out, To = money in.</summary>
+    public record Match(Side From, Side To, int DayGap);
 
-    public async Task<List<Match>> FindAsync(ApplicationUser user, int days = DefaultDays)
+    /// <summary>
+    /// Possible pairs linked by shared transactions (one transaction that could
+    /// pair with several others), closest dates first. A group with one option
+    /// is a plain suggestion; with several, at most one option per transaction
+    /// can be the real transfer.
+    /// </summary>
+    public record Group(List<Match> Options);
+
+    public async Task<List<Group>> FindAsync(ApplicationUser user, int days = DefaultDays)
     {
         days = Math.Clamp(days, 0, MaxDays);
         var txs = await db.Transactions
@@ -61,22 +70,32 @@ public class TransferMatcher(AppDbContext db, IEncryptionService encryption)
                 }
         }
 
-        // How many possible partners each transaction has, to flag guesses.
-        var partners = possible.SelectMany(p => new[] { p.Out.Id, p.In.Id }).GroupBy(id => id).ToDictionary(g => g.Key, g => g.Count());
-
-        // Closest dates first; each transaction used once.
-        var used = new HashSet<int>();
-        var matches = new List<Match>();
-        foreach (var p in possible.OrderBy(p => p.Gap).ThenByDescending(p => p.Out.Date).ThenBy(p => p.Out.Id).ThenBy(p => p.In.Id))
+        // Group pairs that share a transaction (union-find over transaction ids).
+        var parent = new Dictionary<int, int>();
+        int Root(int x)
         {
-            if (used.Contains(p.Out.Id) || used.Contains(p.In.Id)) continue;
-            used.Add(p.Out.Id); used.Add(p.In.Id);
-            var alternatives = partners[p.Out.Id] - 1 + partners[p.In.Id] - 1;
-            matches.Add(new Match(Describe(p.Out, user, catLabel), Describe(p.In, user, catLabel), p.Gap, alternatives));
+            while (parent[x] != x) x = parent[x];
+            return x;
         }
-        return matches.OrderByDescending(m => m.From.Date > m.To.Date ? m.From.Date : m.To.Date).ToList();
+        foreach (var p in possible)
+        {
+            parent.TryAdd(p.Out.Id, p.Out.Id); parent.TryAdd(p.In.Id, p.In.Id);
+            int a = Root(p.Out.Id), b = Root(p.In.Id);
+            if (a != b) parent[a] = b;
+        }
+
+        return possible
+            .GroupBy(p => Root(p.Out.Id))
+            .Select(g => new Group(g
+                .OrderBy(p => p.Gap).ThenByDescending(p => p.Out.Date).ThenBy(p => p.Out.Id).ThenBy(p => p.In.Id)
+                .Select(p => new Match(Describe(p.Out, user, catLabel), Describe(p.In, user, catLabel), p.Gap))
+                .ToList()))
+            // Newest first, by the latest date in the group.
+            .OrderByDescending(g => g.Options.Max(m => m.From.Date > m.To.Date ? m.From.Date : m.To.Date))
+            .ToList();
     }
 
+    /// <summary>How many suggestions (groups) Utilities → Possible Transfers would show.</summary>
     public async Task<int> CountAsync(ApplicationUser user) => (await FindAsync(user)).Count;
 
     private Side Describe(Transaction t, ApplicationUser user, Dictionary<int, string> catLabel)

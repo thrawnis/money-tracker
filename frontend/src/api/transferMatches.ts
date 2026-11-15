@@ -11,10 +11,13 @@ export interface TransferSide {
   category?: string | null;
 }
 
-/** from = money out, to = money in. alternatives: other transactions either side could have paired with. */
-export interface TransferMatch { from: TransferSide; to: TransferSide; dayGap: number; alternatives: number }
+/** from = money out, to = money in. */
+export interface TransferMatch { from: TransferSide; to: TransferSide; dayGap: number }
 
-export const findTransferMatches = (days: number): Promise<{ days: number; matches: TransferMatch[] }> =>
+/** Possible pairs that share transactions, closest dates first. One option = a plain suggestion. */
+export interface TransferGroup { options: TransferMatch[] }
+
+export const findTransferMatches = (days: number): Promise<{ days: number; groups: TransferGroup[] }> =>
   api.get('/transfer-matches', { params: { days } }).then(r => r.data);
 
 export const linkTransferMatches = (pairs: { outId: number; inId: number }[]): Promise<{ linked: number; problems: string[] }> =>

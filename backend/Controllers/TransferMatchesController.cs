@@ -27,8 +27,8 @@ public class TransferMatchesController(
     {
         var user = await CurrentUserAsync();
         if (user is null) return Unauthorized();
-        var matches = await matcher.FindAsync(user, days);
-        return Ok(new { days = Math.Clamp(days, 0, TransferMatcher.MaxDays), matches });
+        var groups = await matcher.FindAsync(user, days);
+        return Ok(new { days = Math.Clamp(days, 0, TransferMatcher.MaxDays), groups });
     }
 
     public record PairDto(int OutId, int InId);

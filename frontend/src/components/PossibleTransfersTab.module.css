@@ -48,3 +48,6 @@
   .badge { animation: none; }
   .spinner { animation-duration: 2s; }
 }
+
+/* One option inside a group of possible matches. */
+.option { padding: 8px 0 4px; border-top: 1px dashed var(--c-cccccc, #ccc); transition: opacity 0.3s ease; }
