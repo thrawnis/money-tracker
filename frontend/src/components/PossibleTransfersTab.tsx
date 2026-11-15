@@ -5,6 +5,7 @@ import {
   type TransferMatch, type TransferSide,
 } from '../api/transferMatches';
 import styles from '../pages/Settings.module.css';
+import anim from './PossibleTransfersTab.module.css';
 
 type ApiError = { response?: { data?: { message?: string } } };
 const errMsg = (err: unknown, fallback: string) => (err as ApiError)?.response?.data?.message ?? fallback;
@@ -45,6 +46,8 @@ export default function PossibleTransfersTab() {
   // The action in progress ('restore', or a pair key + ':link'/':dismiss');
   // held until the list has reloaded, so a pair doesn't reappear clickable.
   const [busy, setBusy] = useState<string | null>(null);
+  // The pair animating out after a successful link / dismiss.
+  const [leaving, setLeaving] = useState<{ key: string; kind: 'linked' | 'dismissed' } | null>(null);
 
   const reload = async () => {
     const d = await findTransferMatches(days);
@@ -59,23 +62,36 @@ export default function PossibleTransfersTab() {
     return () => { cancelled = true; };
   }, [days]);
 
-  const run = async (key: string, action: () => Promise<string>) => {
+  // leave: animate that pair out (after the action succeeds) before the list reloads.
+  const run = async (key: string, action: () => Promise<string>, leave?: { key: string; kind: 'linked' | 'dismissed' }) => {
     setBusy(key); setError(''); setNotice('');
     try {
       const message = await action();
+      if (leave) {
+        setLeaving(leave);
+        const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+        await new Promise(r => setTimeout(r, reduced ? 300 : 900));
+      }
       await reload();
+      setLeaving(null);
       setNotice(message);
     } catch (err) {
       setError(errMsg(err, 'Something went wrong.'));
+      setLeaving(null);
     } finally {
       setBusy(null);
     }
   };
 
-  const link = (pairs: TransferMatch[], key: string) => run(key, async () => {
-    const r = await linkTransferMatches(pairs.map(m => ({ outId: m.from.id, inId: m.to.id })));
-    return `Linked ${r.linked} transfer${r.linked === 1 ? '' : 's'}.` + (r.problems.length ? ` Skipped ${r.problems.length}: ${r.problems[0]}` : '');
-  });
+  const link = (m: TransferMatch) => run(`${pairKey(m)}:link`, async () => {
+    const r = await linkTransferMatches([{ outId: m.from.id, inId: m.to.id }]);
+    return `Linked ${r.linked} transfer${r.linked === 1 ? '' : 's'}.`;
+  }, { key: pairKey(m), kind: 'linked' });
+
+  const dismiss = (m: TransferMatch) => run(`${pairKey(m)}:dismiss`, async () => {
+    await dismissTransferMatch(m.from.id, m.to.id);
+    return 'Marked as not a transfer.';
+  }, { key: pairKey(m), kind: 'dismissed' });
 
   const restore = () => {
     if (!confirm('Suggest again every pair you marked "Not a transfer"?')) return;
@@ -121,8 +137,15 @@ export default function PossibleTransfersTab() {
           </p>
           {matches.map(m => {
             const k = pairKey(m);
+            const out = leaving?.key === k ? leaving.kind : null;
             return (
-              <div key={k} className={styles.prefGroup} style={{ marginBottom: 10 }}>
+              <div key={k} style={{ marginBottom: 10 }}
+                className={`${styles.prefGroup} ${anim.pairCard} ${out ? `${anim.leaving} ${out === 'linked' ? anim.linked : anim.dismissed}` : ''}`}>
+                {out && (
+                  <div className={`${anim.stamp} ${out === 'linked' ? anim.stampLinked : anim.stampDismissed}`} role="status">
+                    {out === 'linked' ? '✓ Linked as transfer' : 'Hidden — not a transfer'}
+                  </div>
+                )}
                 <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 6 }}>
                   <strong>{money(Math.abs(m.from.amount))}</strong>
                   <span>{m.from.accountName} → {m.to.accountName}</span>
@@ -135,12 +158,11 @@ export default function PossibleTransfersTab() {
                     </span>
                   )}
                   <span style={{ flex: 1 }} />
-                  <button className={styles.btnPrimary} disabled={busy !== null} onClick={() => void link([m], `${k}:link`)}>
-                    {busy === `${k}:link` ? 'Linking…' : 'Link as transfer'}
+                  <button className={styles.btnPrimary} disabled={busy !== null} onClick={() => void link(m)}>
+                    {busy === `${k}:link` ? <><span className={anim.spinner} aria-hidden="true" />Linking…</> : 'Link as transfer'}
                   </button>
-                  <button className={styles.btnSecondary} disabled={busy !== null}
-                    onClick={() => void run(`${k}:dismiss`, async () => { await dismissTransferMatch(m.from.id, m.to.id); return 'Marked as not a transfer.'; })}>
-                    {busy === `${k}:dismiss` ? 'Hiding…' : 'Not a transfer'}
+                  <button className={styles.btnSecondary} disabled={busy !== null} onClick={() => void dismiss(m)}>
+                    {busy === `${k}:dismiss` ? <><span className={anim.spinner} aria-hidden="true" />Hiding…</> : 'Not a transfer'}
                   </button>
                 </div>
                 <table className={`${styles.dupTable} ${styles.stackOnPhone}`}>
