@@ -5,6 +5,7 @@ import {
 } from '../api/ious';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import styles from './AccountEditModal.module.css';
+import { confirmDialog } from '../utils/dialogs';
 
 type ApiError = { response?: { data?: { message?: string } } };
 
@@ -52,8 +53,8 @@ export default function IouPaymentDialog({ people, openEntries, payment, personI
   // direction (money received pays what they owe; money paid, what you owe).
   const targets = openEntries.filter(e => e.personId === person && (direction === 'Received' ? e.amount > 0 : e.amount < 0));
 
-  const close = () => {
-    if (dirty && !confirm('Discard these changes?')) return;
+  const close = async () => {
+    if (dirty && !(await confirmDialog('Discard these changes?'))) return;
     onClose();
   };
 

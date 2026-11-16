@@ -5,6 +5,7 @@ import { usePageTitle } from '../hooks/usePageTitle';
 import InfoIcon from '../components/InfoIcon';
 import type { Category } from '../types';
 import styles from './Categories.module.css';
+import { confirmDialog } from '../utils/dialogs';
 
 const FIRST_TX_INFO = 'Date of the earliest transaction ever assigned to this category, including future-dated transactions.';
 const LAST_TX_INFO = 'Date of the latest transaction ever assigned to this category, including future-dated transactions.';
@@ -63,7 +64,7 @@ export default function Categories() {
 
   const handleAddCategory = async () => {
     if (!newCatName.trim()) return;
-    if (!confirm(`Create category "${newCatName.trim()}"?`)) return;
+    if (!(await confirmDialog(`Create category "${newCatName.trim()}"?`))) return;
     try {
       const created = await createCategory({ name: newCatName.trim() });
       setCategories(prev => [...prev, { ...created, subCategories: [] }]);
@@ -75,7 +76,7 @@ export default function Categories() {
   const handleAddSub = async (parentId: number) => {
     if (!newSubName.trim()) return;
     const parent = categories.find(c => c.id === parentId);
-    if (!confirm(`Create subcategory "${newSubName.trim()}" under "${parent?.name}"?`)) return;
+    if (!(await confirmDialog(`Create subcategory "${newSubName.trim()}" under "${parent?.name}"?`))) return;
     try {
       const created = await createCategory({ name: newSubName.trim(), parentId });
       setCategories(prev => prev.map(c =>
@@ -94,7 +95,7 @@ export default function Categories() {
       ? categories.flatMap(c => c.subCategories ?? []).find(s => s.id === id)
       : categories.find(c => c.id === id);
     if (!cat) return;
-    if (!confirm(`Rename "${cat.name}" to "${renameValue.trim()}"?`)) return;
+    if (!(await confirmDialog(`Rename "${cat.name}" to "${renameValue.trim()}"?`))) return;
     try {
       await updateCategory(id, { name: renameValue.trim(), parentId: cat.parentId ?? null });
       setCategories(prev => prev.map(c => {
@@ -106,7 +107,7 @@ export default function Categories() {
   };
 
   const handleDelete = async (id: number, name: string) => {
-    if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
+    if (!(await confirmDialog(`Delete "${name}"? This cannot be undone.`))) return;
     try {
       await deleteCategory(id);
       setCategories(prev =>
@@ -125,7 +126,7 @@ export default function Categories() {
     const targetName = targetParentId === null
       ? 'a top-level category'
       : `"${categories.find(c => c.id === targetParentId)?.name}"`;
-    if (!confirm(`Move "${subName}" to ${targetName}?`)) return;
+    if (!(await confirmDialog(`Move "${subName}" to ${targetName}?`))) return;
     try {
       await updateCategory(subId, { name: sub.name, parentId: targetParentId });
       // Remove sub from its current parent

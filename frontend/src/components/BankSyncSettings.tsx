@@ -11,6 +11,7 @@ import type { Account } from '../types';
 import NewLinkedAccountModal from './NewLinkedAccountModal';
 import { confirmLinkChange } from '../utils/bankLinks';
 import styles from '../pages/Settings.module.css';
+import { confirmDialog } from '../utils/dialogs';
 
 type ApiError = { response?: { data?: { message?: string } } };
 const apiMsg = (err: unknown, fallback: string) =>
@@ -105,7 +106,7 @@ export default function BankSyncSettings({ status, onStatus: setStatus, accounts
     if (value === 'new') { setError(''); setNewAccountFor(sf); return; }
     const accountId = value ? Number(value) : null;
     if (accountId === (sf.linkedAccountId ?? null)) return;
-    if (!confirmLinkChange(sf, accountId == null ? null : accounts.find(a => a.id === accountId) ?? null)) return;
+    if (!(await confirmLinkChange(sf, accountId == null ? null : accounts.find(a => a.id === accountId) ?? null))) return;
     setBusy(sf.id);
     setError('');
     try {
@@ -119,10 +120,10 @@ export default function BankSyncSettings({ status, onStatus: setStatus, accounts
 
   const handleMode = async (sf: SimpleFinAccount, balanceOnly: boolean) => {
     if (balanceOnly === sf.balanceOnly) return;
-    if (sf.pendingDraftId != null && !confirm(
+    if (sf.pendingDraftId != null && !(await confirmDialog(
       `Switch "${sf.name}" to ${balanceOnly ? 'balance only' : 'transactions'}? `
       + `Its ${sf.pendingDraftRows ?? ''} unreviewed transaction(s) will be discarded.`,
-    )) return;
+    ))) return;
     setBusy(sf.id);
     setError('');
     try {
@@ -136,11 +137,11 @@ export default function BankSyncSettings({ status, onStatus: setStatus, accounts
 
 
   const handleDisconnect = async () => {
-    if (!confirm(
+    if (!(await confirmDialog(
       'Disconnect SimpleFIN? Money Tracker will delete its stored access key and stop syncing. '
       + 'Unreviewed synced transactions are discarded; anything already imported stays in your registers.\n\n'
       + 'To fully revoke access, also remove the Money Tracker connection in SimpleFIN Bridge.',
-    )) return;
+    ))) return;
     setBusy('disconnect');
     setError('');
     try {
@@ -228,12 +229,12 @@ export default function BankSyncSettings({ status, onStatus: setStatus, accounts
   const waitingRows = status.accounts.reduce((n, a) => n + (a.pendingDraftId != null ? (a.pendingDraftRows ?? 0) : 0), 0);
 
   const handleRequireApproval = async (requireApproval: boolean) => {
-    if (!requireApproval && !confirm(
+    if (!requireApproval && !(await confirmDialog(
       'Import synced transactions without reviewing them first?\n\n'
       + 'Each sync will import new transactions straight into your registers, applying your payee mapping rules and '
       + 'default categories; possible duplicates are left out.'
       + (waitingRows > 0 ? `\n\nThe ${waitingRows} transaction${waitingRows === 1 ? '' : 's'} waiting for review now will be imported right away.` : ''),
-    )) return;
+    ))) return;
     setSavingApproval(true);
     setError('');
     setApprovalNotice('');

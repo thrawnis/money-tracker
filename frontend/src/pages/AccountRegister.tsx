@@ -20,6 +20,7 @@ import ReceiptScanner from '../components/ReceiptScanner';
 import AccountEditModal from '../components/AccountEditModal';
 import type { ExtractedReceipt } from '../api/receipts';
 import styles from './AccountRegister.module.css';
+import { confirmDialog } from '../utils/dialogs';
 
 type ApiError = { response?: { data?: { message?: string } } };
 
@@ -247,8 +248,8 @@ export default function AccountRegister() {
   // Switching the form's target transaction (a different row, "+ New
   // Transaction", the N shortcut, a receipt scan) while there are unsaved
   // edits in the open form would otherwise silently discard them.
-  const confirmDiscardIfDirty = () =>
-    !formDirty || confirm('You have unsaved changes to this transaction. Discard them?');
+  const confirmDiscardIfDirty = async () =>
+    !formDirty || (await confirmDialog('You have unsaved changes to this transaction. Discard them?'));
   // State, not a ref: this is read during render to seed the new-transaction
   // form's date, and reading a ref while rendering is exactly the tearing
   // hazard the React Compiler flags. It also genuinely IS render-affecting
@@ -291,12 +292,12 @@ export default function AccountRegister() {
 
   // Keyboard shortcut: N = new transaction
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
+    const handler = async (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement).tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
       if (e.key === 'n' || e.key === 'N') {
         e.preventDefault();
-        if (!confirmDiscardIfDirty()) return;
+        if (!(await confirmDiscardIfDirty())) return;
         setEditingTx(null);
         setShowForm(true);
       }
@@ -804,9 +805,9 @@ export default function AccountRegister() {
     const { splitWithPeople, ...data } = formData;
     // Only Reconciled transactions ask first; Cleared ones save freely.
     if (editingTx?.status === 'Reconciled') {
-      const proceed = confirm(
+      const proceed = (await confirmDialog(
         'This transaction is marked Reconciled. Editing it may affect your reconciled balance. Save changes anyway?'
-      );
+      ));
       if (!proceed) return;
     }
     // Order matters: an EXISTING transfer submits with transferDestAccountId
@@ -875,7 +876,7 @@ export default function AccountRegister() {
   };
 
   const handleDelete = async (txId: number) => {
-    if (!confirm('Delete this transaction?')) return;
+    if (!(await confirmDialog('Delete this transaction?'))) return;
     // Optimistic: the row disappears the instant you confirm, not after a
     // round trip. Deleting shifts every later row's running balance and the
     // header total, which — like void below — isn't something to recompute
@@ -896,9 +897,9 @@ export default function AccountRegister() {
     }
   };
 
-  const handleEdit = (tx: Transaction) => {
+  const handleEdit = async (tx: Transaction) => {
     if (editingTx?.id === tx.id && showForm) return; // already editing this one
-    if (!confirmDiscardIfDirty()) return;
+    if (!(await confirmDiscardIfDirty())) return;
     setEditingTx(tx);
     setShowForm(true);
     setHighlightTxId(null);
@@ -928,7 +929,7 @@ export default function AccountRegister() {
       const msg = tx.transferTransactionId
         ? 'Void this transfer? Both linked transactions will be voided — the row stays visible in both registers, but no longer counts toward either balance.'
         : 'Void this transaction? It stays in the register but is excluded from the balance, Reports, and duplicate detection.';
-      if (!confirm(msg)) return;
+      if (!(await confirmDialog(msg))) return;
     }
     // Optimistic: the row dims/undims immediately. Voiding changes the
     // running balance of every row after it and the header total, so those
@@ -952,8 +953,8 @@ export default function AccountRegister() {
   // offered for transfers: a new transfer is always created debiting this
   // account, so duplicating the credit/destination leg of an existing
   // transfer would silently reverse its direction.
-  const handleDuplicate = (tx: Transaction) => {
-    if (!confirmDiscardIfDirty()) return;
+  const handleDuplicate = async (tx: Transaction) => {
+    if (!(await confirmDiscardIfDirty())) return;
     // Bump the form key: if a blank "new" form is already mounted, the key
     // would otherwise stay 'new-N' and the form would never re-read this prefill.
     setFormNonce(n => n + 1);
@@ -974,8 +975,8 @@ export default function AccountRegister() {
     setShowForm(true);
   };
 
-  const handleReceiptConfirm = (data: ExtractedReceipt) => {
-    if (!confirmDiscardIfDirty()) return;
+  const handleReceiptConfirm = async (data: ExtractedReceipt) => {
+    if (!(await confirmDiscardIfDirty())) return;
     setShowScanner(false);
     // Bump the form key: if a blank "new" form is already mounted, the key would
     // otherwise stay 'new-N' and the form would never re-read the receipt prefill.
@@ -1073,7 +1074,7 @@ export default function AccountRegister() {
       return;
     }
     const n = selectedIds.size;
-    if (!confirm(`Set the category of ${n} transaction${n === 1 ? '' : 's'} to "${match.label}"?`)) return;
+    if (!(await confirmDialog(`Set the category of ${n} transaction${n === 1 ? '' : 's'} to "${match.label}"?`))) return;
     setBulkBusy(true);
     setBulkMessage('');
     try {
@@ -1431,10 +1432,11 @@ export default function AccountRegister() {
           <select
             className={styles.accountSelect}
             value={accountId}
-            onChange={e => {
+            onChange={async e => {
               // Same unsaved-changes guard as every other form-switching path
-              if (!confirmDiscardIfDirty()) { e.target.value = String(accountId); return; }
-              navigate(`/accounts/${e.target.value}`);
+              const target = e.target.value;
+              if (!(await confirmDiscardIfDirty())) return;
+              navigate(`/accounts/${target}`);
             }}
           >
             {(() => {
@@ -1467,9 +1469,9 @@ export default function AccountRegister() {
         <div className={styles.headerActions}>
           <button
             className={styles.btnPrimary}
-            onClick={() => {
+            onClick={async () => {
               const closingNewForm = showForm && !editingTx;
-              if (!closingNewForm && !confirmDiscardIfDirty()) return;
+              if (!closingNewForm && !(await confirmDiscardIfDirty())) return;
               setEditingTx(null);
               setReceiptPrefill(null);
               setReceiptPayeeName(undefined);

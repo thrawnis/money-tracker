@@ -6,6 +6,7 @@ import {
 } from '../api/transferMatches';
 import styles from '../pages/Settings.module.css';
 import anim from './PossibleTransfersTab.module.css';
+import { confirmDialog } from '../utils/dialogs';
 
 type ApiError = { response?: { data?: { message?: string } } };
 const errMsg = (err: unknown, fallback: string) => (err as ApiError)?.response?.data?.message ?? fallback;
@@ -163,8 +164,8 @@ export default function PossibleTransfersTab() {
     }
   });
 
-  const restore = () => {
-    if (!confirm('Suggest again every pair you marked "Not a transfer"?')) return;
+  const restore = async () => {
+    if (!(await confirmDialog('Suggest again every pair you marked "Not a transfer"?'))) return;
     void run('restore', async () => {
       const r = await restoreDismissedTransferMatches();
       await reload();

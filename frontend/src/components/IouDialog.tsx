@@ -3,6 +3,7 @@ import { createIous, updateIou, type IouEntry, type IouLinkedTransaction, type I
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import PersonInput, { type PersonValue } from './PersonInput';
 import styles from './AccountEditModal.module.css';
+import { confirmDialog } from '../utils/dialogs';
 
 type ApiError = { response?: { data?: { message?: string } } };
 
@@ -70,8 +71,8 @@ export default function IouDialog({ people, entry, transaction, onSaved, onClose
     setDirty(true);
   };
 
-  const close = () => {
-    if (dirty && !confirm('Discard these changes?')) return;
+  const close = async () => {
+    if (dirty && !(await confirmDialog('Discard these changes?'))) return;
     onClose();
   };
 

@@ -7,6 +7,7 @@ import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import { flattenCategories } from '../utils/categories';
 import type { Category } from '../types';
 import styles from '../pages/Settings.module.css';
+import { confirmDialog } from '../utils/dialogs';
 
 type ApiError = { response?: { data?: { message?: string } } };
 
@@ -101,20 +102,20 @@ export default function UncategorizedByPayeeTab() {
 
   // Clicking a category in a payee's summary: confirm, then apply it to all of
   // the payee's uncategorized transactions.
-  const reuseCategory = (g: UncategorizedGroup, c: { categoryId: number; label: string }) => {
+  const reuseCategory = async (g: UncategorizedGroup, c: { categoryId: number; label: string }) => {
     const k = groupKey(g);
     const makeDefault = !noDefault.has(`g:${k}`);
-    if (!confirm(
+    if (!(await confirmDialog(
       `Set "${c.label}" on ${g.count === 1 ? 'the 1 uncategorized transaction' : `all ${g.count} uncategorized transactions`} from ${groupName(g)}?`
       + (makeDefault ? `\n\nIt will also become ${groupName(g)}'s default category (untick "Also make it…" to skip that).` : ''),
-    )) return;
+    ))) return;
     void assignGroups(`u:${k}:${c.categoryId}`, [g], { id: c.categoryId, label: c.label }, `g:${k}`);
   };
 
-  const applyBulk = () => {
-    if (selectedGroups.length > 1 && !confirm(
+  const applyBulk = async () => {
+    if (selectedGroups.length > 1 && !(await confirmDialog(
       `Set "${resolve(text.bulk ?? '')?.label ?? text.bulk}" on all ${selectedCount} uncategorized transactions from `
-      + `${selectedGroups.length} payees (${selectedGroups.map(groupName).join(', ')})?`)) return;
+      + `${selectedGroups.length} payees (${selectedGroups.map(groupName).join(', ')})?`))) return;
     void assignGroups('bulk', selectedGroups);
   };
 

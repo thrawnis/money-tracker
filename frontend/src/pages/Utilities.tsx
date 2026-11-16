@@ -18,6 +18,7 @@ import PossibleTransfersTab from '../components/PossibleTransfersTab';
 // Reuses Settings' styling for visual consistency between the two tabbed
 // utility-page shells rather than duplicating the same CSS.
 import styles from './Settings.module.css';
+import { confirmDialog } from '../utils/dialogs';
 
 // ── Duplicate Transactions ──
 
@@ -59,7 +60,7 @@ function DuplicatesTab() {
   useEffect(() => { getAccounts().then(setAccounts).catch(() => {}); }, []);
 
   const handleDelete = async (accountId: number, id: number) => {
-    if (!confirm('Delete this transaction? This cannot be undone.')) return;
+    if (!(await confirmDialog('Delete this transaction? This cannot be undone.'))) return;
     setDeletingId(id);
     try {
       await deleteTransaction(accountId, id);
@@ -353,7 +354,7 @@ function InstitutionsTab() {
   const handleRename = async (id: number) => {
     if (!renameValue.trim()) return;
     const inst = institutions.find(i => i.id === id);
-    if (!confirm(`Rename "${inst?.name}" to "${renameValue.trim()}"?`)) return;
+    if (!(await confirmDialog(`Rename "${inst?.name}" to "${renameValue.trim()}"?`))) return;
     try {
       await updateInstitution(id, renameValue.trim());
       setRenamingId(null);
@@ -365,7 +366,7 @@ function InstitutionsTab() {
   };
 
   const handleDelete = async (id: number, name: string) => {
-    if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
+    if (!(await confirmDialog(`Delete "${name}"? This cannot be undone.`))) return;
     try {
       await deleteInstitution(id);
       setInstitutions(prev => prev.filter(i => i.id !== id));
@@ -457,7 +458,7 @@ function PayeeMappingRulesTab() {
   const [applyResult, setApplyResult] = useState('');
 
   const handleApply = async () => {
-    if (!confirm('Apply these rules to every uncategorized transaction? Matching payees will be renamed and their default category assigned. This cannot be undone.')) return;
+    if (!(await confirmDialog('Apply these rules to every uncategorized transaction? Matching payees will be renamed and their default category assigned. This cannot be undone.'))) return;
     setApplying(true);
     setError('');
     setApplyResult('');
@@ -505,7 +506,7 @@ function PayeeMappingRulesTab() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Delete this mapping rule?')) return;
+    if (!(await confirmDialog('Delete this mapping rule?'))) return;
     setDeletingId(id);
     try {
       await deletePayeeMappingRule(id);

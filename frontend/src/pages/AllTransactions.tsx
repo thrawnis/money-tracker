@@ -6,6 +6,7 @@ import { searchTransactions, type SearchTransaction } from '../api/transactionSe
 import type { Account } from '../types';
 import TransactionDetailPanel from '../components/TransactionDetailPanel';
 import styles from './AllTransactions.module.css';
+import { confirmDialog } from '../utils/dialogs';
 
 function formatCurrency(n: number) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
@@ -298,9 +299,9 @@ export default function AllTransactions() {
               <tr
                 key={tx.id}
                 className={styles.txRow}
-                onClick={() => {
+                onClick={async () => {
                   if (selectedTx?.id === tx.id) return;
-                  if (panelDirty && !confirm('You have unsaved changes to this transaction. Discard them?')) return;
+                  if (panelDirty && !(await confirmDialog('You have unsaved changes to this transaction. Discard them?'))) return;
                   setPanelDirty(false);
                   setSelectedTx(tx);
                 }}

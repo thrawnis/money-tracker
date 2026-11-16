@@ -1,0 +1,40 @@
+.overlay {
+  position: fixed; inset: 0; z-index: 2000;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px;
+  animation: fadeIn 0.12s ease-out;
+}
+.dialog {
+  background: var(--c-ffffff);
+  border-radius: 8px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+  width: 440px; max-width: 100%;
+  overflow: hidden;
+  animation: popIn 0.14s ease-out;
+}
+.header { padding: 12px 18px; background: var(--c-003366); }
+.headerDanger { background: var(--c-c0392b); }
+.title { margin: 0; font-size: 16px; font-weight: 700; color: #fff; }
+.body { padding: 16px 18px 6px; }
+.message { margin: 0 0 10px; font-size: 14px; line-height: 1.5; color: var(--c-333333); white-space: pre-line; }
+.input {
+  width: 100%; box-sizing: border-box; padding: 8px 10px; font: inherit; font-size: 14px;
+  border: 1px solid var(--c-c8d8e8); border-radius: 4px; background: var(--c-ffffff); color: var(--c-333333);
+  resize: vertical; margin-bottom: 8px;
+}
+.input:focus { outline: 2px solid var(--c-336699); outline-offset: -1px; }
+.actions { display: flex; justify-content: flex-end; gap: 8px; padding: 10px 18px 16px; flex-wrap: wrap; }
+.btnOk, .btnDanger, .btnCancel {
+  padding: 8px 18px; border-radius: 4px; font-size: 14px; font-weight: 600; cursor: pointer; min-width: 84px;
+}
+.btnOk { background: var(--c-003366); color: #fff; border: 1px solid var(--c-003366); }
+.btnOk:hover { background: var(--c-004488); }
+.btnDanger { background: var(--c-c0392b); color: #fff; border: 1px solid var(--c-c0392b); }
+.btnDanger:hover { filter: brightness(1.08); }
+.btnCancel { background: var(--c-ffffff); color: var(--c-336699); border: 1px solid var(--c-c8d8e8); }
+.btnCancel:hover { border-color: var(--c-336699); }
+.btnOk:focus-visible, .btnDanger:focus-visible, .btnCancel:focus-visible { outline: 2px solid var(--c-336699); outline-offset: 2px; }
+@keyframes fadeIn { from { opacity: 0; } }
+@keyframes popIn { from { opacity: 0; transform: scale(0.96); } }
+@media (prefers-reduced-motion: reduce) { .overlay, .dialog { animation: none; } }

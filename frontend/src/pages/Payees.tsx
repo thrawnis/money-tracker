@@ -7,6 +7,7 @@ import { usePageTitle } from '../hooks/usePageTitle';
 import InfoIcon from '../components/InfoIcon';
 import type { Payee, Category } from '../types';
 import styles from './Payees.module.css';
+import { confirmDialog } from '../utils/dialogs';
 
 const FIRST_TX_INFO = 'Date of the earliest transaction ever assigned to this payee, including future-dated transactions.';
 const LAST_TX_INFO = 'Date of the latest transaction ever assigned to this payee, including future-dated transactions.';
@@ -62,7 +63,7 @@ export default function Payees() {
     if (!renameValue.trim()) return;
     const payee = payees.find(p => p.id === id);
     if (!payee) return;
-    if (!confirm(`Rename "${payee.name}" to "${renameValue.trim()}"?`)) return;
+    if (!(await confirmDialog(`Rename "${payee.name}" to "${renameValue.trim()}"?`))) return;
     try {
       // Full PUT — must resend defaultCategoryId and blockAutoDefaultCategory
       // as they are now, or the omitted fields get overwritten (the block
@@ -93,7 +94,7 @@ export default function Payees() {
     const confirmMsg = catBlocked
       ? `Stop auto-suggesting a category for "${payee.name}"? Any existing default will be cleared, and it won't be auto-set again — you can still pick one manually any time.`
       : `Set default category for "${payee.name}" to ${targetId ? `"${flat.find(c => c.id === targetId)?.label}"` : 'none'}?`;
-    if (!confirm(confirmMsg)) return;
+    if (!(await confirmDialog(confirmMsg))) return;
     try {
       await updatePayee(id, { name: payee.name, defaultCategoryId: targetId, blockAutoDefaultCategory: catBlocked });
       setPayees(prev => prev.map(p => p.id === id
@@ -104,7 +105,7 @@ export default function Payees() {
   };
 
   const handleDelete = async (id: number, name: string) => {
-    if (!confirm(`Delete payee "${name}"? This cannot be undone.\n\nNote: transactions using this payee will retain their payee name.`)) return;
+    if (!(await confirmDialog(`Delete payee "${name}"? This cannot be undone.\n\nNote: transactions using this payee will retain their payee name.`))) return;
     try {
       await deletePayee(id);
       setPayees(prev => prev.filter(p => p.id !== id));

@@ -8,6 +8,7 @@ import {
 import IouDialog from '../components/IouDialog';
 import IouPaymentDialog from '../components/IouPaymentDialog';
 import styles from './Ious.module.css';
+import { confirmDialog, promptDialog } from '../utils/dialogs';
 
 type ApiError = { response?: { data?: { message?: string } } };
 
@@ -100,18 +101,18 @@ export default function Ious() {
   };
 
   const removeIou = async (e: IouEntry) => {
-    if (!confirm(`Delete the ${money(Math.abs(e.amount))} IOU ${e.amount > 0 ? 'from' : 'to'} ${e.personName}${e.description ? ` (${e.description})` : ''}? Payments already applied to it will be re-applied to their other IOUs or kept as credit.`)) return;
+    if (!(await confirmDialog(`Delete the ${money(Math.abs(e.amount))} IOU ${e.amount > 0 ? 'from' : 'to'} ${e.personName}${e.description ? ` (${e.description})` : ''}? Payments already applied to it will be re-applied to their other IOUs or kept as credit.`))) return;
     try { await deleteIou(e.id); load(); } catch { setError('Failed to delete that IOU.'); }
   };
 
   const removePayment = async (p: IouPayment) => {
-    if (!confirm(`Delete the ${money(p.amount)} payment ${p.direction === 'Received' ? 'from' : 'to'} ${p.personName}? The IOUs it paid will be open again.`)) return;
+    if (!(await confirmDialog(`Delete the ${money(p.amount)} payment ${p.direction === 'Received' ? 'from' : 'to'} ${p.personName}? The IOUs it paid will be open again.`))) return;
     try { await deleteIouPayment(p.id); load(); } catch { setError('Failed to delete that payment.'); }
   };
 
   const renamePerson = async () => {
     if (!person) return;
-    const name = prompt('Rename this person:', person.name)?.trim();
+    const name = (await promptDialog('Rename this person:', { title: 'Rename', defaultValue: person.name, confirmLabel: 'Save' }))?.trim();
     if (!name || name === person.name) return;
     try { await updateIouPerson(person.id, name, person.notes ?? undefined); load(); }
     catch (err) { setError((err as ApiError)?.response?.data?.message ?? 'Failed to rename.'); }
@@ -119,7 +120,7 @@ export default function Ious() {
 
   const removePerson = async () => {
     if (!person) return;
-    if (!confirm(`Delete ${person.name} and all of their IOUs and payments? This can't be undone.`)) return;
+    if (!(await confirmDialog(`Delete ${person.name} and all of their IOUs and payments? This can't be undone.`))) return;
     try { await deleteIouPerson(person.id); setPersonId(''); } catch { setError('Failed to delete that person.'); }
   };
 
@@ -144,7 +145,7 @@ export default function Ious() {
       setNotice('Copied to the clipboard — paste it into a text, email, or payment request.');
     } catch {
       setNotice('');
-      prompt('Copy this message:', text);
+      await promptDialog('Copy this message:', { title: 'Copy message', defaultValue: text, copyOnly: true });
     }
   };
 

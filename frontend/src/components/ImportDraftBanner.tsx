@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { getImportDrafts, deleteImportDraft, IMPORT_DRAFTS_CHANGED, type ImportDraftSummary } from '../api/import';
 import styles from './ImportDraftBanner.module.css';
+import { confirmDialog } from '../utils/dialogs';
 
 // Global, hard-to-miss notice of imports waiting for the user: one summary
 // line for all bank-sync reviews, and one line per unfinished file import —
@@ -40,7 +41,7 @@ export default function ImportDraftBanner() {
 
   const handleDiscard = async (d: ImportDraftSummary) => {
     const msg = `Discard the unfinished import for "${d.accountName}" (${d.fileName})? This cannot be undone.`;
-    if (!confirm(msg)) return;
+    if (!(await confirmDialog(msg))) return;
     try {
       await deleteImportDraft(d.id);
       setDrafts(prev => prev.filter(x => x.id !== d.id));

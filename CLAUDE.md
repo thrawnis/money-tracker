@@ -83,7 +83,8 @@ All names (accounts, payees, categories, institutions) must be **case-insensitiv
 - **Error handling**: always extract `(err as ApiError)?.response?.data?.message` before falling back to a generic message
 - **CSS**: CSS Modules for all component styles (`.module.css` files)
 - **Unsaved changes**: use the `useUnsavedChanges(isDirty)` hook on any page with a form. It uses `useBlocker` for in-app navigation and `beforeunload` for browser-level navigation
-- **Destructive actions**: always require a `confirm()` dialog before deleting or deactivating anything
+- **Dialogs**: never use the browser's `confirm()` / `prompt()` / `alert()`. Use the themed `confirmDialog` / `promptDialog` / `alertDialog` from `src/utils/dialogs.ts` (promise-based: `if (!(await confirmDialog('Delete …?'))) return;`), rendered by `DialogHost` in `App.tsx`. The only browser dialog left is the tab-close/refresh warning (`beforeunload`), which browsers don't allow to be replaced
+- **Destructive actions**: always require a `confirmDialog` before deleting or deactivating anything
 - **Page titles**: always call `usePageTitle('Money Tracker')` — do not use page-specific titles
 
 ### Data Ownership

@@ -29,6 +29,7 @@ import ExportModal from '../components/ExportModal';
 import EmailDigestSettings from '../components/EmailDigestSettings';
 import ReauthModal from '../components/ReauthModal';
 import styles from './Settings.module.css';
+import { confirmDialog, promptDialog } from '../utils/dialogs';
 
 type Tab = 'preferences' | 'security' | 'export' | 'import' | 'backups' | 'audit';
 const TABS: Tab[] = ['preferences', 'security', 'export', 'import', 'backups', 'audit'];
@@ -85,7 +86,7 @@ function ChangePasswordSection() {
   };
 
   const handleSignOutAll = async () => {
-    if (!confirm('Sign out of all sessions? You will be signed out on all devices.')) return;
+    if (!(await confirmDialog('Sign out of all sessions? You will be signed out on all devices.'))) return;
     setSigningOutAll(true);
     try {
       await api.post('/auth/logout-all');
@@ -164,7 +165,7 @@ function ChangePasswordSection() {
               className={styles.btnDanger}
               disabled={resettingDemo}
               onClick={async () => {
-                if (!confirm('Reset all demo data to its original state?')) return;
+                if (!(await confirmDialog('Reset all demo data to its original state?'))) return;
                 setResettingDemo(true);
                 setError('');
                 setSuccess('');
@@ -442,7 +443,7 @@ function SecurityTab() {
   };
 
   const rename = async (p: PasskeyInfo) => {
-    const name = prompt('Name this passkey (e.g. "iPhone", "YubiKey"):', p.name ?? '')?.trim();
+    const name = (await promptDialog('Name this passkey (e.g. "iPhone", "YubiKey"):', { title: 'Rename passkey', defaultValue: p.name ?? '', confirmLabel: 'Save' }))?.trim();
     if (name == null || name === (p.name ?? '')) return;
     try { await renamePasskey(p.id, name); await refresh(); }
     catch { setError('Failed to rename the passkey.'); }
@@ -496,8 +497,8 @@ function SecurityTab() {
                       style={{ color: 'var(--c-cc0000)', marginLeft: 10 }}
                       disabled={busy || onlyFactor(true)}
                       title={onlyFactor(true) ? 'Your only second factor — add another passkey or the authenticator app first' : undefined}
-                      onClick={() => {
-                        if (confirm(`Remove the passkey "${p.name || 'Passkey'}"? It will no longer sign you in.`)) setPending({ kind: 'passkeyRemove', passkey: p });
+                      onClick={async () => {
+                        if ((await confirmDialog(`Remove the passkey "${p.name || 'Passkey'}"? It will no longer sign you in.`))) setPending({ kind: 'passkeyRemove', passkey: p });
                       }}
                     >Remove</button>
                   </td>
@@ -533,8 +534,8 @@ function SecurityTab() {
                 className={styles.btnSecondary}
                 disabled={busy || onlyFactor(false)}
                 title={onlyFactor(false) ? 'Your only second factor — add a passkey first' : undefined}
-                onClick={() => {
-                  if (confirm('Remove the authenticator app? Its codes will stop working; sign in with your passkey instead.')) setPending({ kind: 'totpRemove' });
+                onClick={async () => {
+                  if ((await confirmDialog('Remove the authenticator app? Its codes will stop working; sign in with your passkey instead.'))) setPending({ kind: 'totpRemove' });
                 }}
               >Remove Authenticator App</button>
             )}
@@ -823,9 +824,9 @@ function ImportTab() {
   const handleDiscardDraft = async () => {
     if (draftId == null) { setStep('select'); setPreview(null); return; }
     const into = accounts.find(a => a.id === effectiveAccountId)?.name;
-    if (!confirm(fromBankSync
+    if (!(await confirmDialog(fromBankSync
       ? `Discard these synced transactions${into ? ` for ${into}` : ''}? Nothing is lost: the next bank sync fetches them again.`
-      : 'Discard this staged import? The upload and your review choices will be permanently deleted.')) return;
+      : 'Discard this staged import? The upload and your review choices will be permanently deleted.'))) return;
     try {
       await deleteImportDraft(draftId);
     } catch { /* best-effort */ }
@@ -1178,9 +1179,9 @@ function ImportTab() {
           <div className={styles.actions}>
             <button
               className={styles.btnSecondary}
-              onClick={() => {
-                if (dups.length > 0 && !confirm(`Import everything, including all ${dups.length} possible duplicate${dups.length === 1 ? '' : 's'}? `
-                  + 'Each one will be added as a separate transaction even though a matching one is already in the account.')) return;
+              onClick={async () => {
+                if (dups.length > 0 && !(await confirmDialog(`Import everything, including all ${dups.length} possible duplicate${dups.length === 1 ? '' : 's'}? `
+                  + 'Each one will be added as a separate transaction even though a matching one is already in the account.'))) return;
                 handleImport(dups.map(d => d.matchedTransactionId));
               }}
               disabled={loading}

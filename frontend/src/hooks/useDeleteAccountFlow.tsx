@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { deleteAccount } from '../api/accounts';
 import ReauthModal from '../components/ReauthModal';
 import type { Account } from '../types';
+import { confirmDialog, promptDialog } from '../utils/dialogs';
 
 // Shared delete flow used by both the account edit modal and the register's
 // settings menu: destructive confirm, then password/TOTP re-authentication
@@ -12,9 +13,9 @@ export function useDeleteAccountFlow(onDeleted: () => void) {
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState('');
 
-  const requestDelete = (account: Account) => {
+  const requestDelete = async (account: Account) => {
     setError('');
-    if (!confirm(`Delete "${account.name}"? This permanently deletes the account and all its transactions. This cannot be undone. A backup is saved on the server first.`)) return;
+    if (!(await confirmDialog(`Delete "${account.name}"? This permanently deletes the account and all its transactions. This cannot be undone. A backup is saved on the server first.`))) return;
     setPendingAccount(account);
   };
 
@@ -23,7 +24,9 @@ export function useDeleteAccountFlow(onDeleted: () => void) {
     setPendingAccount(null);
     if (!account) return;
 
-    const note = prompt('Optional note for the backup (why you\'re deleting this account):') ?? undefined;
+    const note = (await promptDialog('Optional note for the backup (why you\'re deleting this account):', {
+      title: 'Backup note', placeholder: 'Optional', confirmLabel: 'Delete account', cancelLabel: 'Skip note', danger: true,
+    })) ?? undefined;
     setDeleting(true);
     try {
       await deleteAccount(account.id, exportToken, note || undefined);

@@ -4,6 +4,7 @@ import { getTransaction, updateTransaction, deleteTransaction } from '../api/tra
 import type { Account, Transaction } from '../types';
 import TransactionForm, { type SplitInput } from './TransactionForm';
 import styles from './TransactionDetailPanel.module.css';
+import { confirmDialog } from '../utils/dialogs';
 
 interface Props {
   accountId: number;
@@ -36,9 +37,9 @@ export default function TransactionDetailPanel({ accountId, transactionId, accou
 
   // Same guard as the register: closing (X, Escape, overlay click) while the
   // edit form has unsaved changes must ask first, not silently discard.
-  const confirmDiscardIfDirty = () =>
-    !formDirty || confirm('You have unsaved changes to this transaction. Discard them?');
-  const guardedClose = () => { if (confirmDiscardIfDirty()) onClose(); };
+  const confirmDiscardIfDirty = async () =>
+    !formDirty || (await confirmDialog('You have unsaved changes to this transaction. Discard them?'));
+  const guardedClose = async () => { if (await confirmDiscardIfDirty()) onClose(); };
 
   const handleDirtyChange = (dirty: boolean) => {
     setFormDirty(dirty);
@@ -56,9 +57,9 @@ export default function TransactionDetailPanel({ accountId, transactionId, accou
   }, [accountId, transactionId]);
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
+    const onKey = async (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
-      if (!formDirty || confirm('You have unsaved changes to this transaction. Discard them?')) onClose();
+      if (!formDirty || (await confirmDialog('You have unsaved changes to this transaction. Discard them?'))) onClose();
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
@@ -67,9 +68,9 @@ export default function TransactionDetailPanel({ accountId, transactionId, accou
   const handleSave = async (data: Omit<Transaction, 'id' | 'accountId' | 'createdAt' | 'updatedAt' | 'splits' | 'isVoided'> & { targetAccountId?: number; transferDestAccountId?: number; splits?: SplitInput[] }) => {
     // Only Reconciled transactions ask first; Cleared ones save freely.
     if (tx?.status === 'Reconciled') {
-      const proceed = confirm(
+      const proceed = (await confirmDialog(
         'This transaction is marked Reconciled. Editing it may affect your reconciled balance. Save changes anyway?'
-      );
+      ));
       if (!proceed) return;
     }
     await updateTransaction(accountId, transactionId, data);
@@ -80,7 +81,7 @@ export default function TransactionDetailPanel({ accountId, transactionId, accou
   };
 
   const handleDelete = async () => {
-    if (!confirm('Delete this transaction?')) return;
+    if (!(await confirmDialog('Delete this transaction?'))) return;
     setDeleting(true);
     try {
       await deleteTransaction(accountId, transactionId);

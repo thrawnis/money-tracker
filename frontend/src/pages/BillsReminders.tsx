@@ -13,6 +13,7 @@ import { getCategories, createCategory } from '../api/categories';
 import { getPayees, createPayee } from '../api/payees';
 import type { ScheduledTransaction, Account, Category, Payee, FrequencyUnit } from '../types';
 import styles from './BillsReminders.module.css';
+import { confirmDialog } from '../utils/dialogs';
 
 const FREQUENCY_UNITS: FrequencyUnit[] = ['Days', 'Weeks', 'Months', 'Years'];
 
@@ -381,12 +382,12 @@ export default function BillsReminders() {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm(
+    if (!(await confirmDialog(
       'Delete this recurring bill/reminder?\n\n' +
       "This stops it from creating any new occurrences, but won't touch transactions " +
       "already created from it (past or future-dated) — those stay in your register " +
       'exactly as they are.'
-    )) return;
+    ))) return;
     try {
       await deleteScheduledTransaction(id);
       load();

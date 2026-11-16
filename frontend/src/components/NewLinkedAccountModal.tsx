@@ -5,6 +5,7 @@ import type { SimpleFinAccount } from '../api/simplefin';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import type { Account, AccountType, Institution } from '../types';
 import styles from './ExportModal.module.css';
+import { confirmDialog } from '../utils/dialogs';
 
 const ACCOUNT_TYPES: { value: AccountType; label: string }[] = [
   { value: 'Checking', label: 'Checking' },
@@ -64,8 +65,8 @@ export default function NewLinkedAccountModal({ bankAccount: sf, existingNames, 
     }).catch(() => setInstitution(org ? 'new' : ''));
   }, [org]);
 
-  const close = () => {
-    if (!dirty || confirm('Discard this new account?')) onClose();
+  const close = async () => {
+    if (!dirty || (await confirmDialog('Discard this new account?'))) onClose();
   };
 
   const handleSubmit = async (e: FormEvent) => {

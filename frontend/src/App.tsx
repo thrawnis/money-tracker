@@ -1,3 +1,4 @@
+import DialogHost from './components/DialogHost';
 import { createBrowserRouter, createRoutesFromElements, RouterProvider, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { useAuth } from './contexts/auth-context';
@@ -75,6 +76,7 @@ export default function App() {
   return (
     <AuthProvider>
       <RouterProvider router={router} />
+      <DialogHost />
     </AuthProvider>
   );
 }

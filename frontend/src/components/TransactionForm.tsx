@@ -8,6 +8,7 @@ import { formatDateTime } from '../utils/timezone';
 import styles from './TransactionForm.module.css';
 import CategoryAutocomplete from './CategoryAutocomplete';
 import { flattenCategories } from '../utils/categories';
+import { confirmDialog } from '../utils/dialogs';
 
 export interface SplitInput {
   categoryId?: number;
@@ -471,7 +472,7 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
       if (newLabels.length > 0) {
         const noun = newLabels.length > 1 ? 'categories' : 'category';
         const list = newLabels.map(l => `"${l}"`).join(', ');
-        if (!confirm(`Create new ${noun}: ${list}?`)) return;
+        if (!(await confirmDialog(`Create new ${noun}: ${list}?`))) return;
       }
     }
 

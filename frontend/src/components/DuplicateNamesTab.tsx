@@ -4,6 +4,7 @@ import {
   type NameDuplicates, type DuplicatePayee, type DuplicateCategory,
 } from '../api/nameDuplicates';
 import styles from '../pages/Settings.module.css';
+import { confirmDialog } from '../utils/dialogs';
 
 type ApiError = { response?: { data?: { message?: string } } };
 type Item = { id: number; name: string; transactionCount: number; detail?: string };
@@ -36,12 +37,12 @@ function MergeGroup({ items, kind, dismissed, onMerge, onDismiss, onRestore }: {
 
   const run = async () => {
     const what = kind === 'payee' ? 'payee' : 'category';
-    if (!confirm(
+    if (!(await confirmDialog(
       `Merge ${merge.map(m => `"${m.name}"`).join(', ')} into "${keep.name}"?\n\n`
       + `Their transactions${kind === 'category' ? ', splits, subcategories' : ''} and bills move to "${keep.name}", `
       + `and the merged ${what}${merge.length === 1 ? ' is' : 's are'} deleted. This can't be undone.`
       + (kind === 'payee' ? '\n\nThe old names become payee mapping rules, so future imports use the kept name.' : ''),
-    )) return;
+    ))) return;
     setBusy('merge');
     try { await onMerge(keep, merge); } finally { setBusy(null); }
   };
