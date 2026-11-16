@@ -131,19 +131,66 @@ public class AiAssistant(IHttpClientFactory httpFactory, IConfiguration config, 
             var text = await res.Content.ReadAsStringAsync(ct);
             if (!res.IsSuccessStatusCode)
             {
-                string? detail = null;
-                try { detail = JsonNode.Parse(text)?["error"]?["message"]?.GetValue<string>(); } catch (JsonException) { }
-                logger.LogWarning("AI server {Url} returned {Status}", ep.BaseUrl, (int)res.StatusCode);
-                throw new AiException((int)res.StatusCode switch
+                var status = (int)res.StatusCode;
+                var detail = ErrorDetail(text);
+                logger.LogWarning("AI server {Url} returned {Status}: {Detail}", ep.BaseUrl, status, detail);
+                var host = Uri.TryCreate(ep.BaseUrl, UriKind.Absolute, out var u) ? u.Authority : ep.BaseUrl;
+                var aboutModel = detail?.Contains("model", StringComparison.OrdinalIgnoreCase) == true;
+                var message = status switch
                 {
-                    401 or 403 => "The AI server rejected the API key.",
-                    404 => $"The AI server didn't recognize the request — check the address (it usually ends in /v1) and the model name \"{ep.Model}\".",
-                    429 => "The AI server is rate-limiting requests or the account is out of credit. Try again later.",
-                    _ => $"The AI server returned an error ({(int)res.StatusCode})",
-                } + (detail is null ? "" : $" Details: {Truncate(detail, 300)}"));
+                    _ when aboutModel && status is 400 or 401 or 403 or 404 =>
+                        $"The AI server at {host} won't use the model \"{ep.Model}\" with this API key.",
+                    401 or 403 => $"The AI server at {host} rejected the API key.",
+                    404 => $"The AI server at {host} didn't recognize the request — check the address (it usually ends in /v1) and the model name \"{ep.Model}\".",
+                    429 => $"The AI server at {host} is rate-limiting requests or the account is out of credit. Try again later.",
+                    _ => $"The AI server at {host} returned an error ({status}).",
+                };
+                if (detail is not null) message += $" Details: {Truncate(detail, 300)}";
+                // Say which model names this key can use — the usual fix is a typo or alias mismatch.
+                if (aboutModel || status == 404)
+                {
+                    var models = await ModelsAsync(ep, ct);
+                    if (models is { Count: > 0 })
+                        message += $" Models this key can use: {string.Join(", ", models.Take(20))}{(models.Count > 20 ? ", …" : "")}.";
+                }
+                throw new AiException(message);
             }
             try { return JsonNode.Parse(text) ?? throw new AiException("The AI server sent an empty response."); }
             catch (JsonException) { throw new AiException("The AI server's response wasn't valid JSON — is the address an OpenAI-compatible API (usually ending in /v1)?"); }
+        }
+    }
+
+    // OpenAI-style {"error":{"message":…}}, or {"error":"…"} / {"detail":…} from other servers.
+    private static string? ErrorDetail(string body)
+    {
+        try
+        {
+            var n = JsonNode.Parse(body);
+            var e = n?["error"];
+            var d = e is JsonObject o ? o["message"] : e ?? n?["detail"] ?? n?["message"];
+            return d is JsonValue v && v.TryGetValue<string>(out var str) ? str : d?.ToJsonString();
+        }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException)
+        {
+            return string.IsNullOrWhiteSpace(body) ? null : body.Trim();
+        }
+    }
+
+    /// <summary>The model ids GET {base}/models lists for this key, or null if that fails.</summary>
+    private async Task<List<string>?> ModelsAsync(GeneralAi.Endpoint ep, CancellationToken ct)
+    {
+        try
+        {
+            using var req = new HttpRequestMessage(HttpMethod.Get, $"{ep.BaseUrl}/models");
+            if (!string.IsNullOrWhiteSpace(ep.ApiKey)) req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", ep.ApiKey);
+            using var res = await httpFactory.CreateClient(HttpClientName).SendAsync(req, ct);
+            if (!res.IsSuccessStatusCode) return null;
+            return (JsonNode.Parse(await res.Content.ReadAsStringAsync(ct))?["data"] as JsonArray)?
+                .Select(m => m?["id"]?.GetValue<string>()).OfType<string>().ToList();
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or InvalidOperationException)
+        {
+            return null;
         }
     }
 
