@@ -19,6 +19,7 @@ export const WHATS_NEW: WhatsNewEntry[] = [
   {
     date: '2026-11-16',
     items: [
+      'Payees: set a payee\'s default category by typing to search, the same way as everywhere else.',
       'Account register: transactions linked to an IOU now show a simple 👥 icon. Hover over it to see who owes what and how much has been paid back.',
       'Account register: split transactions now list each part — its category, memo and amount — in lighter text underneath. You can turn this off with "Show split details" in the register\'s ⚙ menu.',
       'Possible Transfers: click any transaction to see it in its account. Going back brings you right back to where you were.',

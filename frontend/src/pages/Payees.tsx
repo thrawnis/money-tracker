@@ -1,3 +1,4 @@
+import CategoryAutocomplete from '../components/CategoryAutocomplete';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getPayees, updatePayee, deletePayee } from '../api/payees';
@@ -79,8 +80,16 @@ export default function Payees() {
   const handleSetCategory = async (id: number) => {
     const payee = payees.find(p => p.id === id);
     if (!payee) return;
-    const targetId = catBlocked ? null : (catValue ? Number(catValue) : null);
     const flat = flatCats(categories);
+    // catValue is the typed/picked "Parent: Child" label; blank = none.
+    const typed = catValue.trim();
+    const match = typed ? flat.find(c => c.label.toLowerCase() === typed.toLowerCase()) : undefined;
+    if (!catBlocked && typed && !match) {
+      setError(`There's no category named "${typed}". Pick one from the suggestions, or create it on the Categories page first.`);
+      return;
+    }
+    setError('');
+    const targetId = catBlocked ? null : (match?.id ?? null);
     const confirmMsg = catBlocked
       ? `Stop auto-suggesting a category for "${payee.name}"? Any existing default will be cleared, and it won't be auto-set again — you can still pick one manually any time.`
       : `Set default category for "${payee.name}" to ${targetId ? `"${flat.find(c => c.id === targetId)?.label}"` : 'none'}?`;
@@ -176,17 +185,20 @@ export default function Payees() {
                   </td>
                   <td>
                     {editingCatFor === payee.id ? (
-                      <div className={styles.inlineEdit}>
+                      <form className={styles.inlineEdit} onSubmit={e => { e.preventDefault(); void handleSetCategory(payee.id); }}>
                         <div className={styles.catEditStack}>
-                          <select
-                            className={styles.select}
-                            value={catValue}
-                            onChange={e => setCatValue(e.target.value)}
-                            disabled={catBlocked}
-                          >
-                            <option value="">— None —</option>
-                            {flat.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
-                          </select>
+                          {catBlocked ? (
+                            <input className={styles.select} value="" placeholder="— None —" disabled aria-label="Default category" />
+                          ) : (
+                            <CategoryAutocomplete
+                              value={catValue}
+                              onChange={setCatValue}
+                              categories={categories}
+                              className={styles.select}
+                              placeholder="Type to search — blank for none"
+                              autoFocus
+                            />
+                          )}
                           <label className={styles.blockCheckLabel}>
                             <input
                               type="checkbox"
@@ -196,9 +208,9 @@ export default function Payees() {
                             {' '}Never auto-suggest a category
                           </label>
                         </div>
-                        <button className={styles.btnSm} onClick={() => handleSetCategory(payee.id)}>Save</button>
-                        <button className={styles.btnSmSecondary} onClick={() => setEditingCatFor(null)}>Cancel</button>
-                      </div>
+                        <button type="submit" className={styles.btnSm}>Save</button>
+                        <button type="button" className={styles.btnSmSecondary} onClick={() => setEditingCatFor(null)}>Cancel</button>
+                      </form>
                     ) : (
                       <span className={styles.catLabel}>
                         {payee.blockAutoDefaultCategory ? (
@@ -219,7 +231,7 @@ export default function Payees() {
                         className={styles.btnSm}
                         onClick={() => {
                           setEditingCatFor(payee.id);
-                          setCatValue(payee.defaultCategoryId ? String(payee.defaultCategoryId) : '');
+                          setCatValue(payee.defaultCategoryId ? flat.find(c => c.id === payee.defaultCategoryId)?.label ?? '' : '');
                           setCatBlocked(!!payee.blockAutoDefaultCategory);
                           setRenamingId(null);
                         }}

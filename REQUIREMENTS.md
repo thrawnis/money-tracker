@@ -135,7 +135,7 @@ Update this file whenever requirements change or new features are defined.
 
 ## Payees
 
-- Each payee can have a default category
+- Each payee can have a default category — set on the Payees page with the same type-ahead category box used elsewhere ("Parent: Child" suggestions, arrow keys + Enter to pick, Enter or Save to save, blank for none; a name that isn't an existing category is rejected with a message rather than created)
 - Payee name is encrypted; unique per user (enforced in memory)
 - Payees page: list, create, edit, delete
 - Each payee shows First Transaction, Last Transaction, and transaction count (same "includes future-dated transactions" semantics as Accounts/Categories, explained via the same info-icon popover on each column header)
