@@ -80,6 +80,19 @@
 
 .payeeName { font-weight: 500; }
 .catLabel { color: var(--c-555566); font-size: 13px; }
+.catLabelClickable {
+  display: block;
+  cursor: pointer;
+  padding: 5px 8px;
+  margin: -5px -8px;
+  border-radius: 4px;
+  min-height: 1.2em;
+}
+.catLabelClickable:hover, .catLabelClickable:focus-visible {
+  background: var(--c-e8f0f8);
+  color: var(--c-003366);
+  outline: none;
+}
 .lastUsed { color: var(--c-9999aa); font-size: 12.5px; white-space: nowrap; }
 
 .inlineEdit {

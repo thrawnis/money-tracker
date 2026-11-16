@@ -113,6 +113,13 @@ export default function Payees() {
 
   const flat = flatCats(categories);
 
+  const startCategoryEdit = (payee: Payee) => {
+    setEditingCatFor(payee.id);
+    setCatValue(payee.defaultCategoryId ? flat.find(c => c.id === payee.defaultCategoryId)?.label ?? '' : '');
+    setCatBlocked(!!payee.blockAutoDefaultCategory);
+    setRenamingId(null);
+  };
+
   if (loading) return <div className={styles.page}><p className={styles.loading}>Loading…</p></div>;
 
   return (
@@ -212,7 +219,10 @@ export default function Payees() {
                         <button type="button" className={styles.btnSmSecondary} onClick={() => setEditingCatFor(null)}>Cancel</button>
                       </form>
                     ) : (
-                      <span className={styles.catLabel}>
+                      <span className={`${styles.catLabel} ${styles.catLabelClickable}`} role="button" tabIndex={0}
+                        title="Click to change the default category"
+                        onClick={() => startCategoryEdit(payee)}
+                        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); startCategoryEdit(payee); } }}>
                         {payee.blockAutoDefaultCategory ? (
                           <span className={styles.blockedBadge} title="This payee never gets an auto-suggested category">
                             🚫 Blocked
@@ -227,15 +237,7 @@ export default function Payees() {
                   <td>
                     <div className={styles.rowActions}>
                       <button className={styles.btnSm} onClick={() => { setRenamingId(payee.id); setRenameValue(payee.name); setEditingCatFor(null); }}>Rename</button>
-                      <button
-                        className={styles.btnSm}
-                        onClick={() => {
-                          setEditingCatFor(payee.id);
-                          setCatValue(payee.defaultCategoryId ? flat.find(c => c.id === payee.defaultCategoryId)?.label ?? '' : '');
-                          setCatBlocked(!!payee.blockAutoDefaultCategory);
-                          setRenamingId(null);
-                        }}
-                      >Category</button>
+                      <button className={styles.btnSm} onClick={() => startCategoryEdit(payee)}>Category</button>
                       <button className={styles.btnSmDelete} onClick={() => handleDelete(payee.id, payee.name)}>Delete</button>
                     </div>
                   </td>
