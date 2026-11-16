@@ -61,7 +61,7 @@ Sensitive fields are encrypted with AES-256-GCM using a **per-user Data Encrypti
 - `Transaction.MemoEncrypted`, `Transaction.CheckNumberEncrypted`
 - `Payee.NameEncrypted`, `Category.NameEncrypted`
 - `Account.AccountNumberEncrypted`, `Account.NotesEncrypted`
-- `ApplicationUser.AiApiKeyEncrypted`, `AiConversation.TitleEncrypted`, `AiMessage.ContentEncrypted`
+- `AiConversation.TitleEncrypted`, `AiMessage.ContentEncrypted`
 
 Because payee and category names are encrypted, **DB-level unique constraints are impossible** for those fields — uniqueness is enforced by loading all records and comparing in memory after decryption.
 
@@ -89,7 +89,7 @@ All names (accounts, payees, categories, institutions) must be **case-insensitiv
 - **Page titles**: always call `usePageTitle('Money Tracker')` — do not use page-specific titles
 
 ### AI Assistant
-`AiAssistant` sends questions to an OpenAI-compatible `/chat/completions` server (user's own from Settings, else `Ai:*` config) with read-only tools from `AiTools`. Any new tool must stay read-only, filter by the user, respect the user's `AiShare*` flags, and never include account numbers or notes.
+The AI server is configured only in `.env` (`AI_PROVIDER`/`AI_BASE_URL`/`AI_API_KEY`/`AI_MODEL`; receipt scanning uses them too unless `RECEIPT_*` are set) — resolved in `GeneralAi`. `AiAssistant` sends questions to its OpenAI-compatible `/chat/completions` API with read-only tools from `AiTools`. Any new tool must stay read-only, filter by the user, respect the user's `AiShare*` flags, and never include account numbers or notes.
 
 ### Data Ownership
 Every controller action must filter by `UserId` from the JWT claim (`GetUserId()`). Never return or mutate data belonging to a different user.

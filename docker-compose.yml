@@ -41,8 +41,8 @@ services:
       db:
         condition: service_healthy
 
-  # Local Ollama — only started when OLLAMA_EXTERNAL_URL is not set.
-  # rebuild.sh handles passing --profile local-ollama automatically.
+  # Local Ollama — started when the AI or receipt provider is ollama with no
+  # server address set. rebuild.sh passes --profile local-ollama automatically.
   ollama:
     image: ollama/ollama:latest
     restart: unless-stopped
@@ -89,27 +89,26 @@ services:
       Auth__RequireEmailVerification: ${REQUIRE_EMAIL_VERIFICATION:-true}
       # Address used for links in emails (defaults to the first FIDO2_ORIGIN)
       App__Url: ${APP_URL:-}
-      # Receipt extraction provider: ollama (default) | anthropic | openai | gemini
-      Receipt__Provider: ${RECEIPT_PROVIDER:-ollama}
-      # Ollama: defaults to local container; set OLLAMA_EXTERNAL_URL to use an external server
-      Receipt__Ollama__BaseUrl: ${OLLAMA_EXTERNAL_URL:-http://ollama:11434}
-      Receipt__Ollama__Model: ${OLLAMA_MODEL:-llava}
-      # Anthropic / Claude
-      Receipt__Anthropic__ApiKey: ${ANTHROPIC_API_KEY:-}
-      Receipt__Anthropic__Model: ${ANTHROPIC_MODEL:-claude-haiku-4-5-20251001}
-      # OpenAI / ChatGPT (also works with any OpenAI-compatible API via OPENAI_BASE_URL)
-      Receipt__OpenAi__ApiKey: ${OPENAI_API_KEY:-}
-      Receipt__OpenAi__Model: ${OPENAI_MODEL:-gpt-4o-mini}
-      Receipt__OpenAi__BaseUrl: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
-      # Google Gemini
-      Receipt__Gemini__ApiKey: ${GEMINI_API_KEY:-}
-      Receipt__Gemini__Model: ${GEMINI_MODEL:-gemini-1.5-flash}
-      # AI assistant ("Ask" page): any OpenAI-compatible chat server. Server-wide
-      # default; users can also set their own in Settings → AI Assistant.
+      # AI (see .env.example): one AI server for the assistant and receipt scanning…
+      Ai__Provider: ${AI_PROVIDER:-}
       Ai__BaseUrl: ${AI_BASE_URL:-}
       Ai__ApiKey: ${AI_API_KEY:-}
       Ai__Model: ${AI_MODEL:-}
-      Ai__AllowUserServers: ${AI_ALLOW_USER_SERVERS:-true}
+      # …unless receipts set their own (blank RECEIPT_PROVIDER = use the AI_* settings)
+      Receipt__Provider: ${RECEIPT_PROVIDER:-}
+      Receipt__BaseUrl: ${RECEIPT_BASE_URL:-}
+      Receipt__ApiKey: ${RECEIPT_API_KEY:-}
+      Receipt__Model: ${RECEIPT_MODEL:-}
+      # Older per-provider receipt keys, still honoured as fallbacks (no longer in .env.example)
+      Receipt__Ollama__BaseUrl: ${OLLAMA_EXTERNAL_URL:-http://ollama:11434}
+      Receipt__Ollama__Model: ${OLLAMA_MODEL:-llava}
+      Receipt__Anthropic__ApiKey: ${ANTHROPIC_API_KEY:-}
+      Receipt__Anthropic__Model: ${ANTHROPIC_MODEL:-claude-haiku-4-5-20251001}
+      Receipt__OpenAi__ApiKey: ${OPENAI_API_KEY:-}
+      Receipt__OpenAi__Model: ${OPENAI_MODEL:-gpt-4o-mini}
+      Receipt__OpenAi__BaseUrl: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      Receipt__Gemini__ApiKey: ${GEMINI_API_KEY:-}
+      Receipt__Gemini__Model: ${GEMINI_MODEL:-gemini-1.5-flash}
     volumes:
       - ./data/account-backups:/app/data/account-backups
     ports:

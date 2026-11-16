@@ -107,7 +107,7 @@ echo "==> Ensuring data directories exist"
 mkdir -p "$REPO_DIR/data/postgres" || { echo "ERROR: cannot create data/postgres"; exit 1; }
 
 # -- Determine Ollama profile -------------------------------------------------
-# Read only the two variables we need from .env using grep.
+# Read only the variables we need from .env using grep.
 _env_get() {
   local key="$1"
   grep -m1 "^${key}=" "$REPO_DIR/.env" 2>/dev/null \
@@ -116,22 +116,37 @@ _env_get() {
     || true
 }
 
-RECEIPT_PROVIDER="ollama"
-OLLAMA_EXTERNAL_URL=""
+AI_PROVIDER="$(_env_get AI_PROVIDER)";       AI_BASE_URL="$(_env_get AI_BASE_URL)"
+RECEIPT_PROVIDER="$(_env_get RECEIPT_PROVIDER)"; RECEIPT_BASE_URL="$(_env_get RECEIPT_BASE_URL)"
+OLLAMA_EXTERNAL_URL="$(_env_get OLLAMA_EXTERNAL_URL)"   # older receipt setting, still honoured
 
-if [ -f "$REPO_DIR/.env" ]; then
-  _val="$(_env_get RECEIPT_PROVIDER)";   [ -n "$_val" ] && RECEIPT_PROVIDER="$_val"
-  _val="$(_env_get OLLAMA_EXTERNAL_URL)"; [ -n "$_val" ] && OLLAMA_EXTERNAL_URL="$_val"
+# Receipts use RECEIPT_* when RECEIPT_PROVIDER is set, else the AI_* settings,
+# else the bundled Ollama (same rule as GeneralAi.ReceiptOverrides).
+if [ -n "$RECEIPT_PROVIDER" ]; then R_PROVIDER="$RECEIPT_PROVIDER"; R_URL="$RECEIPT_BASE_URL"
+elif [ -n "$AI_PROVIDER" ]; then R_PROVIDER="$AI_PROVIDER"; R_URL="$AI_BASE_URL"
+else R_PROVIDER="ollama"; R_URL=""; fi
+[ -z "$R_URL" ] && R_URL="$OLLAMA_EXTERNAL_URL"
+
+# Models to pull into the bundled Ollama: the AI model and/or the receipt model
+# (RECEIPT_MODEL, else AI_MODEL when inherited, else the older OLLAMA_MODEL, else llava).
+OLLAMA_MODELS=""
+if [ "$AI_PROVIDER" = "ollama" ] && [ -z "$AI_BASE_URL" ] && [ -n "$(_env_get AI_MODEL)" ]; then
+  OLLAMA_MODELS="$(_env_get AI_MODEL)"
+fi
+if [ "$R_PROVIDER" = "ollama" ] && [ -z "$R_URL" ]; then
+  if [ -n "$RECEIPT_PROVIDER" ]; then R_MODEL="$(_env_get RECEIPT_MODEL)"; else R_MODEL="$(_env_get AI_MODEL)"; fi
+  [ -z "$R_MODEL" ] && R_MODEL="$(_env_get OLLAMA_MODEL)"
+  [ -z "$R_MODEL" ] && R_MODEL="llava"
+  case " $OLLAMA_MODELS " in *" $R_MODEL "*) ;; *) OLLAMA_MODELS="$OLLAMA_MODELS $R_MODEL" ;; esac
 fi
 
 OLLAMA_PROFILE=""
-
-if [ "$RECEIPT_PROVIDER" = "ollama" ] && [ -z "$OLLAMA_EXTERNAL_URL" ]; then
-  echo "==> Using local Ollama container (no OLLAMA_EXTERNAL_URL set)"
+if { [ "$AI_PROVIDER" = "ollama" ] && [ -z "$AI_BASE_URL" ]; } || { [ "$R_PROVIDER" = "ollama" ] && [ -z "$R_URL" ]; }; then
+  echo "==> Using local Ollama container (an AI provider is ollama with no server address)"
   OLLAMA_PROFILE="--profile local-ollama"
   mkdir -p "$REPO_DIR/data/ollama" || { echo "ERROR: cannot create data/ollama"; exit 1; }
 else
-  echo "==> Skipping local Ollama (provider=$RECEIPT_PROVIDER, external=${OLLAMA_EXTERNAL_URL:-n/a})"
+  echo "==> Skipping local Ollama (AI=${AI_PROVIDER:-none}, receipts=$R_PROVIDER)"
 fi
 
 # -- Build and start containers -----------------------------------------------
@@ -204,9 +219,8 @@ docker compose $OLLAMA_PROFILE up -d --no-build --force-recreate --remove-orphan
 
 # -- Pull Ollama model if running locally -------------------------------------
 
-if [ -n "$OLLAMA_PROFILE" ]; then
-  OLLAMA_MODEL="${OLLAMA_MODEL:-llava}"
-  echo "==> Pulling Ollama model: $OLLAMA_MODEL (this may take a while on first run)"
+if [ -n "$OLLAMA_PROFILE" ] && [ -n "${OLLAMA_MODELS// /}" ]; then
+  echo "==> Pulling Ollama model(s):$OLLAMA_MODELS (this may take a while on first run)"
   for i in $(seq 1 30); do
     if docker compose exec -T ollama ollama list > /dev/null 2>&1; then
       break
@@ -214,8 +228,10 @@ if [ -n "$OLLAMA_PROFILE" ]; then
     echo "   Waiting for Ollama to start ($i/30)..."
     sleep 2
   done
-  docker compose exec -T ollama ollama pull "$OLLAMA_MODEL" || \
-    echo "   Warning: could not pull model '$OLLAMA_MODEL' -- it may already be cached."
+  for OLLAMA_MODEL in $OLLAMA_MODELS; do
+    docker compose exec -T ollama ollama pull "$OLLAMA_MODEL" || \
+      echo "   Warning: could not pull model '$OLLAMA_MODEL' -- it may already be cached."
+  done
 fi
 
 # Confirm the new containers really are the new build.

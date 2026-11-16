@@ -121,8 +121,8 @@ export default function Ask() {
     <div className={styles.page}>
       <div className={styles.header}>
         <h2 className={styles.title}>Ask</h2>
-        {settings?.active && ready && (
-          <span className={styles.using}>{settings.active.model} · {settings.active.host}</span>
+        {settings?.server && ready && (
+          <span className={styles.using}>{settings.server.model} · {settings.server.host}</span>
         )}
         <span style={{ flex: 1 }} />
         <button className={`${styles.btnSecondary} ${styles.phoneOnly}`} onClick={() => setListOpen(o => !o)}>
@@ -150,8 +150,9 @@ export default function Ask() {
             <div className={styles.setup}>
               <p><strong>Ask questions about your money in plain English.</strong></p>
               <p>
-                The AI assistant is {settings.enabled ? 'turned on, but no AI server is set up' : 'turned off'}.
-                Choose an AI server and what it may look up in <Link to="/settings?tab=ai">Settings → AI Assistant</Link>.
+                {settings.server
+                  ? <>The AI assistant is turned off. Turn it on, and choose what it may look up, in <Link to="/settings?tab=ai">Settings → AI Assistant</Link>.</>
+                  : <>No AI server is set up for Money Tracker yet — whoever runs it can set one up in the server's <code>.env</code> file (AI_PROVIDER and related settings).</>}
               </p>
             </div>
           ) : (

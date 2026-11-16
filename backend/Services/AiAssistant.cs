@@ -2,53 +2,25 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using MoneyTracker.Auth.Services;
 using MoneyTracker.Models;
 
 namespace MoneyTracker.Services;
 
 /// <summary>
-/// The "Ask" assistant: sends the user's question to an OpenAI-compatible
-/// chat-completions server (OpenAI, Ollama, LM Studio, vLLM…) with read-only
-/// tools (AiTools) it can call to look things up, and returns its answer.
-///
-/// Server: the user's own (Settings → AI Assistant) if they set one, otherwise
-/// the server-wide Ai:BaseUrl / Ai:ApiKey / Ai:Model. Ai:AllowUserServers=false
-/// stops users choosing their own.
+/// The "Ask" assistant: sends the user's question to the AI server set in .env
+/// (GeneralAi: AI_PROVIDER / AI_BASE_URL / AI_API_KEY / AI_MODEL) through its
+/// OpenAI-compatible chat-completions API, with read-only tools (AiTools) it
+/// can call to look things up, and returns its answer.
 /// </summary>
-public class AiAssistant(IHttpClientFactory httpFactory, IConfiguration config, IEncryptionService encryption, AiTools tools,
-    ILogger<AiAssistant> logger)
+public class AiAssistant(IHttpClientFactory httpFactory, IConfiguration config, AiTools tools, ILogger<AiAssistant> logger)
 {
     public const string HttpClientName = "ai";
     private const int MaxToolRounds = 8;
 
-    public record Endpoint(string BaseUrl, string? ApiKey, string Model, bool Personal);
-
     public class AiException(string message) : Exception(message);
 
-    private string? Cfg(string key) => string.IsNullOrWhiteSpace(config[key]) ? null : config[key]!.Trim();
-
-    public bool AllowUserServers => !string.Equals(Cfg("Ai:AllowUserServers"), "false", StringComparison.OrdinalIgnoreCase);
-
-    /// <summary>The server-wide default, if the admin set one.</summary>
-    public Endpoint? ServerDefault =>
-        Cfg("Ai:BaseUrl") is string url && Cfg("Ai:Model") is string model ? new Endpoint(url.TrimEnd('/'), Cfg("Ai:ApiKey"), model, false) : null;
-
-    /// <summary>Which server this user's questions go to, or null if none is set up.</summary>
-    public Endpoint? Resolve(ApplicationUser user)
-    {
-        var server = ServerDefault;
-        if (AllowUserServers && !string.IsNullOrWhiteSpace(user.AiBaseUrl))
-        {
-            var key = encryption.Decrypt(user.AiApiKeyEncrypted, user.EncryptedDataKey);
-            var model = !string.IsNullOrWhiteSpace(user.AiModel) ? user.AiModel.Trim() : server?.Model;
-            if (model is null) return null;
-            return new Endpoint(user.AiBaseUrl.Trim().TrimEnd('/'), key, model, true);
-        }
-        if (server is null) return null;
-        // Using the server's endpoint but a different model is allowed.
-        return string.IsNullOrWhiteSpace(user.AiModel) ? server : server with { Model = user.AiModel.Trim() };
-    }
+    /// <summary>The configured server, or null with the reason it isn't usable.</summary>
+    public (GeneralAi.Endpoint? Endpoint, string? Problem) Server => GeneralAi.Resolve(config);
 
     private string SystemPrompt(ApplicationUser user)
     {
@@ -77,7 +49,7 @@ public class AiAssistant(IHttpClientFactory httpFactory, IConfiguration config, 
     /// </summary>
     public async Task<string> AskAsync(ApplicationUser user, IEnumerable<(string Role, string Content)> history, string question, CancellationToken ct)
     {
-        var ep = Resolve(user) ?? throw new AiException("The AI assistant isn't set up. Choose a server in Settings → AI Assistant.");
+        var ep = Server.Endpoint ?? throw new AiException("The AI assistant isn't set up on this server. " + Server.Problem);
         var messages = new JsonArray { Msg("system", SystemPrompt(user)) };
         foreach (var (role, content) in history) messages.Add(Msg(role, content));
         messages.Add(Msg("user", question));
@@ -125,7 +97,7 @@ public class AiAssistant(IHttpClientFactory httpFactory, IConfiguration config, 
     }
 
     /// <summary>Checks a server/key/model answers (Settings → Test connection).</summary>
-    public async Task<string> TestAsync(Endpoint ep, CancellationToken ct)
+    public async Task<string> TestAsync(GeneralAi.Endpoint ep, CancellationToken ct)
     {
         var reply = await PostAsync(ep, new JsonObject
         {
@@ -138,7 +110,7 @@ public class AiAssistant(IHttpClientFactory httpFactory, IConfiguration config, 
 
     private static JsonObject Msg(string role, string content) => new() { ["role"] = role, ["content"] = content };
 
-    private async Task<JsonNode> PostAsync(Endpoint ep, JsonObject body, CancellationToken ct)
+    private async Task<JsonNode> PostAsync(GeneralAi.Endpoint ep, JsonObject body, CancellationToken ct)
     {
         var client = httpFactory.CreateClient(HttpClientName);
         using var req = new HttpRequestMessage(HttpMethod.Post, $"{ep.BaseUrl}/chat/completions")

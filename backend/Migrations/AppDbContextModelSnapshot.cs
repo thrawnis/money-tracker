@@ -308,17 +308,8 @@ namespace MoneyTracker.Migrations
                     b.Property<int>("AccessFailedCount")
                         .HasColumnType("integer");
 
-                    b.Property<string>("AiApiKeyEncrypted")
-                        .HasColumnType("text");
-
-                    b.Property<string>("AiBaseUrl")
-                        .HasColumnType("text");
-
                     b.Property<bool>("AiEnabled")
                         .HasColumnType("boolean");
-
-                    b.Property<string>("AiModel")
-                        .HasColumnType("text");
 
                     b.Property<bool>("AiShareBalances")
                         .HasColumnType("boolean");

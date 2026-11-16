@@ -150,6 +150,10 @@ builder.Services.AddScoped<IPasskeyService, PasskeyService>();
 
 // ── Receipt extraction provider ───────────────────────────────────────────────
 
+// Receipts use the RECEIPT_* settings, or the general AI_* ones when
+// RECEIPT_PROVIDER is blank (see GeneralAi.ReceiptOverrides).
+builder.Configuration.AddInMemoryCollection(GeneralAi.ReceiptOverrides(builder.Configuration));
+
 var receiptProvider = (builder.Configuration["Receipt:Provider"] ?? "ollama").ToLowerInvariant();
 switch (receiptProvider)
 {
