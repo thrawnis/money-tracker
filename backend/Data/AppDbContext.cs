@@ -33,6 +33,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<IouEntry> IouEntries => Set<IouEntry>();
     public DbSet<IouPayment> IouPayments => Set<IouPayment>();
     public DbSet<IouAllocation> IouAllocations => Set<IouAllocation>();
+    public DbSet<IouShareLink> IouShareLinks => Set<IouShareLink>();
+    public DbSet<IouPaidNotice> IouPaidNotices => Set<IouPaidNotice>();
     public DbSet<HoldingSnapshot> HoldingSnapshots => Set<HoldingSnapshot>();
     public DbSet<AiConversation> AiConversations => Set<AiConversation>();
     public DbSet<AiMessage> AiMessages => Set<AiMessage>();
@@ -51,6 +53,19 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         {
             e.HasOne(m => m.Conversation).WithMany(c => c.Messages).HasForeignKey(m => m.ConversationId).OnDelete(DeleteBehavior.Cascade);
             e.Property(m => m.Role).HasMaxLength(16);
+        });
+        modelBuilder.Entity<IouShareLink>(e =>
+        {
+            e.HasOne(l => l.Person).WithMany().HasForeignKey(l => l.PersonId).OnDelete(DeleteBehavior.Cascade);
+            e.Property(l => l.TokenHash).HasMaxLength(64);
+            e.HasIndex(l => l.TokenHash).IsUnique();
+            e.HasIndex(l => new { l.UserId, l.PersonId });
+        });
+        modelBuilder.Entity<IouPaidNotice>(e =>
+        {
+            e.HasOne(n => n.Person).WithMany().HasForeignKey(n => n.PersonId).OnDelete(DeleteBehavior.Cascade);
+            e.Property(n => n.Method).HasMaxLength(32);
+            e.HasIndex(n => n.UserId);
         });
         modelBuilder.Entity<AiProposal>(e =>
         {

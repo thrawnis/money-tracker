@@ -7,6 +7,10 @@ import {
 } from '../api/ious';
 import IouDialog from '../components/IouDialog';
 import IouPaymentDialog from '../components/IouPaymentDialog';
+import PaymentDetailsModal from '../components/PaymentDetailsModal';
+import {
+  getIouSharing, createPayLink, emailPayLink, revokePayLinks, dismissPaidNotice, type IouSharing,
+} from '../api/ious';
 import styles from './Ious.module.css';
 import { confirmDialog, promptDialog } from '../utils/dialogs';
 
@@ -61,6 +65,13 @@ export default function Ious() {
   }, [personId, showPaid]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Payment pages: your payment details, live links, "I've sent it" notices.
+  const [sharing, setSharing] = useState<IouSharing | null>(null);
+  const [showDetails, setShowDetails] = useState(false);
+  const [linkBusy, setLinkBusy] = useState<'copy' | 'email' | 'revoke' | null>(null);
+  const loadSharing = useCallback(() => { getIouSharing().then(setSharing).catch(() => {}); }, []);
+  useEffect(() => { loadSharing(); }, [loadSharing]);
 
   if (!data) {
     return (
@@ -118,6 +129,64 @@ export default function Ious() {
     catch (err) { setError((err as ApiError)?.response?.data?.message ?? 'Failed to rename.'); }
   };
 
+  const setEmail = async () => {
+    if (!person) return;
+    const email = await promptDialog(`Email address for ${person.name} (for sending payment links):`,
+      { title: 'Email address', defaultValue: person.email ?? '', placeholder: 'name@example.com', confirmLabel: 'Save' });
+    if (email == null || email.trim() === (person.email ?? '')) return;
+    try { await updateIouPerson(person.id, person.name, person.notes ?? undefined, email.trim()); load(); }
+    catch (err) { setError((err as ApiError)?.response?.data?.message ?? 'Failed to save the email address.'); }
+  };
+
+  const linkFor = (id: number) => sharing?.links.find(l => l.personId === id);
+  const needDetails = () => {
+    if (sharing && sharing.details.methods.length > 0) return false;
+    setError('Add at least one way to pay you first (Payment details).');
+    setShowDetails(true);
+    return true;
+  };
+
+  // A private 30-day link to a page showing what they owe and how to pay you.
+  const copyPayLink = async () => {
+    if (!person || needDetails()) return;
+    setLinkBusy('copy'); setError(''); setNotice('');
+    try {
+      const { url, expiresAt } = await createPayLink(person.id);
+      const until = fmtDate(expiresAt.slice(0, 10));
+      try { await navigator.clipboard.writeText(url); setNotice(`Payment link for ${person.name} copied — it works until ${until}.`); }
+      catch { await promptDialog(`Payment link for ${person.name} (works until ${until}):`, { title: 'Payment link', defaultValue: url, copyOnly: true }); }
+      loadSharing();
+    } catch (err) { setError((err as ApiError)?.response?.data?.message ?? 'Failed to create the link.'); }
+    finally { setLinkBusy(null); }
+  };
+
+  const emailPayLinkTo = async () => {
+    if (!person || needDetails()) return;
+    if (!person.email) { await setEmail(); return; }
+    if (!(await confirmDialog(`Email ${person.name} (${person.email}) a link to see what they owe you (${money(person.balance)}) and pay you?`,
+      { title: 'Email payment link', confirmLabel: 'Send' }))) return;
+    setLinkBusy('email'); setError(''); setNotice('');
+    try {
+      const r = await emailPayLink(person.id);
+      setNotice(`Sent to ${r.sentTo}. The link works until ${fmtDate(r.expiresAt.slice(0, 10))}.`);
+      loadSharing();
+    } catch (err) { setError((err as ApiError)?.response?.data?.message ?? 'Failed to send the email.'); }
+    finally { setLinkBusy(null); }
+  };
+
+  const revokeLinks = async () => {
+    if (!person) return;
+    if (!(await confirmDialog(`Turn off ${person.name}'s payment links? Links already sent will stop working.`, { confirmLabel: 'Turn off', danger: true }))) return;
+    setLinkBusy('revoke'); setError('');
+    try { await revokePayLinks(person.id); setNotice(`${person.name}'s payment links are turned off.`); loadSharing(); }
+    catch { setError('Failed to turn the links off.'); }
+    finally { setLinkBusy(null); }
+  };
+
+  const dismissNotice = async (id: number) => {
+    try { await dismissPaidNotice(id); loadSharing(); } catch { setError('Failed to dismiss.'); }
+  };
+
   const removePerson = async () => {
     if (!person) return;
     if (!(await confirmDialog(`Delete ${person.name} and all of their IOUs and payments? This can't be undone.`))) return;
@@ -172,11 +241,23 @@ export default function Ious() {
           <button className={styles.btnSecondary} onClick={() => setDialog({ type: 'payment', personId: person?.id })}
             disabled={data.people.length === 0}>+ Record payment</button>
           <button className={styles.btnSecondary} onClick={downloadCsv}>Export CSV</button>
+          <button className={styles.btnSecondary} onClick={() => setShowDetails(true)} disabled={!sharing}>Payment details</button>
         </div>
       </div>
 
       {error && <p className={styles.error}>{error}</p>}
       {notice && <p className={styles.notice} role="status">{notice}</p>}
+
+      {/* "I've sent it" from payment pages. */}
+      {sharing?.notices.map(n => (
+        <div key={n.id} className={styles.paidNotice} role="status">
+          <span>💸 <strong>{n.personName}</strong> says they've sent you {money(n.amount)} with {n.method}
+            <span className={styles.muted}> · {new Date(n.createdAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span></span>
+          <span style={{ flex: 1 }} />
+          <button className={styles.btnSecondary} onClick={() => setDialog({ type: 'payment', personId: n.personId })}>Record payment</button>
+          <button className={styles.btnLink} onClick={() => void dismissNotice(n.id)}>Dismiss</button>
+        </div>
+      ))}
 
       {/* ── Summary ── */}
       <section className={styles.summary} aria-label="Balances">
@@ -232,6 +313,23 @@ export default function Ious() {
         {person && (
           <span className={styles.personActions}>
             {person.balance !== 0 && <button className={styles.btnSecondary} onClick={copyRequest}>Copy request</button>}
+            {person.balance > 0 && <>
+              <button className={styles.btnSecondary} onClick={() => void copyPayLink()} disabled={linkBusy !== null}
+                title="A private page showing what they owe and how to pay you (works for 30 days)">
+                {linkBusy === 'copy' ? 'Creating…' : 'Copy pay link'}
+              </button>
+              <button className={styles.btnSecondary} onClick={() => void emailPayLinkTo()} disabled={linkBusy !== null || (sharing != null && !sharing.canEmail)}
+                title={sharing && !sharing.canEmail ? 'Email isn\'t set up on the server' : person.email ? `Email the link to ${person.email}` : 'Add their email address first'}>
+                {linkBusy === 'email' ? 'Sending…' : 'Email pay link'}
+              </button>
+            </>}
+            {linkFor(person.id) && (
+              <span className={styles.muted}>
+                Link active until {fmtDate(linkFor(person.id)!.expiresAt.slice(0, 10))}{' '}
+                <button className={styles.btnLinkDanger} onClick={() => void revokeLinks()} disabled={linkBusy !== null}>Turn off</button>
+              </span>
+            )}
+            <button className={styles.btnLink} onClick={() => void setEmail()}>{person.email ? `Email: ${person.email}` : 'Add email'}</button>
             <button className={styles.btnLink} onClick={renamePerson}>Rename</button>
             <button className={styles.btnLinkDanger} onClick={removePerson}>Delete person</button>
           </span>
@@ -323,6 +421,10 @@ export default function Ious() {
 
       {dialog?.type === 'iou' && (
         <IouDialog people={data.people} entry={dialog.entry} onSaved={() => closeDialog(true)} onClose={() => closeDialog(false)} />
+      )}
+      {showDetails && sharing && (
+        <PaymentDetailsModal details={sharing.details} onClose={() => setShowDetails(false)}
+          onSaved={d => { setSharing({ ...sharing, details: d }); setShowDetails(false); setError(''); setNotice('Payment details saved.'); }} />
       )}
       {dialog?.type === 'payment' && (
         <IouPaymentDialog

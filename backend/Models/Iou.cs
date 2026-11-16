@@ -17,6 +17,8 @@ public class IouPerson
     [Required]
     public string NameEncrypted { get; set; } = string.Empty;
     public string? NotesEncrypted { get; set; }
+    /// <summary>Where payment-page links are emailed (encrypted).</summary>
+    public string? EmailEncrypted { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }
@@ -112,4 +114,36 @@ public class IouAllocation
     public IouEntry Entry { get; set; } = null!;
 
     public decimal Amount { get; set; }
+}
+
+/// <summary>
+/// A link to a person's IOU payment page (/pay/{token}): shows what they still
+/// owe and how to pay. Only a SHA-256 hash of the token is stored. Expires
+/// after 30 days; the user can revoke a person's links.
+/// </summary>
+public class IouShareLink
+{
+    public int Id { get; set; }
+    public string UserId { get; set; } = null!;
+    public int PersonId { get; set; }
+    public IouPerson Person { get; set; } = null!;
+    public string TokenHash { get; set; } = "";
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime ExpiresAt { get; set; }
+    public DateTime? RevokedAt { get; set; }
+}
+
+/// <summary>"I've sent it" from a payment page: the person says they paid (the user still records the payment).</summary>
+public class IouPaidNotice
+{
+    public int Id { get; set; }
+    public string UserId { get; set; } = null!;
+    public int PersonId { get; set; }
+    public IouPerson Person { get; set; } = null!;
+    /// <summary>The payment method they chose (e.g. "venmo"), or "other".</summary>
+    public string Method { get; set; } = "";
+    /// <summary>What the page showed as owed at the time.</summary>
+    public decimal Amount { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime? DismissedAt { get; set; }
 }

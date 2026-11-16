@@ -13,6 +13,7 @@ import Settings from './pages/Settings';
 import Utilities from './pages/Utilities';
 import WhatsNew from './pages/WhatsNew';
 import Ask from './pages/Ask';
+import Pay from './pages/Pay';
 import Categories from './pages/Categories';
 import Payees from './pages/Payees';
 import TransactionSearch from './pages/TransactionSearch';
@@ -42,6 +43,8 @@ function AppShell() {
 const router = createBrowserRouter(
   createRoutesFromElements(
     <>
+      {/* Public IOU payment page (private link; no sign-in). */}
+      <Route path="/pay/:token"     element={<Pay />} />
       <Route path="/auth/login"      element={<Login />} />
       <Route path="/auth/verify-email" element={<VerifyEmail />} />
       <Route path="/auth/register"   element={<Register />} />

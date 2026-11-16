@@ -61,6 +61,7 @@ Sensitive fields are encrypted with AES-256-GCM using a **per-user Data Encrypti
 - `Transaction.MemoEncrypted`, `Transaction.CheckNumberEncrypted`
 - `Payee.NameEncrypted`, `Category.NameEncrypted`
 - `Account.AccountNumberEncrypted`, `Account.NotesEncrypted`
+- `ApplicationUser.PaymentMethodsEncrypted`, `IouPerson.EmailEncrypted`
 - `AiConversation.TitleEncrypted`, `AiMessage.ContentEncrypted`, `AiProposal.PayloadEncrypted`, `AiProposal.ResultEncrypted`
 
 Because payee and category names are encrypted, **DB-level unique constraints are impossible** for those fields — uniqueness is enforced by loading all records and comparing in memory after decryption.
@@ -90,6 +91,9 @@ All names (accounts, payees, categories, institutions) must be **case-insensitiv
 
 ### AI Assistant
 The AI server is configured only in `.env` (`AI_PROVIDER`/`AI_BASE_URL`/`AI_API_KEY`/`AI_MODEL`; receipt scanning uses them too unless `RECEIPT_*` are set) — resolved in `GeneralAi`. `AiAssistant` sends questions to its OpenAI-compatible `/chat/completions` API with read-only tools from `AiTools`. Lookup tools must stay read-only, filter by the user, respect the user's `AiShare*` flags, and never include account numbers or notes. Changes go only through `AiProposals`: a `propose_*` tool records a proposal (no writes); the user applies it from the Ask page, and `ApplyAsync` re-validates everything then.
+
+### Public IOU Payment Pages
+`/pay/:token` (frontend `Pay.tsx`, API `PayController`, `[AllowAnonymous]`) is the only signed-out data view. The token is the key: store only its SHA-256 hash (`IouShareLink`), honour expiry/revocation, and return only date, payee and remaining amount per open IOU plus the user's payment options (`IouPaymentPages`). Never add memos, notes, account details or other people's data to it.
 
 ### Data Ownership
 Every controller action must filter by `UserId` from the JWT claim (`GetUserId()`). Never return or mutate data belonging to a different user.

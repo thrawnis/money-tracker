@@ -117,3 +117,10 @@
   .page { padding: 16px 12px; }
   .personActions { margin-left: 0; }
 }
+
+/* "I've sent it" notices from payment pages. */
+.paidNotice {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 10px; padding: 10px 14px;
+  border-radius: 6px; background: color-mix(in srgb, var(--c-27ae60) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--c-27ae60) 40%, transparent); font-size: 14px;
+}

@@ -32,7 +32,8 @@ public class IousController(
 
     // ── DTOs ────────────────────────────────────────────────────────────────
 
-    public record PersonDto(string Name, string? Notes);
+    /// <summary>Email: null keeps the saved address, "" removes it.</summary>
+    public record PersonDto(string Name, string? Notes, string? Email = null);
 
     /// <summary>One person's share. Amount: positive = they owe the user.</summary>
     public record EntryLineDto(int? PersonId, string? NewPersonName, decimal Amount);
@@ -81,6 +82,7 @@ public class IousController(
                     id = p.Id,
                     name = names[p.Id],
                     notes = encryption.Decrypt(p.NotesEncrypted, dek!),
+                    email = encryption.Decrypt(p.EmailEncrypted, dek!),
                     balance = IouLedger.Balance(pe, pp),
                     openCount = pe.Count(e => e.PaidOffDate == null),
                     oldestOpen = pe.Where(e => e.PaidOffDate == null).Select(e => (DateOnly?)e.Date).Min(),
@@ -257,7 +259,9 @@ public class IousController(
         if (await FindPersonAsync(userId, dek!, dto.Name) is not null)
             return Conflict(new { message = $"A person named \"{dto.Name.Trim()}\" already exists." });
 
+        if (EmailError(dto.Email) is string emailError) return BadRequest(new { message = emailError });
         var person = NewPerson(userId, dek!, dto.Name, dto.Notes);
+        person.EmailEncrypted = EncryptOrNull(dto.Email, dek!);
         db.IouPeople.Add(person);
         await db.SaveChangesAsync();
         await audit.LogAsync("CREATE", "IouPerson", person.Id);
@@ -277,8 +281,10 @@ public class IousController(
         if (other is not null && other.Id != id)
             return Conflict(new { message = $"A person named \"{dto.Name.Trim()}\" already exists." });
 
+        if (EmailError(dto.Email) is string emailError) return BadRequest(new { message = emailError });
         person.NameEncrypted = encryption.Encrypt(dto.Name.Trim(), dek!)!;
         person.NotesEncrypted = string.IsNullOrWhiteSpace(dto.Notes) ? null : encryption.Encrypt(dto.Notes.Trim(), dek!);
+        if (dto.Email is not null) person.EmailEncrypted = EncryptOrNull(dto.Email, dek!);
         await db.SaveChangesAsync();
         return NoContent();
     }
@@ -498,6 +504,10 @@ public class IousController(
 
     private string? EncryptOrNull(string? text, string dek) =>
         string.IsNullOrWhiteSpace(text) ? null : encryption.Encrypt(text.Trim(), dek);
+
+    private static string? EmailError(string? email) =>
+        string.IsNullOrWhiteSpace(email) || (System.Net.Mail.MailAddress.TryCreate(email.Trim(), out var m) && m.Address == email.Trim() && email.Length <= 254)
+            ? null : $"\"{email}\" isn't a valid email address.";
 
     private IouPerson NewPerson(string userId, string dek, string name, string? notes) => new()
     {

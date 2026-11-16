@@ -4,6 +4,8 @@ export interface IouPerson {
   id: number;
   name: string;
   notes?: string | null;
+  /** Where payment-page links are emailed. */
+  email?: string | null;
   /** Positive: they owe you. Negative: you owe them (or they've overpaid). */
   balance: number;
   openCount: number;
@@ -95,7 +97,9 @@ export const deleteIouPayment = (id: number) => api.delete(`/ious/payments/${id}
 
 export const createIouPerson = (name: string): Promise<{ id: number; name: string }> =>
   api.post('/ious/people', { name }).then(r => r.data);
-export const updateIouPerson = (id: number, name: string, notes?: string) => api.put(`/ious/people/${id}`, { name, notes });
+/** email: undefined keeps the saved address, '' removes it. */
+export const updateIouPerson = (id: number, name: string, notes?: string, email?: string) =>
+  api.put(`/ious/people/${id}`, { name, notes, email: email ?? null });
 export const deleteIouPerson = (id: number) => api.delete(`/ious/people/${id}`);
 
 export interface IouTransactionView {
@@ -126,3 +130,29 @@ export const getIouBadges = (transactionIds: number[]): Promise<IouBadge[]> =>
   transactionIds.length === 0
     ? Promise.resolve([])
     : api.get('/ious/by-transactions', { params: { ids: transactionIds.join(',') } }).then(r => r.data);
+
+// ── Payment pages (a private 30-day link showing a person what they owe) ──
+
+export type PaymentType = 'zelle' | 'paypal' | 'venmo' | 'cashapp' | 'applecash' | 'googlepay' | 'other';
+export interface PaymentMethod { type: PaymentType; value: string; label?: string | null }
+export interface PaymentDetails { displayName?: string | null; methods: PaymentMethod[] }
+
+export interface IouSharing {
+  details: PaymentDetails;
+  canEmail: boolean;
+  /** Live links per person. */
+  links: { personId: number; count: number; expiresAt: string }[];
+  /** "I've sent it" from payment pages, not yet dismissed. */
+  notices: { id: number; personId: number; personName: string; method: string; amount: number; createdAt: string }[];
+}
+
+export const getIouSharing = (): Promise<IouSharing> => api.get('/ious/sharing').then(r => r.data);
+export const savePaymentDetails = (d: PaymentDetails): Promise<PaymentDetails> =>
+  api.put('/ious/payment-details', d).then(r => r.data);
+export const createPayLink = (personId: number): Promise<{ url: string; expiresAt: string }> =>
+  api.post(`/ious/people/${personId}/link`).then(r => r.data);
+export const emailPayLink = (personId: number): Promise<{ sentTo: string; expiresAt: string }> =>
+  api.post(`/ious/people/${personId}/email-link`).then(r => r.data);
+export const revokePayLinks = (personId: number): Promise<{ revoked: number }> =>
+  api.delete(`/ious/people/${personId}/links`).then(r => r.data);
+export const dismissPaidNotice = (id: number) => api.post(`/ious/notices/${id}/dismiss`);

@@ -19,6 +19,8 @@ export const WHATS_NEW: WhatsNewEntry[] = [
   {
     date: '2026-11-16',
     items: [
+      'IOUs: send someone a private link (copy it or email it) to a page showing what they owe you — date, payee and amount for each — with one-tap buttons to pay you by Venmo, PayPal, Cash App, Zelle, Apple Cash, Google Pay or your own methods. Links work for 30 days, and you can turn them off any time. Add your payment details with the new Payment details button.',
+      'IOUs: when someone taps "I\'ve sent it" on their payment page, you get an email and a note on the IOUs page so you can record the payment.',
       'Ask AI: a new chat offers four different starter questions each time, chosen to fit what you\'ve allowed the assistant to see.',
       'Ask AI can now suggest changes — categorizing transactions, linking transfers, renaming or merging payees, adding payee mapping rules and creating bills. Each suggestion shows exactly what would change, and nothing happens until you click Apply. Turn it on in Settings → AI Assistant.',
       'Ask AI: see what the assistant is doing while it works ("Searching transactions…", "Adding up spending…"), and watch the answer appear as it\'s written.',

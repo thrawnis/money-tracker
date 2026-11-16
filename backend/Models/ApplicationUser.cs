@@ -78,6 +78,10 @@ public class ApplicationUser : IdentityUser
     // rename/merge payees, mapping rules, bills) for the user to apply. Off by default.
     public bool AiAllowProposals { get; set; } = false;
 
+    // How people pay this user back (IOU payment pages): JSON
+    // { displayName, methods: [{ type, value, label }] }, encrypted with the DEK.
+    public string? PaymentMethodsEncrypted { get; set; }
+
     public bool VoidCategoriesMigrated { get; set; } = false;
 
     // Sibling to VoidCategoriesMigrated: the same "VOID ..." bank-export
