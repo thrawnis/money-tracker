@@ -1,4 +1,6 @@
 import CategoryAutocomplete from '../components/CategoryAutocomplete';
+import NameAutocomplete from '../components/NameAutocomplete';
+import { mergePayees } from '../api/nameDuplicates';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getPayees, updatePayee, deletePayee } from '../api/payees';
@@ -46,6 +48,11 @@ export default function Payees() {
   const [editingCatFor, setEditingCatFor] = useState<number | null>(null);
   const [catValue, setCatValue] = useState<string>('');
   const [catBlocked, setCatBlocked] = useState(false);
+  // Merging one payee into another: the payee being merged away, and the typed target name.
+  const [mergingId, setMergingId] = useState<number | null>(null);
+  const [mergeTarget, setMergeTarget] = useState('');
+  const [mergeBusy, setMergeBusy] = useState(false);
+  const [notice, setNotice] = useState('');
 
   const load = () =>
     Promise.all([getPayees(), getCategories()])
@@ -109,16 +116,47 @@ export default function Payees() {
     try {
       await deletePayee(id);
       setPayees(prev => prev.filter(p => p.id !== id));
-    } catch { setError('Failed to delete payee.'); }
+    } catch (err) { setError(apiMsg(err, 'Failed to delete payee.')); }
   };
 
   const flat = flatCats(categories);
+
+  const startMerge = (payee: Payee) => {
+    setMergingId(payee.id); setMergeTarget(''); setRenamingId(null); setEditingCatFor(null); setError(''); setNotice('');
+  };
+
+  // Merge `from` into the payee named in the box: its transactions, bills and
+  // mapping rules move over, and its name becomes a mapping rule so future
+  // imports with that name land on the kept payee.
+  const handleMerge = async (from: Payee) => {
+    const typed = mergeTarget.trim().toLowerCase();
+    const into = payees.find(p => p.id !== from.id && p.name.toLowerCase() === typed);
+    if (!into) { setError(typed ? `There's no other payee named "${mergeTarget.trim()}". Pick one from the suggestions.` : 'Choose the payee to merge into.'); return; }
+    const n = from.transactionCount ?? 0;
+    const ok = await confirmDialog(
+      `Merge "${from.name}" into "${into.name}"?\n\n`
+      + `${n} transaction${n === 1 ? '' : 's'}, bills and payee mapping rules using "${from.name}" will move to "${into.name}", `
+      + `and "${from.name}" will be removed. Future imports named "${from.name}" will be mapped to "${into.name}".`
+      + (from.defaultCategoryId && !into.defaultCategoryId ? `\n\n"${into.name}" will take over "${from.name}"'s default category.` : '')
+      + '\n\nThis cannot be undone.',
+      { title: 'Merge payees', confirmLabel: 'Merge', danger: true });
+    if (!ok) return;
+    setMergeBusy(true); setError('');
+    try {
+      await mergePayees(into.id, [from.id]);
+      setMergingId(null);
+      setNotice(`Merged "${from.name}" into "${into.name}".`);
+      await load();
+    } catch (err) { setError(apiMsg(err, 'Failed to merge the payees.')); }
+    finally { setMergeBusy(false); }
+  };
 
   const startCategoryEdit = (payee: Payee) => {
     setEditingCatFor(payee.id);
     setCatValue(payee.defaultCategoryId ? flat.find(c => c.id === payee.defaultCategoryId)?.label ?? '' : '');
     setCatBlocked(!!payee.blockAutoDefaultCategory);
     setRenamingId(null);
+    setMergingId(null);
   };
 
   if (loading) return <div className={styles.page}><p className={styles.loading}>Loading…</p></div>;
@@ -131,6 +169,7 @@ export default function Payees() {
       </div>
 
       {error && <div className={styles.errorMsg}>{error}</div>}
+      {notice && <div className={styles.noticeMsg} role="status">{notice}</div>}
 
       <div className={styles.tableWrapper}>
         <table className={styles.table}>
@@ -168,7 +207,23 @@ export default function Payees() {
                   onDoubleClick={() => navigate(`/transactions?payeeId=${payee.id}&label=${encodeURIComponent(payee.name)}`)}
                 >
                   <td>
-                    {renamingId === payee.id ? (
+                    {mergingId === payee.id ? (
+                      <form className={styles.inlineEdit} onSubmit={e => { e.preventDefault(); void handleMerge(payee); }}>
+                        <div className={styles.catEditStack}>
+                          <span className={styles.mergeLabel}>Merge <strong>{payee.name}</strong> into:</span>
+                          <NameAutocomplete
+                            value={mergeTarget}
+                            onChange={setMergeTarget}
+                            items={payees.filter(p => p.id !== payee.id).map(p => ({ id: p.id, label: p.name }))}
+                            className={styles.input}
+                            placeholder="Type to search payees"
+                            autoFocus
+                          />
+                        </div>
+                        <button type="submit" className={styles.btnSm} disabled={mergeBusy}>{mergeBusy ? 'Merging…' : 'Merge'}</button>
+                        <button type="button" className={styles.btnSmSecondary} onClick={() => setMergingId(null)}>Cancel</button>
+                      </form>
+                    ) : renamingId === payee.id ? (
                       <div className={styles.inlineEdit}>
                         <input
                           className={styles.input}
@@ -237,8 +292,10 @@ export default function Payees() {
                   <td className={`${styles.lastUsed} ${styles.colWide}`}>{payee.transactionCount ?? 0}</td>
                   <td>
                     <div className={styles.rowActions}>
-                      <button className={styles.btnSm} onClick={() => { setRenamingId(payee.id); setRenameValue(payee.name); setEditingCatFor(null); }}>Rename</button>
+                      <button className={styles.btnSm} onClick={() => { setRenamingId(payee.id); setRenameValue(payee.name); setEditingCatFor(null); setMergingId(null); }}>Rename</button>
                       <button className={styles.btnSm} onClick={() => startCategoryEdit(payee)}>Category</button>
+                      <button className={styles.btnSm} onClick={() => startMerge(payee)} disabled={payees.length < 2}
+                        title="Combine this payee with another one">Merge</button>
                       <button className={styles.btnSmDelete} onClick={() => handleDelete(payee.id, payee.name)}>Delete</button>
                     </div>
                   </td>

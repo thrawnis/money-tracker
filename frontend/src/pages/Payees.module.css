@@ -102,10 +102,12 @@
 }
 
 .rowActions {
-  display: flex;
-  gap: 5px;
-  justify-content: flex-end;
+  display: grid;
+  grid-template-columns: repeat(2, auto);
+  gap: 4px 5px;
+  justify-content: end;
 }
+.rowActions > button { width: 100%; }
 
 .input {
   padding: 4px 7px;
@@ -201,6 +203,12 @@
 @media (max-width: 600px) {
   .colWide { display: none; }
   .mobileSub { display: block; font-size: 11px; color: var(--c-777777); margin-top: 2px; }
-  .rowActions { flex-direction: column; align-items: stretch; }
+  .rowActions { grid-template-columns: 1fr; }
   .inlineEdit { flex-wrap: wrap; }
+}
+
+.mergeLabel { font-size: 12.5px; color: var(--c-555566); }
+.noticeMsg {
+  margin-bottom: 12px; padding: 8px 12px; border-radius: 4px; font-size: 14px;
+  background: color-mix(in srgb, var(--c-27ae60) 12%, transparent); color: var(--c-1a7a40);
 }

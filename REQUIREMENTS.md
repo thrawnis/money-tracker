@@ -140,6 +140,8 @@ Update this file whenever requirements change or new features are defined.
 - Payees page: list, create, edit, delete
 - Each payee shows First Transaction, Last Transaction, and transaction count (same "includes future-dated transactions" semantics as Accounts/Categories, explained via the same info-icon popover on each column header)
 - Deletions blocked if payee is referenced by a transaction
+- Deleting a payee a bill/reminder still uses is refused with a 409 naming those bills ("change or delete those first, or merge this payee into another one instead")
+- **Merge** (Payees page, per row): pick another payee with a type-ahead search box, confirm (themed dialog stating how many transactions move), and the payee is merged into the chosen one — its transactions, bills and payee mapping rules move over, its default category carries over if the kept payee has none, it's deleted, and its name becomes an exact-match mapping rule for the kept payee so future imports land there. Same server merge as Utilities → Duplicate Names (`POST /api/name-duplicates/payees/merge`)
 - Automatic payee cleanup (when its last transaction is edited away or deleted) counts scheduled transactions as "in use" — a payee referenced only by a scheduled bill is never auto-deleted
 
 ---

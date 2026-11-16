@@ -186,6 +186,14 @@ public class PayeesController(
         var payee = await db.Payees.FirstOrDefaultAsync(p => p.Id == id && p.UserId == userId);
         if (payee is null) return NotFound();
 
+        // Bills keep their payee (no cascade): say which ones need changing first.
+        var bills = await db.ScheduledTransactions.Where(s => s.PayeeId == id && s.UserId == userId)
+            .Select(s => s.Name).ToListAsync();
+        if (bills.Count > 0)
+            return Conflict(new { message = $"This payee is used by {(bills.Count == 1 ? "a bill" : $"{bills.Count} bills")} "
+                + $"({string.Join(", ", bills.Select(b => string.IsNullOrWhiteSpace(b) ? "unnamed" : $"\"{b}\""))}). "
+                + "Change or delete those first, or merge this payee into another one instead." });
+
         db.Payees.Remove(payee);
         await db.SaveChangesAsync();
 
