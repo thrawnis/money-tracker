@@ -47,7 +47,7 @@ function formatFrequency(interval: number, unit: FrequencyUnit, daysOfWeekMask?:
   return `Every ${interval} ${unit}`;
 }
 
-type SortColumn = 'name' | 'payee' | 'account' | 'amount' | 'frequency' | 'nextDueDate' | 'days' | 'isActive';
+type SortColumn = 'name' | 'payee' | 'account' | 'amount' | 'frequency' | 'nextDueDate' | 'days' | 'autoCreate' | 'isActive';
 
 // Rough day-equivalent so Frequency sorts by how often it recurs rather than
 // alphabetically ("Every 2 Weeks" vs "Every Month" should compare sensibly).
@@ -403,6 +403,44 @@ export default function BillsReminders() {
     return Math.round((due.getTime() - today.getTime()) / 86400000);
   };
 
+  // The Create column: turn a bill's auto-create on/off without opening the form.
+  const [togglingCreate, setTogglingCreate] = useState<number | null>(null);
+  const toggleAutoCreate = async (item: ScheduledTransaction) => {
+    const on = !item.autoCreate;
+    const ahead = item.autoCreateDaysAhead ?? 31;
+    const label = item.name || payeeLabel(item, accounts) || 'this bill';
+    if (on && !(await confirmDialog(
+      `Automatically create "${label}" transactions up to ${ahead} days ahead?\n\nUpcoming occurrences will be added to the register now, as uncleared transactions. You can change how far ahead with Edit.`,
+      { title: 'Auto-create transactions', confirmLabel: 'Turn on' }))) return;
+    setTogglingCreate(item.id);
+    setError('');
+    try {
+      // Full update (PUT): resend everything else unchanged.
+      await updateScheduledTransaction(item.id, {
+        name: item.name || undefined,
+        accountId: item.accountId,
+        payeeId: item.payeeId,
+        categoryId: item.categoryId,
+        memo: item.memo,
+        amount: item.amount,
+        frequencyInterval: item.frequencyInterval,
+        frequencyUnit: item.frequencyUnit,
+        daysOfWeekMask: item.daysOfWeekMask,
+        nextDueDate: item.nextDueDate,
+        reminderDays: item.reminderDays,
+        isActive: item.isActive,
+        autoCreate: on,
+        autoCreateDaysAhead: ahead,
+        transferAccountId: item.transferAccountId,
+      });
+      setItems(prev => prev.map(x => x.id === item.id ? { ...x, autoCreate: on } : x));
+    } catch (err) {
+      setError((err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Failed to update the bill.');
+    } finally {
+      setTogglingCreate(null);
+    }
+  };
+
   const handleSort = (col: SortColumn) => {
     if (sortBy === col) {
       setSortDir(d => (d === 'asc' ? 'desc' : 'asc'));
@@ -427,6 +465,7 @@ export default function BillsReminders() {
       case 'frequency': cmp = frequencyDays(a) - frequencyDays(b); break;
       case 'nextDueDate': cmp = a.nextDueDate.localeCompare(b.nextDueDate); break;
       case 'days': cmp = daysUntil(a.nextDueDate) - daysUntil(b.nextDueDate); break;
+      case 'autoCreate': cmp = Number(!!a.autoCreate) - Number(!!b.autoCreate) || (a.autoCreateDaysAhead ?? 31) - (b.autoCreateDaysAhead ?? 31); break;
       case 'isActive': cmp = Number(a.isActive) - Number(b.isActive); break;
     }
     return sortDir === 'desc' ? -cmp : cmp;
@@ -658,13 +697,14 @@ export default function BillsReminders() {
               {sortHeader('frequency', 'Frequency', true)}
               {sortHeader('nextDueDate', 'Next Due', true)}
               {sortHeader('days', 'Days', true)}
+              {sortHeader('autoCreate', 'Create', true)}
               {sortHeader('isActive', 'Active', true)}
               <th></th>
             </tr>
           </thead>
           <tbody>
             {sortedItems.length === 0 ? (
-              <tr><td colSpan={9} className={styles.emptyMsg}>No bills found.</td></tr>
+              <tr><td colSpan={10} className={styles.emptyMsg}>No bills found.</td></tr>
             ) : (
               sortedItems.map(item => {
                 const days = daysUntil(item.nextDueDate);
@@ -679,6 +719,7 @@ export default function BillsReminders() {
                         {' · '}<span className={days < 0 ? styles.overdueText : ''}>
                           {days < 0 ? `Overdue (${formatDate(item.nextDueDate)})` : `Due ${formatDate(item.nextDueDate)}`}
                         </span>
+                        {item.autoCreate && ` · Auto-creates ${item.autoCreateDaysAhead ?? 31}d ahead`}
                         {!item.isActive && ' · Inactive'}
                       </span>
                     </td>
@@ -694,6 +735,17 @@ export default function BillsReminders() {
                     <td className={styles.colWide}>{formatFrequency(item.frequencyInterval, item.frequencyUnit, item.daysOfWeekMask)}</td>
                     <td className={styles.colWide}>{formatDate(item.nextDueDate)}</td>
                     <td className={`${styles.colWide} ${days < 0 ? styles.overdueText : ''}`}>{days < 0 ? 'Overdue' : `${days}d`}</td>
+                    <td className={styles.colWide}>
+                      <label className={styles.createCell}
+                        title={item.autoCreate
+                          ? `Creates upcoming transactions ${item.autoCreateDaysAhead ?? 31} days ahead — click to stop`
+                          : 'Click to create upcoming transactions automatically'}>
+                        <input type="checkbox" checked={!!item.autoCreate} disabled={togglingCreate !== null}
+                          onChange={() => void toggleAutoCreate(item)}
+                          aria-label={`Auto-create transactions for ${item.name || payeeLabel(item, accounts) || 'this bill'}`} />
+                        {item.autoCreate && <span className={styles.createAhead}>{item.autoCreateDaysAhead ?? 31}d ahead</span>}
+                      </label>
+                    </td>
                     <td className={styles.colWide}>{item.isActive ? 'Yes' : 'No'}</td>
                     <td className={styles.actions}>
                       <button className={styles.btnEdit} onClick={() => handleEdit(item)}>Edit</button>

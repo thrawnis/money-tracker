@@ -19,6 +19,7 @@ export const WHATS_NEW: WhatsNewEntry[] = [
   {
     date: '2026-11-16',
     items: [
+      'Bills & Reminders: a new Create column shows which bills enter their upcoming transactions automatically — tick or untick it right there to change it.',
       'New: Ask AI — ask questions about your money in plain English ("How much did I spend on restaurants this year?"). Choose an AI server (OpenAI or one you run yourself) and exactly what it may look up in Settings → AI Assistant. It can only read, never change anything, and your conversations are saved encrypted.',
       'Payees: merge a payee into another one with the new Merge button — all its transactions and bills move over, and future imports with the old name go to the payee you kept.',
       'Questions and confirmations (like "Delete this payee?") now appear in the app\'s own style instead of your browser\'s pop-up boxes.',

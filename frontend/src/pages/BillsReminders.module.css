@@ -292,3 +292,7 @@
 }
 
 .hint { font-size: 12px; color: var(--c-666677); font-weight: normal; }
+
+/* Create column: auto-create upcoming transactions for this bill. */
+.createCell { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; white-space: nowrap; }
+.createAhead { font-size: 12px; color: var(--c-888899); }
