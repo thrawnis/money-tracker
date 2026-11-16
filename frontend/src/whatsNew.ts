@@ -19,6 +19,7 @@ export const WHATS_NEW: WhatsNewEntry[] = [
   {
     date: '2026-11-16',
     items: [
+      'Ask AI: a new chat offers four different starter questions each time, chosen to fit what you\'ve allowed the assistant to see.',
       'Ask AI can now suggest changes — categorizing transactions, linking transfers, renaming or merging payees, adding payee mapping rules and creating bills. Each suggestion shows exactly what would change, and nothing happens until you click Apply. Turn it on in Settings → AI Assistant.',
       'Ask AI: see what the assistant is doing while it works ("Searching transactions…", "Adding up spending…"), and watch the answer appear as it\'s written.',
       'Emails: the weekly summary\'s subject line no longer shows how much you spent — amounts only appear inside the email.',

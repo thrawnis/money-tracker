@@ -5,6 +5,7 @@ import {
   type AiConversationSummary, type AiMessage, type AiProposal, type AiSettings,
 } from '../api/ai';
 import Markdown from '../components/Markdown';
+import { pickPrompts } from '../askPrompts';
 import AiProposalCard from '../components/AiProposalCard';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
@@ -13,14 +14,6 @@ import styles from './Ask.module.css';
 
 type ApiError = { response?: { data?: { message?: string } } };
 const msg = (err: unknown, fallback: string) => (err as ApiError)?.response?.data?.message ?? fallback;
-
-const EXAMPLES = [
-  'How much did I spend on restaurants this month compared with last month?',
-  'What are my biggest spending categories this year?',
-  'Which bills are due in the next two weeks?',
-  'Show my largest purchases over $200 in the last 90 days.',
-  'Who owes me money right now?',
-];
 
 const when = (iso: string) => {
   const d = new Date(iso);
@@ -45,6 +38,8 @@ export default function Ask() {
   const messages = convo.id === openId ? convo.messages : [];
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
+  // 4 starter questions for an empty chat, re-picked for each new chat.
+  const [examples, setExamples] = useState<string[]>([]);
   // Live progress while answering: the steps so far (last one in progress) and the answer as it's written.
   const [steps, setSteps] = useState<string[]>([]);
   const [partial, setPartial] = useState('');
@@ -56,7 +51,7 @@ export default function Ask() {
   useUnsavedChanges(draft.trim() !== '' && !busy);
 
   useEffect(() => {
-    getAiSettings().then(setSettings).catch(() => setError('Failed to load the assistant settings.'));
+    getAiSettings().then(s => { setSettings(s); setExamples(pickPrompts(s.share, s.allowProposals)); }).catch(() => setError('Failed to load the assistant settings.'));
     getAiConversations().then(setList).catch(() => {});
   }, []);
 
@@ -74,6 +69,7 @@ export default function Ask() {
 
   const open = (id: number | null) => {
     setListOpen(false);
+    if (id == null && settings) setExamples(pickPrompts(settings.share, settings.allowProposals));
     setError('');
     setParams(id == null ? {} : { c: String(id) });
     setTimeout(() => inputRef.current?.focus(), 0);
@@ -178,7 +174,7 @@ export default function Ask() {
                   <div className={styles.intro}>
                     <p>Ask about your accounts, spending, bills or IOUs. The assistant looks up your data to answer, and can't change anything.</p>
                     <div className={styles.examples}>
-                      {EXAMPLES.map(e => (
+                      {examples.map(e => (
                         <button key={e} className={styles.example} onClick={() => void send(e)} disabled={!ready}>{e}</button>
                       ))}
                     </div>
