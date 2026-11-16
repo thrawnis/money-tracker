@@ -51,3 +51,17 @@
 
 /* One option inside a group of possible matches. */
 .option { padding: 8px 0 4px; border-top: 1px dashed var(--c-cccccc, #ccc); transition: opacity 0.3s ease; }
+
+/* Transaction rows open the transaction in its account's register. */
+.txRow { cursor: pointer; }
+.txRow:hover td, .txRow:focus-visible td { background: color-mix(in srgb, var(--c-27ae60) 8%, transparent); }
+.txRow:focus-visible { outline: 2px solid var(--c-27ae60); outline-offset: -2px; }
+.accountName { text-decoration: underline; text-decoration-color: color-mix(in srgb, currentColor 35%, transparent); }
+
+/* The card you came back to (Back from a transaction). */
+.flash { animation: cardFlash 1.6s ease-out; }
+@keyframes cardFlash {
+  0%, 30% { box-shadow: 0 0 0 3px var(--c-27ae60); }
+  100% { box-shadow: 0 0 0 3px transparent; }
+}
+@media (prefers-reduced-motion: reduce) { .flash { animation: none; outline: 2px solid var(--c-27ae60); } }

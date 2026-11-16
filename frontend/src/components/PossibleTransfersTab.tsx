@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   findTransferMatches, linkTransferMatches, dismissTransferMatch, restoreDismissedTransferMatches,
   type TransferGroup, type TransferMatch, type TransferSide,
@@ -14,15 +14,21 @@ const money = (n: number) => new Intl.NumberFormat('en-US', { style: 'currency',
 const day = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 const pairKey = (m: TransferMatch) => `${m.from.id}-${m.to.id}`;
 
-function SideRow({ side }: { side: TransferSide }) {
+// Where to come back to after opening a transaction: kept in this page's
+// history entry, so Back returns to the same card (with the same date range).
+type ReturnState = { xferFocusTx?: number; xferScrollY?: number; xferDays?: number };
+
+function SideRow({ side, open }: { side: TransferSide; open: (s: TransferSide) => void }) {
   const out = side.amount < 0;
   return (
-    <tr>
+    <tr className={anim.txRow} tabIndex={0} title={`Open in ${side.accountName}`}
+      onClick={() => open(side)}
+      onKeyDown={e => { if (e.key === 'Enter') open(side); }}>
       <td className={styles.stackInline} style={{ whiteSpace: 'nowrap' }}>{day(side.date)}</td>
       <td data-label="Account">
         {/* Money out of this account (red) or into it (green). */}
         <strong style={{ color: out ? 'var(--c-cc0000)' : 'var(--c-1a7a40)', marginRight: 6 }}>{out ? 'Out' : 'In'}</strong>
-        <Link to={`/accounts/${side.accountId}`}>{side.accountName}</Link>
+        <span className={anim.accountName}>{side.accountName}</span>
       </td>
       <td data-label="Payee">{side.payee || '—'}</td>
       <td data-label="Memo">{side.memo || '—'}</td>
@@ -35,15 +41,15 @@ function SideRow({ side }: { side: TransferSide }) {
 type Status = 'linked' | 'dismissed' | 'conflict';
 
 /** The two rows of one possible pair. */
-function PairTable({ m }: { m: TransferMatch }) {
+function PairTable({ m, open }: { m: TransferMatch; open: (s: TransferSide) => void }) {
   return (
     <table className={`${styles.dupTable} ${styles.stackOnPhone}`}>
       <thead>
         <tr><th>Date</th><th>Account</th><th>Payee</th><th>Memo</th><th>Category</th><th style={{ textAlign: 'right' }}>Amount</th></tr>
       </thead>
       <tbody>
-        <SideRow side={m.from} />
-        <SideRow side={m.to} />
+        <SideRow side={m.from} open={open} />
+        <SideRow side={m.to} open={open} />
       </tbody>
     </table>
   );
@@ -70,7 +76,25 @@ const Spin = ({ label }: { label: string }) => <><span className={anim.spinner} 
  * the list doesn't move while you work down it.
  */
 export default function PossibleTransfersTab() {
-  const [days, setDays] = useState(3);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const back = (location.state ?? {}) as ReturnState;
+  const [days, setDays] = useState(back.xferDays ?? 3);
+  // The card to return to after Back, until the list has loaded once.
+  const focusRef = useRef<{ tx?: number; y?: number } | null>(
+    back.xferFocusTx != null || back.xferScrollY != null ? { tx: back.xferFocusTx, y: back.xferScrollY } : null);
+  const [flashTx, setFlashTx] = useState<number | null>(null);
+
+  // Opens a transaction in its account's register. The current history entry
+  // first records which card it was, so Back lands on it again.
+  const open = (side: TransferSide) => {
+    navigate(`${location.pathname}${location.search}`, {
+      replace: true,
+      state: { ...(location.state ?? {}), xferFocusTx: side.id, xferScrollY: window.scrollY, xferDays: days } satisfies ReturnState,
+    });
+    navigate(`/accounts/${side.accountId}?tx=${side.id}`);
+  };
+
   const [groups, setGroups] = useState<TransferGroup[] | null>(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -92,6 +116,21 @@ export default function PossibleTransfersTab() {
       .catch(() => { if (!cancelled) setError('Failed to look for possible transfers.'); });
     return () => { cancelled = true; };
   }, [days]);
+
+  // Back from a transaction: scroll to the card holding it (if it's still
+  // suggested), else to where the page was.
+  useEffect(() => {
+    const f = focusRef.current;
+    if (!groups || !f) return;
+    focusRef.current = null;
+    requestAnimationFrame(() => {
+      const card = f.tx != null ? document.querySelector<HTMLElement>(`[data-txids~="${f.tx}"]`) : null;
+      if (card) {
+        card.scrollIntoView({ block: 'center' });
+        setFlashTx(f.tx!);
+      } else if (f.y != null) window.scrollTo(0, f.y);
+    });
+  }, [groups]);
 
   // An option's state: handled, or ruled out because one of its transactions
   // was linked in another option of the same group.
@@ -136,6 +175,8 @@ export default function PossibleTransfersTab() {
   const handled = groups?.filter(g => pending(g).length === 0).length ?? 0;
   const linkedCount = Object.values(done).filter(k => k === 'linked').length;
   const groupKey = (g: TransferGroup) => g.options.map(pairKey).join('_');
+  const txIds = (g: TransferGroup) => [...new Set(g.options.flatMap(o => [o.from.id, o.to.id]))].join(' ');
+  const flashed = (g: TransferGroup) => flashTx != null && g.options.some(o => o.from.id === flashTx || o.to.id === flashTx);
 
   return (
     <div className={styles.tabSection}>
@@ -144,7 +185,7 @@ export default function PossibleTransfersTab() {
         or imported as separate transactions: money out of one account and the same amount into another within a few
         days (e.g. a credit card payment, or moving money to savings). <strong>Link as transfer</strong> joins them
         like a transfer you'd entered yourself — their categories are cleared, everything else is kept.
-        <strong> Not a transfer</strong> stops suggesting that pair. When a transaction could pair with more than one
+        <strong> Not a transfer</strong> stops suggesting that pair. Click a transaction to open it in its account. When a transaction could pair with more than one
         other, the possible matches are shown together so you can pick the right one, if any. Transfers, voided and
         split transactions aren't considered.
       </p>
@@ -187,7 +228,8 @@ export default function PossibleTransfersTab() {
               const k = pairKey(m);
               const state = statusOf(g, m);
               return (
-                <div key={gk} style={{ marginBottom: 10 }} className={`${styles.prefGroup} ${anim.pairCard} ${state ? anim.done : ''}`}>
+                <div key={gk} style={{ marginBottom: 10 }} data-txids={txIds(g)}
+                  className={`${styles.prefGroup} ${anim.pairCard} ${state ? anim.done : ''} ${flashed(g) ? anim.flash : ''}`}>
                   <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 6 }}>
                     <strong>{money(Math.abs(m.from.amount))}</strong>
                     <span>{m.from.accountName} → {m.to.accountName}</span>
@@ -202,7 +244,7 @@ export default function PossibleTransfersTab() {
                       </button>
                     </>}
                   </div>
-                  <PairTable m={m} />
+                  <PairTable m={m} open={open} />
                 </div>
               );
             }
@@ -210,7 +252,8 @@ export default function PossibleTransfersTab() {
             // Several possible matches: pick the right one(s), or none.
             const anyLinked = g.options.some(o => done[pairKey(o)] === 'linked');
             return (
-              <div key={gk} style={{ marginBottom: 10 }} className={`${styles.prefGroup} ${anim.pairCard} ${left.length === 0 ? anim.done : ''}`}>
+              <div key={gk} style={{ marginBottom: 10 }} data-txids={txIds(g)}
+                className={`${styles.prefGroup} ${anim.pairCard} ${left.length === 0 ? anim.done : ''} ${flashed(g) ? anim.flash : ''}`}>
                 <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 8 }}>
                   <strong>{money(Math.abs(g.options[0].from.amount))}</strong>
                   <span style={{ color: 'var(--c-b8860b)' }}>
@@ -241,7 +284,7 @@ export default function PossibleTransfersTab() {
                           </button>
                         )}
                       </div>
-                      <PairTable m={m} />
+                      <PairTable m={m} open={open} />
                     </div>
                   );
                 })}
