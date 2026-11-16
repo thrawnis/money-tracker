@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import ImportDraftBanner from './ImportDraftBanner';
 import KeyboardShortcutsModal from './KeyboardShortcutsModal';
+import WhatsNewBanner from './WhatsNewBanner';
 import styles from './Layout.module.css';
 
 interface Props {
@@ -101,6 +102,10 @@ export default function Layout({ onLogout }: Props) {
         </section>
 
         <div className={styles.sidebarFooter}>
+          <NavLink to="/whats-new" className={styles.shortcutsBtn} style={{ display: 'block', textAlign: 'center', marginBottom: 0 }}
+            onClick={closeSidebar}>
+            What's New
+          </NavLink>
           <button
             className={styles.shortcutsBtn}
             onClick={() => { setShowShortcuts(true); closeSidebar(); }}
@@ -114,6 +119,7 @@ export default function Layout({ onLogout }: Props) {
       </nav>
 
       <main className={styles.content}>
+        <WhatsNewBanner />
         <ImportDraftBanner />
         <Outlet />
       </main>

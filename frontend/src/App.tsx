@@ -10,6 +10,7 @@ import BillsReminders from './pages/BillsReminders';
 import Reports from './pages/Reports';
 import Settings from './pages/Settings';
 import Utilities from './pages/Utilities';
+import WhatsNew from './pages/WhatsNew';
 import Categories from './pages/Categories';
 import Payees from './pages/Payees';
 import TransactionSearch from './pages/TransactionSearch';
@@ -63,6 +64,7 @@ const router = createBrowserRouter(
         <Route path="ious"                    element={<Ious />} />
         <Route path="utilities"               element={<Utilities />} />
         <Route path="settings"                element={<Settings />} />
+        <Route path="whats-new"               element={<WhatsNew />} />
         <Route path="*"                       element={<Navigate to="/" replace />} />
       </Route>
     </>

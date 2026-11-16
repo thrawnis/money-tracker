@@ -10,6 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Quality over speed.** Thoroughly review code — especially frontend — before committing. Read the relevant files, understand the context, and verify the change is correct end-to-end.
 - **Accuracy over assumptions.** If the intent of a request is unclear, or a change touches something with non-obvious side effects, ask before proceeding.
 - **Consult REQUIREMENTS.md** before implementing features or making structural changes. Keep it updated when requirements change.
+- **Update the What's New changelog** (`frontend/src/whatsNew.ts`) with every change users would notice in what the app does — new features or changed behavior — in plain, non-technical language, under that day's date (newest first; add to an existing entry for the same day). Skip purely visual tweaks and behind-the-scenes changes.
 
 ---
 

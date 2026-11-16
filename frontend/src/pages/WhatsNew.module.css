@@ -1,0 +1,12 @@
+.page { padding: 24px; max-width: 900px; }
+.pageTitle { margin: 0 0 4px; font-size: 20px; font-weight: 700; color: var(--c-002a52); }
+.hint { color: var(--c-666677); font-size: 14px; margin: 0 0 8px; }
+.section {
+  margin: 24px 0 4px; padding-bottom: 4px; font-size: 16px; font-weight: 800;
+  color: var(--c-003366); border-bottom: 2px solid color-mix(in srgb, var(--c-003366) 25%, transparent);
+}
+.day { margin-top: 12px; }
+.date { font-weight: 700; font-size: 14px; color: var(--c-336699); }
+.list { margin: 4px 0 0; padding-left: 22px; font-size: 14px; line-height: 1.5; }
+.list li { margin: 3px 0; }
+@media (max-width: 768px) { .page { padding: 16px; } }

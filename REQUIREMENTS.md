@@ -215,6 +215,12 @@ Money other people owe the user, and money the user owes them.
   - **Sign-in alerts**: on by default (including for existing accounts); an email on every full sign-in — any method, including first-time setup, but not silent token refreshes — with the time in the user's time zone, sign-in method, browser/OS and IP address, and what to do if it wasn't them. Queued and sent in the background so sign-in is never delayed or blocked by email
 ---
 
+## What's New
+
+- A **What's New** banner at the top of every page lists recent functional changes (new features and changed behavior, not visual tweaks), written in plain language and grouped by the date they were added; days with no changes are skipped. Collapsed, it shows the newest day; "Show the last 14 days" expands it. Dismissing it (×) hides it in that browser until a newer entry is added.
+- The **What's New page** (`/whats-new`, linked from the banner and the sidebar footer) keeps the whole history back to the start: the last 14 days first, then older changes grouped by month. Nothing is removed as it ages.
+- Entries live in `frontend/src/whatsNew.ts`; every user-noticeable change adds one.
+
 ## Data Integrity & Security
 
 - All sensitive text fields encrypted at rest with AES-256-GCM per-user DEK
