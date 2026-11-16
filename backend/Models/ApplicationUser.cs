@@ -74,6 +74,9 @@ public class ApplicationUser : IdentityUser
     public bool AiShareMemos { get; set; } = true;
     public bool AiShareBills { get; set; } = true;
     public bool AiShareIous { get; set; } = true;
+    // Let the assistant propose changes (set categories, link transfers,
+    // rename/merge payees, mapping rules, bills) for the user to apply. Off by default.
+    public bool AiAllowProposals { get; set; } = false;
 
     public bool VoidCategoriesMigrated { get; set; } = false;
 

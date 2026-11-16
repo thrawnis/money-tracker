@@ -34,14 +34,15 @@ export default function AiSettings() {
   const [saved, setSaved] = useState<Settings | null>(null);
   const [enabled, setEnabled] = useState(false);
   const [share, setShare] = useState<AiShare>({ balances: true, transactions: true, memos: true, bills: true, ious: true });
+  const [allowProposals, setAllowProposals] = useState(false);
   const [busy, setBusy] = useState<'save' | 'test' | null>(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
-  const apply = (s: Settings) => { setSaved(s); setEnabled(s.enabled); setShare(s.share); };
+  const apply = (s: Settings) => { setSaved(s); setEnabled(s.enabled); setShare(s.share); setAllowProposals(s.allowProposals); };
   useEffect(() => { getAiSettings().then(apply).catch(() => setError('Failed to load the AI assistant settings.')); }, []);
 
-  const dirty = !!saved && (enabled !== saved.enabled || SHARE.some(s => share[s.key] !== saved.share[s.key]));
+  const dirty = !!saved && (enabled !== saved.enabled || allowProposals !== saved.allowProposals || SHARE.some(s => share[s.key] !== saved.share[s.key]));
   useUnsavedChanges(dirty && busy === null);
 
   if (!saved) return <p className={styles.hint}>{error || 'Loading…'}</p>;
@@ -54,7 +55,7 @@ export default function AiSettings() {
       + 'to answer them. Your data is decrypted to do this. Conversations are saved in Money Tracker, encrypted.',
       { title: 'AI assistant', confirmLabel: 'Turn on' }))) return;
     setBusy('save');
-    try { apply(await saveAiSettings({ enabled, share })); setNotice('Saved.'); }
+    try { apply(await saveAiSettings({ enabled, share, allowProposals })); setNotice('Saved.'); }
     catch (err) { setError(msg(err, 'Failed to save.')); }
     finally { setBusy(null); }
   };
@@ -111,6 +112,18 @@ export default function AiSettings() {
             {s.label}<br /><span className={styles.hint} style={{ margin: 0 }}>{s.hint}</span>
           </Check>
         ))}
+      </div>
+
+      <div className={styles.prefGroup}>
+        <p className={styles.prefGroupTitle}>Suggesting changes</p>
+        <Check checked={allowProposals} onChange={setAllowProposals}>
+          <strong>Allow the assistant to suggest changes</strong><br />
+          <span className={styles.hint} style={{ margin: 0 }}>
+            It can propose setting categories on transactions, linking transfers, renaming or merging payees, adding payee
+            mapping rules and creating bills. Each suggestion appears under its answer showing exactly what would change, and
+            nothing happens until you click Apply. Category and transfer suggestions need Transactions ticked above.
+          </span>
+        </Check>
       </div>
 
       {error && <div className={styles.error}>{error}</div>}

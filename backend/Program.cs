@@ -196,6 +196,7 @@ builder.Services.AddScoped<TransferMatcher>();
 // AI assistant ("Ask" page): OpenAI-compatible chat server with read-only tools.
 // Local models can be slow, so allow a long time per request.
 builder.Services.AddScoped<AiTools>();
+builder.Services.AddScoped<AiProposals>();
 builder.Services.AddScoped<AiAssistant>();
 builder.Services.AddHttpClient(AiAssistant.HttpClientName, c => c.Timeout = TimeSpan.FromSeconds(180));
 builder.Services.AddSingleton<EmailSender>();

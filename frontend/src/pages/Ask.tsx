@@ -2,9 +2,10 @@ import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   askAiStream, deleteAiConversation, getAiConversation, getAiConversations, getAiSettings,
-  type AiConversationSummary, type AiMessage, type AiSettings,
+  type AiConversationSummary, type AiMessage, type AiProposal, type AiSettings,
 } from '../api/ai';
 import Markdown from '../components/Markdown';
+import AiProposalCard from '../components/AiProposalCard';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { useUnsavedChanges } from '../hooks/useUnsavedChanges';
 import { confirmDialog } from '../utils/dialogs';
@@ -94,7 +95,7 @@ export default function Ask() {
         else if (e.type === 'delta') setPartial(t => t + e.text);
       });
       // Tag with the (possibly new) conversation id first, so opening it doesn't reload.
-      setConvo({ id: r.conversationId, messages: [...before, asked, { role: 'assistant', content: r.answer }] });
+      setConvo({ id: r.conversationId, messages: [...before, asked, { role: 'assistant', content: r.answer, proposals: r.proposals ?? [] }] });
       if (openId == null) setParams({ c: String(r.conversationId) }, { replace: true });
       getAiConversations().then(setList).catch(() => {});
     } catch (err) {
@@ -107,6 +108,13 @@ export default function Ask() {
       inputRef.current?.focus();
     }
   };
+
+  // A proposal under message i was applied or dismissed.
+  const updateProposal = (i: number, updated: AiProposal) =>
+    setConvo(c => ({
+      ...c,
+      messages: c.messages.map((m, j) => j !== i ? m : { ...m, proposals: m.proposals?.map(p => p.id === updated.id ? updated : p) }),
+    }));
 
   const remove = async (c: AiConversationSummary) => {
     if (!(await confirmDialog(`Delete the conversation "${c.title}"?`))) return;
@@ -179,6 +187,9 @@ export default function Ask() {
                 {messages.map((m, i) => (
                   <div key={m.id ?? `n${i}`} className={m.role === 'user' ? styles.userMsg : styles.botMsg}>
                     {m.role === 'user' ? <p className={styles.userText}>{m.content}</p> : <Markdown text={m.content} />}
+                    {m.proposals?.map(p => (
+                      <AiProposalCard key={p.id} proposal={p} onChange={updated => updateProposal(i, updated)} />
+                    ))}
                   </div>
                 ))}
                 {busy && (

@@ -36,6 +36,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<HoldingSnapshot> HoldingSnapshots => Set<HoldingSnapshot>();
     public DbSet<AiConversation> AiConversations => Set<AiConversation>();
     public DbSet<AiMessage> AiMessages => Set<AiMessage>();
+    public DbSet<AiProposal> AiProposals => Set<AiProposal>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -50,6 +51,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         {
             e.HasOne(m => m.Conversation).WithMany(c => c.Messages).HasForeignKey(m => m.ConversationId).OnDelete(DeleteBehavior.Cascade);
             e.Property(m => m.Role).HasMaxLength(16);
+        });
+        modelBuilder.Entity<AiProposal>(e =>
+        {
+            e.HasOne(p => p.Message).WithMany(m => m.Proposals).HasForeignKey(p => p.MessageId).OnDelete(DeleteBehavior.Cascade);
+            e.Property(p => p.Kind).HasMaxLength(32);
+            e.Property(p => p.Status).HasMaxLength(16);
+            e.HasIndex(p => p.UserId);
         });
 
         // ── Per-user ownership ────────────────────────────────────────────────

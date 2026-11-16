@@ -300,6 +300,53 @@ namespace MoneyTracker.Migrations
                     b.ToTable("AiMessages");
                 });
 
+            modelBuilder.Entity("MoneyTracker.Models.AiProposal", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<int>("MessageId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("PayloadEncrypted")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("ResolvedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ResultEncrypted")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MessageId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("AiProposals");
+                });
+
             modelBuilder.Entity("MoneyTracker.Models.ApplicationUser", b =>
                 {
                     b.Property<string>("Id")
@@ -307,6 +354,9 @@ namespace MoneyTracker.Migrations
 
                     b.Property<int>("AccessFailedCount")
                         .HasColumnType("integer");
+
+                    b.Property<bool>("AiAllowProposals")
+                        .HasColumnType("boolean");
 
                     b.Property<bool>("AiEnabled")
                         .HasColumnType("boolean");
@@ -1605,6 +1655,17 @@ namespace MoneyTracker.Migrations
                     b.Navigation("Conversation");
                 });
 
+            modelBuilder.Entity("MoneyTracker.Models.AiProposal", b =>
+                {
+                    b.HasOne("MoneyTracker.Models.AiMessage", "Message")
+                        .WithMany("Proposals")
+                        .HasForeignKey("MessageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Message");
+                });
+
             modelBuilder.Entity("MoneyTracker.Models.Category", b =>
                 {
                     b.HasOne("MoneyTracker.Models.Category", "Parent")
@@ -2006,6 +2067,11 @@ namespace MoneyTracker.Migrations
             modelBuilder.Entity("MoneyTracker.Models.AiConversation", b =>
                 {
                     b.Navigation("Messages");
+                });
+
+            modelBuilder.Entity("MoneyTracker.Models.AiMessage", b =>
+                {
+                    b.Navigation("Proposals");
                 });
 
             modelBuilder.Entity("MoneyTracker.Models.ApplicationUser", b =>

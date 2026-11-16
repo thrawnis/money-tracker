@@ -5,6 +5,8 @@ export interface AiShare { balances: boolean; transactions: boolean; memos: bool
 export interface AiSettings {
   enabled: boolean;
   share: AiShare;
+  /** Let the assistant propose changes the user can apply. */
+  allowProposals: boolean;
   /** The AI server set in .env (null: not set up — see serverProblem). */
   server: { provider: string; host: string; model: string } | null;
   serverProblem: string | null;
@@ -12,11 +14,28 @@ export interface AiSettings {
 }
 
 export interface AiConversationSummary { id: number; title: string; updatedAt: string }
-export interface AiMessage { id?: number; role: 'user' | 'assistant'; content: string; createdAt?: string }
+/** A change the assistant proposed; nothing happens until it's applied. */
+export interface AiProposal {
+  id: number;
+  kind: 'set_category' | 'link_transfers' | 'rename_payee' | 'merge_payees' | 'mapping_rule' | 'create_bill';
+  title: string;
+  lines: string[];
+  /** Selectable rows (transactions / pairs); the user can untick some. */
+  items: { key: string; label: string }[] | null;
+  status: 'pending' | 'applied' | 'dismissed';
+  result: string | null;
+}
+
+export interface AiMessage { id?: number; role: 'user' | 'assistant'; content: string; createdAt?: string; proposals?: AiProposal[] }
+
+export const applyAiProposal = (id: number, exclude: string[]): Promise<AiProposal> =>
+  api.post(`/ai/proposals/${id}/apply`, { exclude }).then(r => r.data);
+export const dismissAiProposal = (id: number): Promise<AiProposal> =>
+  api.post(`/ai/proposals/${id}/dismiss`).then(r => r.data);
 
 export const getAiSettings = (): Promise<AiSettings> => api.get('/ai/settings').then(r => r.data);
 
-export const saveAiSettings = (s: { enabled: boolean; share: AiShare }): Promise<AiSettings> =>
+export const saveAiSettings = (s: { enabled: boolean; share: AiShare; allowProposals: boolean }): Promise<AiSettings> =>
   api.put('/ai/settings', s).then(r => r.data);
 
 export const testAiServer = (): Promise<{ ok: boolean; message: string }> =>
@@ -33,7 +52,7 @@ export const askAi = (conversationId: number | null, message: string): Promise<{
 export type AiStreamEvent =
   | { type: 'status'; text: string }
   | { type: 'delta'; text: string }
-  | { type: 'done'; conversationId: number; title: string; answer: string }
+  | { type: 'done'; conversationId: number; title: string; answer: string; proposals?: AiProposal[] }
   | { type: 'error'; message: string };
 
 /**

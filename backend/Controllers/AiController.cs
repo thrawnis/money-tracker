@@ -22,6 +22,7 @@ public class AiController(
     UserManager<ApplicationUser> userManager,
     IEncryptionService encryption,
     AiAssistant assistant,
+    AiProposals proposals,
     IAuditService audit) : ControllerBase
 {
     private const int MaxQuestionLength = 4000;
@@ -53,6 +54,7 @@ public class AiController(
                 bills = user.AiShareBills,
                 ious = user.AiShareIous,
             },
+            allowProposals = user.AiAllowProposals,
             server = server is null ? null : new { provider = server.Provider, host = Host(server.BaseUrl), model = server.Model },
             serverProblem = problem,
             ready = user.AiEnabled && server is not null,
@@ -60,7 +62,7 @@ public class AiController(
     }
 
     public record ShareDto(bool Balances, bool Transactions, bool Memos, bool Bills, bool Ious);
-    public record SettingsDto(bool Enabled, ShareDto Share);
+    public record SettingsDto(bool Enabled, ShareDto Share, bool AllowProposals = false);
 
     [HttpPut("settings")]
     public async Task<IActionResult> SaveSettings(SettingsDto dto)
@@ -76,6 +78,7 @@ public class AiController(
         user.AiShareMemos = dto.Share.Memos;
         user.AiShareBills = dto.Share.Bills;
         user.AiShareIous = dto.Share.Ious;
+        user.AiAllowProposals = dto.AllowProposals;
         await userManager.UpdateAsync(user);
         await audit.LogAsync("AI_SETTINGS_CHANGED", details: new { enabled = user.AiEnabled });
         return await GetSettings();
@@ -119,7 +122,7 @@ public class AiController(
     {
         var user = await CurrentUserAsync();
         if (user is null) return Unauthorized();
-        var c = await db.AiConversations.AsNoTracking().Include(x => x.Messages)
+        var c = await db.AiConversations.AsNoTracking().Include(x => x.Messages).ThenInclude(m => m.Proposals)
             .FirstOrDefaultAsync(x => x.Id == id && x.UserId == user.Id);
         if (c is null) return NotFound();
         return Ok(new
@@ -130,6 +133,7 @@ public class AiController(
             {
                 id = m.Id, role = m.Role, createdAt = m.CreatedAt,
                 content = encryption.Decrypt(m.ContentEncrypted, user.EncryptedDataKey),
+                proposals = m.Proposals.OrderBy(x => x.Id).Select(x => proposals.Describe(x, user)),
             }),
         });
     }
@@ -170,7 +174,7 @@ public class AiController(
     }
 
     /// <summary>Saves the question and answer (encrypted), starting the conversation if needed.</summary>
-    private async Task<(int Id, string? Title)> SaveAsync(Prepared p, string answer)
+    private async Task<(int Id, string? Title, List<AiProposals.View> Proposals)> SaveAsync(Prepared p, string answer)
     {
         var dek = p.User.EncryptedDataKey;
         var convo = p.Convo;
@@ -183,10 +187,12 @@ public class AiController(
         }
         convo.UpdatedAt = now;
         convo.Messages.Add(new AiMessage { Role = "user", ContentEncrypted = encryption.Encrypt(p.Question, dek)!, CreatedAt = now });
-        convo.Messages.Add(new AiMessage { Role = "assistant", ContentEncrypted = encryption.Encrypt(answer, dek)!, CreatedAt = DateTime.UtcNow });
+        var reply = new AiMessage { Role = "assistant", ContentEncrypted = encryption.Encrypt(answer, dek)!, CreatedAt = DateTime.UtcNow };
+        proposals.AttachTo(reply, p.User);    // changes it proposed while answering
+        convo.Messages.Add(reply);
         // Saved even if the browser went away mid-answer: the work is done.
         await db.SaveChangesAsync(CancellationToken.None);
-        return (convo.Id, encryption.Decrypt(convo.TitleEncrypted, dek));
+        return (convo.Id, encryption.Decrypt(convo.TitleEncrypted, dek), reply.Proposals.Select(x => proposals.Describe(x, p.User)).ToList());
     }
 
     /// <summary>
@@ -202,8 +208,8 @@ public class AiController(
         string answer;
         try { answer = await assistant.AskAsync(p.User, p.History, p.Question, ct); }
         catch (AiAssistant.AiException ex) { return StatusCode(502, new { message = ex.Message }); }
-        var (id, title) = await SaveAsync(p, answer);
-        return Ok(new { conversationId = id, title, answer });
+        var (id, title, proposed) = await SaveAsync(p, answer);
+        return Ok(new { conversationId = id, title, answer, proposals = proposed });
     }
 
     /// <summary>
@@ -241,7 +247,38 @@ public class AiController(
         try { answer = await assistant.AskAsync(p.User, p.History, p.Question, CancellationToken.None, e => Send(new { type = e.Kind, text = e.Text })); }
         catch (AiAssistant.AiException ex) { await Send(new { type = "error", message = ex.Message }); return; }
 
-        var (id, title) = await SaveAsync(p, answer);
-        await Send(new { type = "done", conversationId = id, title, answer });
+        var (id, title, proposed) = await SaveAsync(p, answer);
+        await Send(new { type = "done", conversationId = id, title, answer, proposals = proposed });
+    }
+
+    // ── Proposed changes ────────────────────────────────────────────────────
+
+    public record ApplyDto(string[]? Exclude);
+
+    /// <summary>Applies a change the assistant proposed (re-checked now); Exclude lists item keys the user unticked.</summary>
+    [HttpPost("proposals/{id:int}/apply")]
+    public async Task<IActionResult> Apply(int id, ApplyDto? dto)
+    {
+        var user = await CurrentUserAsync();
+        if (user is null) return Unauthorized();
+        var p = await db.AiProposals.FirstOrDefaultAsync(x => x.Id == id && x.UserId == user.Id);
+        if (p is null) return NotFound();
+        try
+        {
+            await proposals.ApplyAsync(user, p, dto?.Exclude ?? []);
+            return Ok(proposals.Describe(p, user));
+        }
+        catch (AiProposals.ApplyException ex) { return BadRequest(new { message = ex.Message }); }
+    }
+
+    [HttpPost("proposals/{id:int}/dismiss")]
+    public async Task<IActionResult> Dismiss(int id)
+    {
+        var user = await CurrentUserAsync();
+        if (user is null) return Unauthorized();
+        var p = await db.AiProposals.FirstOrDefaultAsync(x => x.Id == id && x.UserId == user.Id);
+        if (p is null) return NotFound();
+        try { await proposals.DismissAsync(user, p); return Ok(proposals.Describe(p, user)); }
+        catch (AiProposals.ApplyException ex) { return BadRequest(new { message = ex.Message }); }
     }
 }

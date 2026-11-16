@@ -38,9 +38,15 @@ public class AiAssistant(IHttpClientFactory httpFactory, IConfiguration config, 
             - "This month", "last year" etc. are relative to today. Use exact YYYY-MM-DD dates in tool calls.
             - search_transactions returns at most a page of rows but always the full count and total; use
               spending_summary for totals by category, payee or month.
-            - You can only read data; you can't change anything. If asked to, explain how to do it in the app instead.
+            %CHANGES%
             - Be concise. Format money like $1,234.56. Use short bullet lists or small tables (Markdown) when helpful.
-            """;
+            """.Replace("%CHANGES%", user.AiAllowProposals
+                ? "- You can't change anything directly, but you can PROPOSE changes with the propose_* tools (set categories, link transfers, "
+                  + "rename or merge payees, add a payee mapping rule, create a bill). Look things up first, then propose. Each proposal appears "
+                  + "under your answer for the user to review and apply — say what you proposed and never claim it's done. "
+                  + "Only propose what the user asked for or clearly benefits from; prefer one well-scoped proposal over many."
+                : "- You can only read data; you can't change anything. If asked to, explain how to do it in the app instead "
+                  + "(or that they can let you suggest changes in Settings → AI Assistant).");
     }
 
     /// <summary>Progress while answering: "status" (what it's doing) or "delta" (the next piece of the answer).</summary>

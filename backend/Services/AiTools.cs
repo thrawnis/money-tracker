@@ -14,7 +14,7 @@ namespace MoneyTracker.Services;
 /// share (ApplicationUser.AiShare*). Nothing here writes to the database.
 /// Account numbers and account notes are never included.
 /// </summary>
-public class AiTools(AppDbContext db, IEncryptionService encryption)
+public class AiTools(AppDbContext db, IEncryptionService encryption, AiProposals proposals)
 {
     private const int MaxRows = 100;
 
@@ -71,6 +71,7 @@ public class AiTools(AppDbContext db, IEncryptionService encryption)
             {
                 ["person"] = Prop("string", "Only people whose name contains this."),
             }));
+        foreach (var t in AiProposals.Definitions(u)) tools.Add(t);
         return tools;
     }
 
@@ -122,6 +123,11 @@ public class AiTools(AppDbContext db, IEncryptionService encryption)
                 var what = new[] { Str(a, "payee"), Str(a, "text"), Str(a, "category"), Str(a, "account") }.FirstOrDefault(x => x is not null);
                 return $"Searching transactions{(what is null ? "" : $" for \"{what}\"")}{Range()}…";
             }
+            case "propose_set_category": return "Preparing a suggested category change…";
+            case "propose_link_transfers": return "Finding transfers to suggest linking…";
+            case "propose_rename_payee": case "propose_merge_payees": return "Preparing a suggested payee change…";
+            case "propose_mapping_rule": return "Preparing a suggested mapping rule…";
+            case "propose_bill": return "Preparing a suggested bill…";
             default: return "Looking that up…";
         }
     }
@@ -143,6 +149,7 @@ public class AiTools(AppDbContext db, IEncryptionService encryption)
                 "spending_summary" when user.AiShareTransactions => await SummaryAsync(user, args),
                 "get_bills" when user.AiShareBills => await BillsAsync(user, Int(args, "days_ahead")),
                 "get_ious" when user.AiShareIous => await IousAsync(user, Str(args, "person")),
+                _ when AiProposals.ToolNames.Contains(name) => await proposals.ProposeAsync(user, name, args),
                 _ => new { error = $"\"{name}\" isn't available. The user hasn't shared that information with the assistant." },
             };
             return JsonSerializer.Serialize(result, Json);
