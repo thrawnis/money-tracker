@@ -2,8 +2,9 @@ import axios, { type AxiosError, type InternalAxiosRequestConfig } from 'axios';
 
 let _accessToken: string | null = null;
 export const setAccessToken = (t: string | null) => { _accessToken = t; };
+export const getAccessToken = () => _accessToken;
 
-const baseURL = import.meta.env.VITE_API_URL ?? '/api';
+export const baseURL = import.meta.env.VITE_API_URL ?? '/api';
 
 // withCredentials is required for the httpOnly refresh-token cookie and the
 // short-lived auth session cookie (MFA step-2 verification) to round-trip.
@@ -18,7 +19,7 @@ api.interceptors.request.use(cfg => {
 // Single-flight: concurrent 401s share one refresh request.
 let refreshPromise: Promise<string> | null = null;
 
-function refreshAccessToken(): Promise<string> {
+export function refreshAccessToken(): Promise<string> {
   refreshPromise ??= axios
     .post<{ accessToken: string }>(`${baseURL}/auth/refresh`, {}, { withCredentials: true })
     .then(res => {

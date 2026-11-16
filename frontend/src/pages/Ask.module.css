@@ -86,3 +86,18 @@
   .chat { min-height: 60vh; }
   .userMsg, .botMsg { max-width: 100%; }
 }
+
+/* Live progress while the assistant works. */
+.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.stepDone { color: var(--c-888899); display: flex; align-items: center; gap: 8px; }
+.stepNow { color: var(--c-336699); font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.check { color: var(--c-1a7a40); width: 27px; text-align: center; font-weight: 700; }
+.dots { display: inline-flex; gap: 3px; width: 27px; }
+.dots .dot { width: 6px; height: 6px; }
+.partial { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--c-dddddd); }
+.caret {
+  display: inline-block; width: 7px; height: 14px; margin-left: 2px; vertical-align: -2px;
+  background: var(--c-336699); animation: caretBlink 1s steps(2) infinite;
+}
+@keyframes caretBlink { 50% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .caret { animation: none; } }

@@ -145,47 +145,103 @@ public class AiController(
 
     public record AskDto(int? ConversationId, string Message);
 
-    /// <summary>
-    /// Asks a question in a conversation (a new one when ConversationId is
-    /// null). The question and answer are saved, encrypted; an error saves nothing.
-    /// </summary>
-    [HttpPost("ask")]
-    public async Task<IActionResult> Ask(AskDto dto, CancellationToken ct)
+    private record Prepared(ApplicationUser User, string Question, AiConversation? Convo, List<(string Role, string Content)> History);
+
+    /// <summary>Checks the request and loads the conversation; an IActionResult means "refuse with this".</summary>
+    private async Task<(Prepared? Ok, IActionResult? Refuse)> PrepareAsync(AskDto dto)
     {
         var user = await CurrentUserAsync();
-        if (user is null) return Unauthorized();
+        if (user is null) return (null, Unauthorized());
         var question = dto.Message?.Trim() ?? "";
-        if (question.Length == 0) return BadRequest(new { message = "Type a question." });
-        if (question.Length > MaxQuestionLength) return BadRequest(new { message = $"Questions can be up to {MaxQuestionLength} characters." });
-        if (!user.AiEnabled) return BadRequest(new { message = "The AI assistant is turned off. Turn it on in Settings → AI Assistant." });
+        if (question.Length == 0) return (null, BadRequest(new { message = "Type a question." }));
+        if (question.Length > MaxQuestionLength) return (null, BadRequest(new { message = $"Questions can be up to {MaxQuestionLength} characters." }));
+        if (!user.AiEnabled) return (null, BadRequest(new { message = "The AI assistant is turned off. Turn it on in Settings → AI Assistant." }));
 
-        var dek = user.EncryptedDataKey;
         AiConversation? convo = null;
         var history = new List<(string, string)>();
         if (dto.ConversationId is int cid)
         {
             convo = await db.AiConversations.Include(c => c.Messages).FirstOrDefaultAsync(c => c.Id == cid && c.UserId == user.Id);
-            if (convo is null) return NotFound();
+            if (convo is null) return (null, NotFound());
             history = convo.Messages.OrderBy(m => m.Id).TakeLast(HistoryTurns * 2)
-                .Select(m => (m.Role, encryption.Decrypt(m.ContentEncrypted, dek) ?? "")).ToList();
+                .Select(m => (m.Role, encryption.Decrypt(m.ContentEncrypted, user.EncryptedDataKey) ?? "")).ToList();
         }
+        return (new Prepared(user, question, convo, history), null);
+    }
 
-        string answer;
-        try { answer = await assistant.AskAsync(user, history, question, ct); }
-        catch (AiAssistant.AiException ex) { return StatusCode(502, new { message = ex.Message }); }
-
+    /// <summary>Saves the question and answer (encrypted), starting the conversation if needed.</summary>
+    private async Task<(int Id, string? Title)> SaveAsync(Prepared p, string answer)
+    {
+        var dek = p.User.EncryptedDataKey;
+        var convo = p.Convo;
         var now = DateTime.UtcNow;
         if (convo is null)
         {
-            var title = question.ReplaceLineEndings(" ");
-            convo = new AiConversation { UserId = user.Id, TitleEncrypted = encryption.Encrypt(title.Length > 80 ? title[..80] + "…" : title, dek)!, CreatedAt = now };
+            var title = p.Question.ReplaceLineEndings(" ");
+            convo = new AiConversation { UserId = p.User.Id, TitleEncrypted = encryption.Encrypt(title.Length > 80 ? title[..80] + "…" : title, dek)!, CreatedAt = now };
             db.AiConversations.Add(convo);
         }
         convo.UpdatedAt = now;
-        convo.Messages.Add(new AiMessage { Role = "user", ContentEncrypted = encryption.Encrypt(question, dek)!, CreatedAt = now });
+        convo.Messages.Add(new AiMessage { Role = "user", ContentEncrypted = encryption.Encrypt(p.Question, dek)!, CreatedAt = now });
         convo.Messages.Add(new AiMessage { Role = "assistant", ContentEncrypted = encryption.Encrypt(answer, dek)!, CreatedAt = DateTime.UtcNow });
-        await db.SaveChangesAsync(ct);
+        // Saved even if the browser went away mid-answer: the work is done.
+        await db.SaveChangesAsync(CancellationToken.None);
+        return (convo.Id, encryption.Decrypt(convo.TitleEncrypted, dek));
+    }
 
-        return Ok(new { conversationId = convo.Id, title = encryption.Decrypt(convo.TitleEncrypted, dek), answer });
+    /// <summary>
+    /// Asks a question in a conversation (a new one when ConversationId is
+    /// null), returning the whole answer at once. The question and answer are
+    /// saved, encrypted; an error saves nothing. The Ask page uses ask/stream.
+    /// </summary>
+    [HttpPost("ask")]
+    public async Task<IActionResult> Ask(AskDto dto, CancellationToken ct)
+    {
+        var (p, refuse) = await PrepareAsync(dto);
+        if (p is null) return refuse!;
+        string answer;
+        try { answer = await assistant.AskAsync(p.User, p.History, p.Question, ct); }
+        catch (AiAssistant.AiException ex) { return StatusCode(502, new { message = ex.Message }); }
+        var (id, title) = await SaveAsync(p, answer);
+        return Ok(new { conversationId = id, title, answer });
+    }
+
+    /// <summary>
+    /// Like ask, but streams Server-Sent Events while it works:
+    ///   {"type":"status","text":"Searching transactions…"}   what it's doing
+    ///   {"type":"delta","text":"…"}                           the next piece of the answer
+    ///   {"type":"done","conversationId":1,"title":"…","answer":"…"}
+    ///   {"type":"error","message":"…"}                        nothing was saved
+    /// Problems found before it starts (turned off, empty question…) are ordinary 4xx JSON responses.
+    /// </summary>
+    [HttpPost("ask/stream")]
+    public async Task Stream(AskDto dto, CancellationToken ct)
+    {
+        var (p, refuse) = await PrepareAsync(dto);
+        if (p is null) { await refuse!.ExecuteResultAsync(ControllerContext); return; }
+
+        Response.ContentType = "text/event-stream";
+        Response.Headers.CacheControl = "no-cache";
+        Response.Headers["X-Accel-Buffering"] = "no";   // nginx: pass each event straight through
+        var json = new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web);
+        // If the page is closed mid-answer, keep going (bounded by the AI client's
+        // timeout) and save it, so it's there when the user comes back; just stop sending.
+        async Task Send(object e)
+        {
+            if (ct.IsCancellationRequested) return;
+            try
+            {
+                await Response.WriteAsync($"data: {System.Text.Json.JsonSerializer.Serialize(e, json)}\n\n", ct);
+                await Response.Body.FlushAsync(ct);
+            }
+            catch (Exception ex) when (ex is OperationCanceledException or IOException) { /* browser gone */ }
+        }
+
+        string answer;
+        try { answer = await assistant.AskAsync(p.User, p.History, p.Question, CancellationToken.None, e => Send(new { type = e.Kind, text = e.Text })); }
+        catch (AiAssistant.AiException ex) { await Send(new { type = "error", message = ex.Message }); return; }
+
+        var (id, title) = await SaveAsync(p, answer);
+        await Send(new { type = "done", conversationId = id, title, answer });
     }
 }

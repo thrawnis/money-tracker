@@ -92,6 +92,40 @@ public class AiTools(AppDbContext db, IEncryptionService encryption)
 
     private static JsonObject Prop(string type, string description) => new() { ["type"] = type, ["description"] = description };
 
+    /// <summary>A short "what it's doing" line for the Ask page while a tool runs.</summary>
+    public static string Describe(string name, string argumentsJson)
+    {
+        JsonObject a;
+        try { a = JsonNode.Parse(string.IsNullOrWhiteSpace(argumentsJson) ? "{}" : argumentsJson) as JsonObject ?? []; }
+        catch (JsonException) { a = []; }
+        string Range()
+        {
+            string? f = Str(a, "from"), t = Str(a, "to");
+            static string D(string s) => DateOnly.TryParseExact(s, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var d)
+                ? d.ToString("MMM d, yyyy", CultureInfo.GetCultureInfo("en-US")) : s;
+            return f is not null && t is not null ? $" from {D(f)} to {D(t)}" : f is not null ? $" since {D(f)}" : t is not null ? $" up to {D(t)}" : "";
+        }
+        switch (name)
+        {
+            case "list_categories": return "Checking your categories…";
+            case "get_accounts": return "Looking up your account balances…";
+            case "get_bills": return "Checking your bills and reminders…";
+            case "get_ious": return Str(a, "person") is string p ? $"Checking IOUs with {p}…" : "Checking your IOUs…";
+            case "spending_summary":
+            {
+                var by = (Str(a, "group_by") ?? "top_category").Replace("top_category", "category").Replace('_', ' ');
+                var only = Str(a, "category") ?? Str(a, "account");
+                return $"Adding up {(only is null ? "" : only + " ")}spending by {by}{Range()}…";
+            }
+            case "search_transactions":
+            {
+                var what = new[] { Str(a, "payee"), Str(a, "text"), Str(a, "category"), Str(a, "account") }.FirstOrDefault(x => x is not null);
+                return $"Searching transactions{(what is null ? "" : $" for \"{what}\"")}{Range()}…";
+            }
+            default: return "Looking that up…";
+        }
+    }
+
     /// <summary>Runs one tool call and returns its result as JSON text for the model.</summary>
     public async Task<string> RunAsync(ApplicationUser user, string name, string argumentsJson)
     {

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
-  askAi, deleteAiConversation, getAiConversation, getAiConversations, getAiSettings,
+  askAiStream, deleteAiConversation, getAiConversation, getAiConversations, getAiSettings,
   type AiConversationSummary, type AiMessage, type AiSettings,
 } from '../api/ai';
 import Markdown from '../components/Markdown';
@@ -44,6 +44,9 @@ export default function Ask() {
   const messages = convo.id === openId ? convo.messages : [];
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
+  // Live progress while answering: the steps so far (last one in progress) and the answer as it's written.
+  const [steps, setSteps] = useState<string[]>([]);
+  const [partial, setPartial] = useState('');
   const [error, setError] = useState('');
   const [listOpen, setListOpen] = useState(false);   // phones: conversation list shown
   const endRef = useRef<HTMLDivElement>(null);
@@ -66,7 +69,7 @@ export default function Ask() {
     return () => { stale = true; };
   }, [openId, convo.id]);
 
-  useEffect(() => { endRef.current?.scrollIntoView({ block: 'end' }); }, [convo, busy]);
+  useEffect(() => { endRef.current?.scrollIntoView({ block: 'end' }); }, [convo, busy, steps, partial]);
 
   const open = (id: number | null) => {
     setListOpen(false);
@@ -85,7 +88,11 @@ export default function Ask() {
     const asked: AiMessage = { role: 'user', content: q };
     setConvo({ id: openId, messages: [...before, asked] });
     try {
-      const r = await askAi(openId, q);
+      setSteps([]); setPartial('');
+      const r = await askAiStream(openId, q, e => {
+        if (e.type === 'status') setSteps(s => (s[s.length - 1] === e.text ? s : [...s, e.text]));
+        else if (e.type === 'delta') setPartial(t => t + e.text);
+      });
       // Tag with the (possibly new) conversation id first, so opening it doesn't reload.
       setConvo({ id: r.conversationId, messages: [...before, asked, { role: 'assistant', content: r.answer }] });
       if (openId == null) setParams({ c: String(r.conversationId) }, { replace: true });
@@ -175,9 +182,23 @@ export default function Ask() {
                   </div>
                 ))}
                 {busy && (
-                  <div className={`${styles.botMsg} ${styles.thinking}`} role="status">
-                    <span className={styles.dot} /><span className={styles.dot} /><span className={styles.dot} />
-                    <span className={styles.thinkingText}>Looking that up…</span>
+                  <div className={styles.botMsg}>
+                    {/* What it has done (✓) and is doing now (dots). */}
+                    <ul className={styles.steps} aria-live="polite">
+                      {(steps.length ? steps : ['Sending your question…']).map((s, i, all) => {
+                        const current = i === all.length - 1;
+                        if (current && partial && s === 'Writing the answer…') return null;
+                        return (
+                          <li key={i} className={current ? styles.stepNow : styles.stepDone}>
+                            {current
+                              ? <span className={styles.dots} aria-hidden="true"><span className={styles.dot} /><span className={styles.dot} /><span className={styles.dot} /></span>
+                              : <span className={styles.check} aria-hidden="true">✓</span>}
+                            {s}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                    {partial && <div className={styles.partial}><Markdown text={partial} /><span className={styles.caret} aria-hidden="true" /></div>}
                   </div>
                 )}
                 <div ref={endRef} />

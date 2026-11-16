@@ -19,6 +19,7 @@ export const WHATS_NEW: WhatsNewEntry[] = [
   {
     date: '2026-11-16',
     items: [
+      'Ask AI: see what the assistant is doing while it works ("Searching transactions…", "Adding up spending…"), and watch the answer appear as it\'s written.',
       'Emails: the weekly summary\'s subject line no longer shows how much you spent — amounts only appear inside the email.',
       'Bills & Reminders: a new Create column shows which bills enter their upcoming transactions automatically — tick or untick it right there to change it.',
       'New: Ask AI — ask questions about your money in plain English ("How much did I spend on restaurants this year?"). Turn it on, and choose exactly what it may look up, in Settings → AI Assistant (the AI server itself is set up by whoever runs Money Tracker). It can only read, never change anything, and your conversations are saved encrypted.',
