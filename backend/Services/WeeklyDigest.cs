@@ -140,9 +140,9 @@ public class WeeklyDigestBuilder(
         if (layout.IsEmpty) layout.Intro("No activity to report this week.");
         var (text, html) = layout.Render(EmailLayout.AppUrl(config), EmailLayout.SettingsFooter);
         var vsUsual = usualWeek > 0 ? $"{Pct(spentWeek, usualWeek)} vs a usual week" : null;
-        var subject = "Money Tracker weekly: " + (details
-            ? $"{EmailLayout.Money(spentWeek)} spent" + (vsUsual is null ? "" : $" ({vsUsual})")
-            : vsUsual is null ? "your week in money" : $"spending {vsUsual}");
+        // No dollar amounts in the subject (it shows in inbox lists and lock-screen
+        // notifications); the body has them when the user opted in.
+        var subject = "Money Tracker weekly: " + (vsUsual is null ? "your week in money" : $"spending {vsUsual}");
         return (subject, text, html);
     }
 }
