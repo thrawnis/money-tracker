@@ -96,26 +96,36 @@ function StatusIcon({ status }: { status: string }) {
  * recorded as an IOU payment. Clicking opens the IOUs page.
  */
 function IouBadgeChip({ badge, onOpen }: { badge?: IouBadge; onOpen: () => void }) {
+  // Details show in a popup on hover / keyboard focus (fixed-position, so the
+  // register's scroll box can't clip it); clicking opens the IOUs page.
+  const [tip, setTip] = useState<{ x: number; y: number } | null>(null);
   if (!badge) return null;
   const money = (n: number) => n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
   const parts: string[] = [];
-  if (badge.owedToMe > 0) parts.push(`${badge.people.join(', ')} owe${badge.people.length === 1 ? 's' : ''} ${money(badge.owedToMe)} — ${money(badge.receivedSoFar)} received so far`);
+  if (badge.owedToMe > 0) parts.push(`${badge.people.join(', ')} owe${badge.people.length === 1 ? 's' : ''} you ${money(badge.owedToMe)} — ${money(badge.receivedSoFar)} received so far`);
   if (badge.iOwe > 0) parts.push(`You owe ${money(badge.iOwe)} — ${money(badge.paidSoFar)} paid so far`);
   for (const p of badge.payments) parts.push(`IOU payment ${p.direction === 'Received' ? 'from' : 'to'} ${p.person}: ${money(p.amount)}`);
-  const isPurchase = badge.owedToMe > 0 || badge.iOwe > 0;
+  const show = (el: HTMLElement) => { const r = el.getBoundingClientRect(); setTip({ x: r.left, y: r.bottom + 6 }); };
   return (
-    <button
-      type="button"
-      className={styles.iouBadge}
-      title={`${parts.join('\n')}\nClick to open IOUs`}
-      aria-label={`IOU: ${parts.join('; ')}`}
-      onClick={e => { e.stopPropagation(); onOpen(); }}
-    >
-      {isPurchase ? '👥' : 'IOU'}
-      {isPurchase && badge.owedToMe > 0 && (
-        <span className={styles.iouBadgeText}>{money(badge.receivedSoFar)} / {money(badge.owedToMe)}</span>
+    <>
+      <button
+        type="button"
+        className={styles.iouBadge}
+        aria-label={`IOU: ${parts.join('; ')}. Open IOUs`}
+        onClick={e => { e.stopPropagation(); onOpen(); }}
+        onMouseEnter={e => show(e.currentTarget)}
+        onMouseLeave={() => setTip(null)}
+        onFocus={e => show(e.currentTarget)}
+        onBlur={() => setTip(null)}
+      >👥</button>
+      {tip && (
+        <div className={styles.iouTip} style={{ left: Math.min(tip.x, window.innerWidth - 320), top: tip.y }} role="tooltip">
+          <div className={styles.iouTipTitle}>IOU</div>
+          {parts.map(p => <div key={p}>{p}</div>)}
+          <div className={styles.iouTipHint}>Click to open IOUs</div>
+        </div>
       )}
-    </button>
+    </>
   );
 }
 

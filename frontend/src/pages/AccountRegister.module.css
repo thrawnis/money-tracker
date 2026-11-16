@@ -595,20 +595,34 @@
 /* IOU marker on a register row (split purchase or IOU payment). */
 .iouBadge {
   margin-left: 6px;
-  padding: 0 5px;
-  border: 1px solid var(--c-c8d8e8);
-  border-radius: 10px;
-  background: var(--c-e8f0f8);
-  color: var(--c-336699);
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 1.5;
+  padding: 0 3px;
+  border: none;
+  background: none;
+  font-size: 14px;
+  line-height: 1;
   cursor: pointer;
-  white-space: nowrap;
   vertical-align: middle;
 }
-.iouBadge:hover { border-color: var(--c-336699); }
-.iouBadgeText { margin-left: 4px; font-weight: 500; }
+.iouBadge:hover, .iouBadge:focus-visible { transform: scale(1.15); }
+.iouTip {
+  position: fixed;
+  z-index: 1000;
+  max-width: 300px;
+  padding: 8px 10px;
+  background: var(--c-ffffff);
+  color: var(--c-333333, #333);
+  border: 1px solid var(--c-c8d8e8);
+  border-radius: 6px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+  font-size: 12.5px;
+  line-height: 1.45;
+  font-style: normal;
+  font-weight: 400;
+  pointer-events: none;
+  white-space: normal;
+}
+.iouTipTitle { font-weight: 700; color: var(--c-336699); margin-bottom: 2px; }
+.iouTipHint { margin-top: 4px; color: var(--c-888888); font-size: 11.5px; }
 
 /* ── Phones ── (kept last so it overrides the table rules above) */
 /* Category shown under the payee on phones (the Category column is hidden there). */
