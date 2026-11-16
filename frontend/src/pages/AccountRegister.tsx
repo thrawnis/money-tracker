@@ -1,5 +1,5 @@
 import HoldingsPanel from '../components/HoldingsPanel';
-import { useEffect, useState, useCallback, useRef, useLayoutEffect } from 'react';
+import { Fragment, useEffect, useState, useCallback, useRef, useLayoutEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { usePageTitle } from '../hooks/usePageTitle';
 import { getAccount, getAccounts } from '../api/accounts';
@@ -148,6 +148,15 @@ export default function AccountRegister() {
 
   // Future scheduled transactions
   const [showFuture, setShowFuture] = useState(true);
+  // List each split's category, memo and amount under its transaction. On by
+  // default; remembered in this browser for every register.
+  const [showSplits, setShowSplits] = useState(() => {
+    try { return localStorage.getItem(SHOW_SPLITS_KEY) !== 'false'; } catch { return true; }
+  });
+  const toggleShowSplits = (on: boolean) => {
+    setShowSplits(on);
+    try { localStorage.setItem(SHOW_SPLITS_KEY, String(on)); } catch { /* just for this visit */ }
+  };
   // Seeded from the user's saved preference (Settings → Preferences) below;
   // 31 is the built-in default until that loads or if none was ever set.
   const [futureDays, setFutureDays] = useState(31);
@@ -1101,9 +1110,41 @@ export default function AccountRegister() {
     }
   };
 
+  // The muted detail lines under a split transaction (see showSplits).
+  const renderSplitRows = (tx: Transaction) => {
+    const splits = tx.splits ?? [];
+    return splits.map((sp, i) => {
+      const last = i === splits.length - 1;
+      const cat = getSplitCategoryLabel(sp, categories) || 'No category';
+      return (
+        <tr key={`split-${sp.id}`}
+          className={`${styles.splitRow} ${last ? styles.splitRowLast : ''} ${tx.isVoided ? styles.txRowVoided : ''}`}
+          onClick={() => handleEdit(tx)}>
+          <td className={styles.selectCol} />
+          <td />
+          <td>
+            {/* Phones hide the Category column: show the split under the payee. */}
+            <span className={styles.splitMobile}>
+              <span className={styles.splitTree} aria-hidden="true">{last ? '└' : '├'}</span>
+              {cat}{sp.memo ? ` · ${sp.memo}` : ''}
+            </span>
+          </td>
+          <td className={styles.colCategory}>
+            <span className={styles.splitTree} aria-hidden="true">{last ? '└' : '├'}</span>{cat}
+          </td>
+          <td className={styles.colMemo}>{sp.memo ?? ''}</td>
+          <td className={`${styles.right} ${styles.splitAmount}`}>{formatCurrency(sp.amount)}</td>
+          <td className={styles.colBalance} />
+          <td />
+          <td />
+        </tr>
+      );
+    });
+  };
+
   const renderTxRow = (tx: Transaction) => (
+    <Fragment key={tx.id}>
     <tr
-      key={tx.id}
       ref={el => { if (el) rowRefs.current.set(tx.id, el); else rowRefs.current.delete(tx.id); }}
       className={`${styles.txRow} ${styles.txRowClickable} ${(tx.postDate ?? tx.date) > today ? styles.txRowFuture : ''} ${highlightTxId === tx.id ? styles.txRowHighlight : ''} ${editingTx?.id === tx.id ? styles.txRowSelected : ''} ${tx.isVoided ? styles.txRowVoided : ''}`}
       onClick={() => handleEdit(tx)}
@@ -1227,6 +1268,8 @@ export default function AccountRegister() {
         </div>
       </td>
     </tr>
+    {showSplits && renderSplitRows(tx)}
+    </Fragment>
   );
 
   // ── Today divider ──
@@ -1464,6 +1507,17 @@ export default function AccountRegister() {
                   />
                   Show upcoming transactions
                 </label>
+                <label className={styles.settingsRow}>
+                  <input
+                    type="checkbox"
+                    checked={showSplits}
+                    onChange={e => toggleShowSplits(e.target.checked)}
+                  />
+                  Show split details
+                </label>
+                <p className={styles.settingsHint}>
+                  Lists each split's category, memo and amount under the transaction.
+                </p>
                 <p className={styles.settingsHint}>
                   "Days ahead" is set in Settings → Preferences.
                 </p>
@@ -1758,6 +1812,20 @@ export default function AccountRegister() {
       {deleteAccountModal}
     </div>
   );
+}
+
+const SHOW_SPLITS_KEY = 'register.showSplitDetails';
+
+// "Parent:Sub" for one split's category.
+function getSplitCategoryLabel(sp: NonNullable<Transaction['splits']>[number], categories: Category[]): string {
+  if (!sp.categoryId) return '';
+  for (const cat of categories) {
+    if (cat.id === sp.categoryId) return cat.name;
+    for (const sub of cat.subCategories ?? []) {
+      if (sub.id === sp.categoryId) return `${cat.name}:${sub.name}`;
+    }
+  }
+  return sp.category?.name ?? '';
 }
 
 function getCategoryLabel(tx: Transaction, categories: Category[]): string {

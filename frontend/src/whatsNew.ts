@@ -19,6 +19,7 @@ export const WHATS_NEW: WhatsNewEntry[] = [
   {
     date: '2026-11-16',
     items: [
+      'Account register: split transactions now list each part — its category, memo and amount — in lighter text underneath. You can turn this off with "Show split details" in the register\'s ⚙ menu.',
       'Possible Transfers: click any transaction to see it in its account. Going back brings you right back to where you were.',
     ],
   },

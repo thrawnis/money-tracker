@@ -110,6 +110,8 @@ Update this file whenever requirements change or new features are defined.
 
 ---
 
+- **Split details in the register**: by default each split transaction is followed by one muted line per split (smaller grey italic text on a light grey band, with a ├/└ tree connector) showing the split's category, memo and amount in those columns — no checkbox, balance or status. Clicking a line opens the transaction. On phones the category and memo show under the payee column. "Show split details" in the register's ⚙ menu turns it off; the choice is remembered in the browser for all registers.
+
 ## Transfers
 
 - Transfer moves money between two of the user's accounts
