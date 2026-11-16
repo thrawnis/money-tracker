@@ -1,0 +1,11 @@
+.md { font-size: 14px; line-height: 1.55; overflow-wrap: anywhere; }
+.para { margin: 0 0 8px; }
+.para:last-child { margin-bottom: 0; }
+.heading { margin: 10px 0 4px; font-weight: 700; color: var(--c-003366); }
+.list { margin: 0 0 8px; padding-left: 22px; }
+.list li { margin: 2px 0; }
+.md code { background: color-mix(in srgb, var(--c-888888) 15%, transparent); padding: 0 4px; border-radius: 3px; font-size: 13px; }
+.tableWrap { overflow-x: auto; margin: 4px 0 10px; }
+.table { border-collapse: collapse; font-size: 13px; }
+.table th, .table td { padding: 4px 10px; border-bottom: 1px solid var(--c-dddddd); white-space: nowrap; }
+.table th { color: var(--c-336699); font-weight: 700; background: var(--c-e8f0f8); }

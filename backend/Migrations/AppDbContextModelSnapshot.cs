@@ -241,6 +241,65 @@ namespace MoneyTracker.Migrations
                     b.ToTable("AccountValueSnapshots");
                 });
 
+            modelBuilder.Entity("MoneyTracker.Models.AiConversation", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("TitleEncrypted")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "UpdatedAt");
+
+                    b.ToTable("AiConversations");
+                });
+
+            modelBuilder.Entity("MoneyTracker.Models.AiMessage", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ContentEncrypted")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("ConversationId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ConversationId");
+
+                    b.ToTable("AiMessages");
+                });
+
             modelBuilder.Entity("MoneyTracker.Models.ApplicationUser", b =>
                 {
                     b.Property<string>("Id")
@@ -248,6 +307,33 @@ namespace MoneyTracker.Migrations
 
                     b.Property<int>("AccessFailedCount")
                         .HasColumnType("integer");
+
+                    b.Property<string>("AiApiKeyEncrypted")
+                        .HasColumnType("text");
+
+                    b.Property<string>("AiBaseUrl")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("AiEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("AiModel")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("AiShareBalances")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("AiShareBills")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("AiShareIous")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("AiShareMemos")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("AiShareTransactions")
+                        .HasColumnType("boolean");
 
                     b.Property<string>("ConcurrencyStamp")
                         .IsConcurrencyToken()
@@ -1506,6 +1592,28 @@ namespace MoneyTracker.Migrations
                     b.Navigation("Account");
                 });
 
+            modelBuilder.Entity("MoneyTracker.Models.AiConversation", b =>
+                {
+                    b.HasOne("MoneyTracker.Models.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("MoneyTracker.Models.AiMessage", b =>
+                {
+                    b.HasOne("MoneyTracker.Models.AiConversation", "Conversation")
+                        .WithMany("Messages")
+                        .HasForeignKey("ConversationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Conversation");
+                });
+
             modelBuilder.Entity("MoneyTracker.Models.Category", b =>
                 {
                     b.HasOne("MoneyTracker.Models.Category", "Parent")
@@ -1902,6 +2010,11 @@ namespace MoneyTracker.Migrations
             modelBuilder.Entity("MoneyTracker.Models.Account", b =>
                 {
                     b.Navigation("Transactions");
+                });
+
+            modelBuilder.Entity("MoneyTracker.Models.AiConversation", b =>
+                {
+                    b.Navigation("Messages");
                 });
 
             modelBuilder.Entity("MoneyTracker.Models.ApplicationUser", b =>

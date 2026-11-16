@@ -219,6 +219,14 @@ Money other people owe the user, and money the user owes them.
   - **Sign-in alerts**: on by default (including for existing accounts); an email on every full sign-in — any method, including first-time setup, but not silent token refreshes — with the time in the user's time zone, sign-in method, browser/OS and IP address, and what to do if it wasn't them. Queued and sent in the background so sign-in is never delayed or blocked by email
 ---
 
+## AI Assistant ("Ask")
+
+- **Ask AI** page (`/ask`, sidebar): chat with an AI about your own money — spending, transactions, balances, bills, IOUs. Answers render simple Markdown (lists, tables, bold) as React elements, never raw HTML. Enter sends, Shift+Enter adds a line; example questions are offered on an empty chat; a footnote warns answers can be wrong.
+- **Any OpenAI-compatible chat-completions server** with tool/function calling: OpenAI, Ollama, LM Studio, vLLM… Server-wide default from `.env` (`AI_BASE_URL`, `AI_API_KEY`, `AI_MODEL`); each user may instead use their own server/key/model in **Settings → AI Assistant** (their key is encrypted with their DEK and never sent back to the browser). `AI_ALLOW_USER_SERVERS=false` stops users choosing their own server (the API server makes the requests, so a user-chosen address can reach hosts on its network). "Test connection" checks a server/key/model; errors (bad key, wrong address/model, unreachable, rate limit) are explained in plain words.
+- **Off by default** per user; turning it on asks for confirmation that questions and shared data go to the chosen server.
+- **Read-only lookups only.** The model gets tools (`AiTools`), each scoped to the signed-in user and to what they chose to share: list categories (always), accounts & balances, search transactions / spending totals by category, payee, month or account, memos (within transactions), bills & reminders, IOUs. Unticked groups aren't offered at all, and a call to one returns "not shared". Account numbers and account notes are never included. At most 8 rounds of tool calls per question, then the model must answer.
+- **Conversations are saved**, title and every message encrypted with the user's DEK (`AiConversation`, `AiMessage`), listed newest first; open (`?c=<id>`), continue (the last 20 turns are sent as context), or delete (confirmation). A failed question isn't saved and is put back in the box to retry.
+
 ## What's New
 
 - A **What's New** banner at the top of every page lists recent functional changes (new features and changed behavior, not visual tweaks), written in plain language and grouped by the date they were added; days with no changes are skipped. Collapsed, it shows the newest day; "Show the last 14 days" expands it. Dismissing it (×) hides it in that browser until a newer entry is added.

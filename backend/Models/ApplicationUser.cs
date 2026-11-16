@@ -64,6 +64,20 @@ public class ApplicationUser : IdentityUser
     public int WeeklyDigestHour { get; set; } = 8;
     public DateOnly? WeeklyDigestLastSentOn { get; set; }
 
+    // ── AI assistant ("Ask" page) ──
+    // Off until the user turns it on. Server, key and model override the
+    // server-wide Ai:* settings when set; the key is encrypted with the DEK.
+    public bool AiEnabled { get; set; } = false;
+    public string? AiBaseUrl { get; set; }
+    public string? AiApiKeyEncrypted { get; set; }
+    public string? AiModel { get; set; }
+    // What the assistant may look up (each a group of read-only tools).
+    public bool AiShareBalances { get; set; } = true;
+    public bool AiShareTransactions { get; set; } = true;
+    public bool AiShareMemos { get; set; } = true;
+    public bool AiShareBills { get; set; } = true;
+    public bool AiShareIous { get; set; } = true;
+
     public bool VoidCategoriesMigrated { get; set; } = false;
 
     // Sibling to VoidCategoriesMigrated: the same "VOID ..." bank-export

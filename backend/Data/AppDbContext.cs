@@ -34,10 +34,23 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<IouPayment> IouPayments => Set<IouPayment>();
     public DbSet<IouAllocation> IouAllocations => Set<IouAllocation>();
     public DbSet<HoldingSnapshot> HoldingSnapshots => Set<HoldingSnapshot>();
+    public DbSet<AiConversation> AiConversations => Set<AiConversation>();
+    public DbSet<AiMessage> AiMessages => Set<AiMessage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
+
+        modelBuilder.Entity<AiConversation>(e =>
+        {
+            e.HasOne(c => c.User).WithMany().HasForeignKey(c => c.UserId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(c => new { c.UserId, c.UpdatedAt });
+        });
+        modelBuilder.Entity<AiMessage>(e =>
+        {
+            e.HasOne(m => m.Conversation).WithMany(c => c.Messages).HasForeignKey(m => m.ConversationId).OnDelete(DeleteBehavior.Cascade);
+            e.Property(m => m.Role).HasMaxLength(16);
+        });
 
         // ── Per-user ownership ────────────────────────────────────────────────
 

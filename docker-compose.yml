@@ -104,6 +104,12 @@ services:
       # Google Gemini
       Receipt__Gemini__ApiKey: ${GEMINI_API_KEY:-}
       Receipt__Gemini__Model: ${GEMINI_MODEL:-gemini-1.5-flash}
+      # AI assistant ("Ask" page): any OpenAI-compatible chat server. Server-wide
+      # default; users can also set their own in Settings → AI Assistant.
+      Ai__BaseUrl: ${AI_BASE_URL:-}
+      Ai__ApiKey: ${AI_API_KEY:-}
+      Ai__Model: ${AI_MODEL:-}
+      Ai__AllowUserServers: ${AI_ALLOW_USER_SERVERS:-true}
     volumes:
       - ./data/account-backups:/app/data/account-backups
     ports:

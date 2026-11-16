@@ -12,6 +12,7 @@ import Reports from './pages/Reports';
 import Settings from './pages/Settings';
 import Utilities from './pages/Utilities';
 import WhatsNew from './pages/WhatsNew';
+import Ask from './pages/Ask';
 import Categories from './pages/Categories';
 import Payees from './pages/Payees';
 import TransactionSearch from './pages/TransactionSearch';
@@ -66,6 +67,7 @@ const router = createBrowserRouter(
         <Route path="utilities"               element={<Utilities />} />
         <Route path="settings"                element={<Settings />} />
         <Route path="whats-new"               element={<WhatsNew />} />
+        <Route path="ask"                     element={<Ask />} />
         <Route path="*"                       element={<Navigate to="/" replace />} />
       </Route>
     </>

@@ -61,6 +61,7 @@ Sensitive fields are encrypted with AES-256-GCM using a **per-user Data Encrypti
 - `Transaction.MemoEncrypted`, `Transaction.CheckNumberEncrypted`
 - `Payee.NameEncrypted`, `Category.NameEncrypted`
 - `Account.AccountNumberEncrypted`, `Account.NotesEncrypted`
+- `ApplicationUser.AiApiKeyEncrypted`, `AiConversation.TitleEncrypted`, `AiMessage.ContentEncrypted`
 
 Because payee and category names are encrypted, **DB-level unique constraints are impossible** for those fields — uniqueness is enforced by loading all records and comparing in memory after decryption.
 
@@ -86,6 +87,9 @@ All names (accounts, payees, categories, institutions) must be **case-insensitiv
 - **Dialogs**: never use the browser's `confirm()` / `prompt()` / `alert()`. Use the themed `confirmDialog` / `promptDialog` / `alertDialog` from `src/utils/dialogs.ts` (promise-based: `if (!(await confirmDialog('Delete …?'))) return;`), rendered by `DialogHost` in `App.tsx`. The only browser dialog left is the tab-close/refresh warning (`beforeunload`), which browsers don't allow to be replaced
 - **Destructive actions**: always require a `confirmDialog` before deleting or deactivating anything
 - **Page titles**: always call `usePageTitle('Money Tracker')` — do not use page-specific titles
+
+### AI Assistant
+`AiAssistant` sends questions to an OpenAI-compatible `/chat/completions` server (user's own from Settings, else `Ai:*` config) with read-only tools from `AiTools`. Any new tool must stay read-only, filter by the user, respect the user's `AiShare*` flags, and never include account numbers or notes.
 
 ### Data Ownership
 Every controller action must filter by `UserId` from the JWT claim (`GetUserId()`). Never return or mutate data belonging to a different user.

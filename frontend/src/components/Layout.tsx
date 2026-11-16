@@ -93,6 +93,9 @@ export default function Layout({ onLogout }: Props) {
           <NavLink to="/reports" className={navItem} onClick={closeSidebar}>
             Reports
           </NavLink>
+          <NavLink to="/ask" className={navItem} onClick={closeSidebar}>
+            Ask AI
+          </NavLink>
           <NavLink to="/utilities" className={navItem} onClick={closeSidebar}>
             Utilities
           </NavLink>

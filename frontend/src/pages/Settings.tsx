@@ -27,12 +27,13 @@ import type { Account, Payee } from '../types';
 import { getPayees } from '../api/payees';
 import ExportModal from '../components/ExportModal';
 import EmailDigestSettings from '../components/EmailDigestSettings';
+import AiSettings from '../components/AiSettings';
 import ReauthModal from '../components/ReauthModal';
 import styles from './Settings.module.css';
 import { confirmDialog, promptDialog } from '../utils/dialogs';
 
-type Tab = 'preferences' | 'security' | 'export' | 'import' | 'backups' | 'audit';
-const TABS: Tab[] = ['preferences', 'security', 'export', 'import', 'backups', 'audit'];
+type Tab = 'preferences' | 'security' | 'ai' | 'export' | 'import' | 'backups' | 'audit';
+const TABS: Tab[] = ['preferences', 'security', 'ai', 'export', 'import', 'backups', 'audit'];
 
 // ── Change Password ──
 
@@ -1604,6 +1605,12 @@ export default function Settings() {
           Security
         </button>
         <button
+          className={`${styles.tab} ${tab === 'ai' ? styles.tabActive : ''}`}
+          onClick={() => setTab('ai')}
+        >
+          AI Assistant
+        </button>
+        <button
           className={`${styles.tab} ${tab === 'export' ? styles.tabActive : ''}`}
           onClick={() => setTab('export')}
         >
@@ -1631,6 +1638,7 @@ export default function Settings() {
       <div className={styles.tabContent}>
         {tab === 'preferences' && <PreferencesTab />}
         {tab === 'security' && <SecurityTab />}
+        {tab === 'ai' && <AiSettings />}
         {tab === 'export' && <ExportTab />}
         {tab === 'import' && <ImportTab />}
         {tab === 'backups' && <BackupsTab />}
