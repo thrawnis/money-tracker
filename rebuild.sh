@@ -95,7 +95,15 @@ echo "    frontend running: ${FRONTEND_RUNNING:0:12}"
 
 if [ "$FORCE" -eq 0 ] && [ "$API_RUNNING" = "$COMMIT" ] && [ "$FRONTEND_RUNNING" = "$COMMIT" ]; then
   echo "==> Already running the latest version; nothing to do (use --force to rebuild anyway)."
+  echo "##DEPLOY_STATUS:NO_CHANGE##"
   exit 0
+fi
+# For Deployment Helper: whether this run deploys new code (printed once, before
+# the build, whatever its outcome). A --force rebuild of what's already running isn't new code.
+if [ "$API_RUNNING" = "$COMMIT" ] && [ "$FRONTEND_RUNNING" = "$COMMIT" ]; then
+  echo "##DEPLOY_STATUS:NO_CHANGE##"
+else
+  echo "##DEPLOY_STATUS:UPDATED##"
 fi
 if [ "$FORCE" -eq 1 ]; then
   echo "==> --force: rebuilding"
