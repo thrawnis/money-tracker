@@ -80,18 +80,33 @@ public class AiAssistant(IHttpClientFactory httpFactory, IConfiguration config, 
             // Last round: no tools, so the model has to answer with what it has.
             if (round < MaxToolRounds) { body["tools"] = toolDefs.DeepClone(); body["tool_choice"] = "auto"; }
 
+            // The model's own reasoning is hidden; while it reasons, the steps say so.
             var writing = false;
+            var filter = new ReasoningFilter();
             var (content, calls) = await StreamRoundAsync(ep, body, async delta =>
             {
-                if (!writing) { writing = true; await report(new Progress("status", "Writing the answer…")); }
-                await report(new Progress("delta", delta));
+                var hadReasoning = filter.SawReasoning;
+                var visible = filter.Push(delta);
+                if (filter.SawReasoning && !hadReasoning) await report(new Progress("status", "Working it out…"));
+                if (visible.Length == 0) return;
+                if (!writing)
+                {
+                    visible = visible.TrimStart();
+                    if (visible.Length == 0) return;
+                    writing = true;
+                    await report(new Progress("status", "Writing the answer…"));
+                }
+                await report(new Progress("delta", visible));
             }, ct);
 
             if (calls.Count == 0)
             {
-                var text = content.Trim();
+                if (writing && filter.Flush() is { Length: > 0 } tail) await report(new Progress("delta", tail));
+                var text = ReasoningFilter.Strip(content);
                 return text.Length == 0 ? "(The assistant didn't return an answer.)" : text;
             }
+            // It wrote something, then decided to look things up: that text wasn't the answer.
+            if (writing) await report(new Progress("reset", ""));
 
             messages.Add(new JsonObject
             {

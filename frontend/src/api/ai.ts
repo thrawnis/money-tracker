@@ -52,6 +52,8 @@ export const askAi = (conversationId: number | null, message: string): Promise<{
 export type AiStreamEvent =
   | { type: 'status'; text: string }
   | { type: 'delta'; text: string }
+  /** Text shown so far wasn't the answer (the assistant went on to look things up): clear it. */
+  | { type: 'reset' }
   | { type: 'done'; conversationId: number; title: string; answer: string; proposals?: AiProposal[] }
   | { type: 'error'; message: string };
 

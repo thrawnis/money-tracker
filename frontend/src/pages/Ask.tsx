@@ -89,6 +89,11 @@ export default function Ask() {
       const r = await askAiStream(openId, q, e => {
         if (e.type === 'status') setSteps(s => (s[s.length - 1] === e.text ? s : [...s, e.text]));
         else if (e.type === 'delta') setPartial(t => t + e.text);
+        else if (e.type === 'reset') {
+          // That text wasn't the answer after all: clear it and its "Writing the answer…" step.
+          setPartial('');
+          setSteps(s => s.filter(x => x !== 'Writing the answer…'));
+        }
       });
       // Tag with the (possibly new) conversation id first, so opening it doesn't reload.
       setConvo({ id: r.conversationId, messages: [...before, asked, { role: 'assistant', content: r.answer, proposals: r.proposals ?? [] }] });

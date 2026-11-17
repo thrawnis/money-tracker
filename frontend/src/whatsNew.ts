@@ -17,6 +17,12 @@ export const WHATS_NEW_DAYS = 14;
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    date: '2026-11-17',
+    items: [
+      'Ask AI: the assistant\'s behind-the-scenes reasoning is no longer shown — you just see the steps it\'s taking (now including "Working it out…") and then the answer.',
+    ],
+  },
+  {
     date: '2026-11-16',
     items: [
       'IOUs: send someone a private link (copy it or email it) to a page showing what they owe you — date, payee and amount for each — with one-tap buttons to pay you by Venmo, PayPal, Cash App, Zelle, Apple Cash, Google Pay or your own methods. Links work for 30 days, and you can turn them off any time. Add your payment details with the new Payment details button.',
