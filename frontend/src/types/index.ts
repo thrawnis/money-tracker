@@ -63,6 +63,8 @@ export interface Transaction {
   // (posted when due, or pre-created ahead of time via the auto-create
   // preference) — shows the recurring (↻) icon in the register.
   scheduledTransactionId?: number;
+  /** "interest" / "escrow": a charge added automatically to a loan for a payment. */
+  loanChargeKind?: 'interest' | 'escrow' | null;
   // Present only when split across multiple categories; categoryId/category
   // are null/undefined in that case — the splits carry the breakdown.
   splits?: TransactionSplit[];

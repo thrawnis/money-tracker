@@ -1,0 +1,24 @@
+.panel {
+  margin: 0 0 14px; padding: 14px 16px; background: var(--c-ffffff); border: 1px solid var(--c-dddddd); border-radius: 8px;
+}
+.head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.title { margin: 0; font-size: 15px; font-weight: 800; color: var(--c-003366); text-transform: uppercase; letter-spacing: 0.8px; }
+.muted { color: var(--c-777777); font-size: 12.5px; margin: 0; }
+.stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px 18px; }
+.stats > div { display: flex; flex-direction: column; }
+.label { font-size: 11.5px; color: var(--c-777777); text-transform: uppercase; letter-spacing: 0.5px; }
+.stats strong { font-size: 17px; color: var(--c-002a52); }
+.sub { font-size: 12px; color: var(--c-777777); }
+.warn { margin: 10px 0 0; color: var(--c-b8860b); font-size: 13.5px; }
+.whatIf { margin: 14px 0 6px; padding: 10px 12px; background: var(--c-f0f4f8); border-radius: 6px; font-size: 14px; display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; }
+.whatIf input { width: 80px; padding: 4px 6px; font: inherit; border: 1px solid var(--c-c8d8e8); border-radius: 4px; background: var(--c-ffffff); color: var(--c-333333); }
+.whatIfResult { color: var(--c-1a7a40); }
+.btnLink { background: none; border: none; padding: 4px 0; color: var(--c-336699); text-decoration: underline; cursor: pointer; font-size: 13.5px; }
+.btnPrimary { padding: 8px 16px; background: var(--c-003366); color: #fff; border: none; border-radius: 4px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.empty { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; justify-content: space-between; }
+.empty p { margin-top: 2px; }
+.tableWrap { overflow-x: auto; margin-top: 6px; }
+.table { border-collapse: collapse; font-size: 13px; min-width: 460px; width: 100%; }
+.table th, .table td { padding: 4px 10px; border-bottom: 1px solid var(--c-e5e5e5, #e5e5e5); white-space: nowrap; text-align: left; }
+.table th { color: var(--c-336699); background: var(--c-e8f0f8); }
+.r { text-align: right !important; }

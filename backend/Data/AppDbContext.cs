@@ -36,6 +36,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<IouShareLink> IouShareLinks => Set<IouShareLink>();
     public DbSet<IouPaidNotice> IouPaidNotices => Set<IouPaidNotice>();
     public DbSet<HoldingSnapshot> HoldingSnapshots => Set<HoldingSnapshot>();
+    public DbSet<LoanDetails> LoanDetails => Set<LoanDetails>();
     public DbSet<AiConversation> AiConversations => Set<AiConversation>();
     public DbSet<AiMessage> AiMessages => Set<AiMessage>();
     public DbSet<AiProposal> AiProposals => Set<AiProposal>();
@@ -53,6 +54,19 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         {
             e.HasOne(m => m.Conversation).WithMany(c => c.Messages).HasForeignKey(m => m.ConversationId).OnDelete(DeleteBehavior.Cascade);
             e.Property(m => m.Role).HasMaxLength(16);
+        });
+        modelBuilder.Entity<LoanDetails>(e =>
+        {
+            e.HasOne(l => l.Account).WithMany().HasForeignKey(l => l.AccountId).OnDelete(DeleteBehavior.Cascade);
+            e.HasIndex(l => l.AccountId).IsUnique();
+            e.HasOne(l => l.InterestCategory).WithMany().HasForeignKey(l => l.InterestCategoryId).OnDelete(DeleteBehavior.SetNull);
+            e.HasOne(l => l.EscrowCategory).WithMany().HasForeignKey(l => l.EscrowCategoryId).OnDelete(DeleteBehavior.SetNull);
+            e.Property(l => l.AnnualRate).HasPrecision(7, 4);
+        });
+        modelBuilder.Entity<Transaction>(e =>
+        {
+            e.HasOne<Transaction>().WithMany().HasForeignKey(t => t.LoanChargeForTransactionId).OnDelete(DeleteBehavior.Cascade);
+            e.Property(t => t.LoanChargeKind).HasMaxLength(16);
         });
         modelBuilder.Entity<IouShareLink>(e =>
         {

@@ -201,6 +201,23 @@ public class AiTools(AppDbContext db, IEncryptionService encryption, AiProposals
             .GroupBy(t => t.AccountId).Select(g => new { g.Key, Sum = g.Sum(t => t.Amount) })
             .ToDictionaryAsync(x => x.Key, x => x.Sum);
         var reported = await ReportedBalances.ForUserAsync(db, user.Id);
+        var loans = await db.LoanDetails.AsNoTracking().Where(l => l.UserId == user.Id).ToDictionaryAsync(l => l.AccountId);
+        object? Loan(Account a)
+        {
+            if (!loans.TryGetValue(a.Id, out var l)) return null;
+            var owed = -(reported.TryGetValue(a.Id, out var rb) ? rb.Balance : a.OpeningBalance + sums.GetValueOrDefault(a.Id));
+            var pay = LoanMath.PaymentFor(l);
+            var proj = pay is decimal p ? LoanMath.Project(Math.Max(0, owed), l.AnnualRate, p) : null;
+            return new
+            {
+                annual_rate_percent = l.AnnualRate, monthly_principal_and_interest = pay, monthly_escrow = l.EscrowAmount,
+                original_amount = l.OriginalAmount, term_months = l.TermMonths,
+                months_left = proj is { Covers: true } ? proj.Months : (int?)null,
+                payoff_month = proj is { Covers: true } ? today.AddMonths(proj.Months).ToString("yyyy-MM") : null,
+                interest_left = proj is { Covers: true } ? Math.Round(proj.TotalInterest, 2) : (decimal?)null,
+                note = proj is { Covers: false } ? "The payment doesn't cover the monthly interest." : null,
+            };
+        }
         return new
         {
             as_of = today,
@@ -212,6 +229,7 @@ public class AiTools(AppDbContext db, IEncryptionService encryption, AiProposals
                 balance = reported.TryGetValue(a.Id, out var r) ? r.Balance : a.OpeningBalance + sums.GetValueOrDefault(a.Id),
                 balance_reported_by_bank_on = reported.TryGetValue(a.Id, out var r2) ? r2.Date : (DateOnly?)null,
                 active = a.IsActive,
+                loan = a.Type == AccountType.Loan ? Loan(a) : null,
             }).ToList(),
         };
     }

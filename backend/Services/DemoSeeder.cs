@@ -110,6 +110,23 @@ public class DemoSeeder(
         db.Accounts.AddRange(checking, savings, cc, mortgage, carLoan, oldCard);
         await db.SaveChangesAsync();
 
+        // Loan terms, for the loan panels (payoff projections). The demo's past
+        // payments aren't transfers, so automatic interest charges stay off.
+        db.LoanDetails.AddRange(
+            new LoanDetails
+            {
+                UserId = user.Id, AccountId = mortgage.Id, AnnualRate = 6.25m, OriginalAmount = 320_000m, TermMonths = 360,
+                FirstPaymentDate = new DateOnly(2022, 6, 1), MonthlyPayment = 1_650m, EscrowAmount = 0m,
+                AutoCharges = false, AutoChargesFrom = DateOnly.FromDateTime(DateTime.UtcNow),
+            },
+            new LoanDetails
+            {
+                UserId = user.Id, AccountId = carLoan.Id, AnnualRate = 4.9m, OriginalAmount = 26_000m, TermMonths = 72,
+                FirstPaymentDate = new DateOnly(2024, 3, 15), MonthlyPayment = 285m, EscrowAmount = 0m,
+                AutoCharges = false, AutoChargesFrom = DateOnly.FromDateTime(DateTime.UtcNow),
+            });
+        await db.SaveChangesAsync();
+
         // ── Categories ─────────────────────────────────────────────────────────
         Category Cat(string name, int? parentId = null) => new()
         {

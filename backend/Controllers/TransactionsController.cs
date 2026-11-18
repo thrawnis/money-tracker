@@ -120,6 +120,8 @@ public class TransactionsController(
         transferTransactionId = tx.TransferTransactionId,
         transferAccountId     = tx.TransferAccountId,
         scheduledTransactionId = tx.ScheduledTransactionId,
+        // "interest" / "escrow": a charge the app adds to a loan for a payment (LoanService).
+        loanChargeKind = tx.LoanChargeKind,
         splits                = tx.Splits.Count == 0 ? null : tx.Splits.Select(s => new
         {
             id         = s.Id,

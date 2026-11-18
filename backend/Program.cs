@@ -198,6 +198,7 @@ builder.Services.AddScoped<TransferMatcher>();
 builder.Services.AddScoped<AiTools>();
 builder.Services.AddScoped<AiProposals>();
 builder.Services.AddScoped<IouPaymentPages>();
+builder.Services.AddScoped<LoanService>();
 builder.Services.AddScoped<AiAssistant>();
 builder.Services.AddHttpClient(AiAssistant.HttpClientName, c => c.Timeout = TimeSpan.FromSeconds(180));
 builder.Services.AddSingleton<EmailSender>();
@@ -226,6 +227,8 @@ builder.Services.AddControllers(o =>
     {
         // Fails closed for users with no timezone set — see RequireTimeZoneFilter.
         o.Filters.Add<MoneyTracker.Auth.RequireTimeZoneFilter>();
+        // Keep loans' automatic interest/escrow charges in step after any change.
+        o.Filters.Add<AutoLoanChargesFilter>();
     })
     .AddJsonOptions(o =>
         o.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter()));

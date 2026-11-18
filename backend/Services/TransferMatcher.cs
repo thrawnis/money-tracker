@@ -40,7 +40,7 @@ public class TransferMatcher(AppDbContext db, IEncryptionService encryption)
     {
         days = Math.Clamp(days, 0, MaxDays);
         var txs = await db.Transactions
-            .Where(t => t.Account.UserId == user.Id && t.TransferTransactionId == null && !t.IsVoided
+            .Where(t => t.Account.UserId == user.Id && t.TransferTransactionId == null && !t.IsVoided && t.LoanChargeForTransactionId == null
                 && !t.Splits.Any() && t.Amount != 0)
             .Include(t => t.Account).Include(t => t.Payee)
             .AsNoTracking()

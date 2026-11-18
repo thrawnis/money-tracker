@@ -1090,6 +1090,70 @@ namespace MoneyTracker.Migrations
                     b.ToTable("IouShareLinks");
                 });
 
+            modelBuilder.Entity("MoneyTracker.Models.LoanDetails", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AccountId")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("AnnualRate")
+                        .HasPrecision(7, 4)
+                        .HasColumnType("numeric(7,4)");
+
+                    b.Property<bool>("AutoCharges")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateOnly>("AutoChargesFrom")
+                        .HasColumnType("date");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("EscrowAmount")
+                        .HasColumnType("numeric");
+
+                    b.Property<int?>("EscrowCategoryId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateOnly?>("FirstPaymentDate")
+                        .HasColumnType("date");
+
+                    b.Property<int?>("InterestCategoryId")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal?>("MonthlyPayment")
+                        .HasColumnType("numeric");
+
+                    b.Property<decimal?>("OriginalAmount")
+                        .HasColumnType("numeric");
+
+                    b.Property<int?>("TermMonths")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AccountId")
+                        .IsUnique();
+
+                    b.HasIndex("EscrowCategoryId");
+
+                    b.HasIndex("InterestCategoryId");
+
+                    b.ToTable("LoanDetails");
+                });
+
             modelBuilder.Entity("MoneyTracker.Models.Payee", b =>
                 {
                     b.Property<int>("Id")
@@ -1531,6 +1595,13 @@ namespace MoneyTracker.Migrations
                     b.Property<bool>("IsVoided")
                         .HasColumnType("boolean");
 
+                    b.Property<int?>("LoanChargeForTransactionId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("LoanChargeKind")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
                     b.Property<string>("MemoEncrypted")
                         .HasColumnType("text");
 
@@ -1560,6 +1631,8 @@ namespace MoneyTracker.Migrations
                     b.HasIndex("AccountId");
 
                     b.HasIndex("CategoryId");
+
+                    b.HasIndex("LoanChargeForTransactionId");
 
                     b.HasIndex("PayeeId");
 
@@ -1956,6 +2029,31 @@ namespace MoneyTracker.Migrations
                     b.Navigation("Person");
                 });
 
+            modelBuilder.Entity("MoneyTracker.Models.LoanDetails", b =>
+                {
+                    b.HasOne("MoneyTracker.Models.Account", "Account")
+                        .WithMany()
+                        .HasForeignKey("AccountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("MoneyTracker.Models.Category", "EscrowCategory")
+                        .WithMany()
+                        .HasForeignKey("EscrowCategoryId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("MoneyTracker.Models.Category", "InterestCategory")
+                        .WithMany()
+                        .HasForeignKey("InterestCategoryId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Account");
+
+                    b.Navigation("EscrowCategory");
+
+                    b.Navigation("InterestCategory");
+                });
+
             modelBuilder.Entity("MoneyTracker.Models.Payee", b =>
                 {
                     b.HasOne("MoneyTracker.Models.Category", "DefaultCategory")
@@ -2117,6 +2215,11 @@ namespace MoneyTracker.Migrations
                         .WithMany("Transactions")
                         .HasForeignKey("CategoryId")
                         .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("MoneyTracker.Models.Transaction", null)
+                        .WithMany()
+                        .HasForeignKey("LoanChargeForTransactionId")
+                        .OnDelete(DeleteBehavior.Cascade);
 
                     b.HasOne("MoneyTracker.Models.Payee", "Payee")
                         .WithMany("Transactions")

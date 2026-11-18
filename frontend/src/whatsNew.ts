@@ -17,6 +17,13 @@ export const WHATS_NEW_DAYS = 14;
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    date: '2026-11-18',
+    items: [
+      'Loans: add a loan\'s rate, term and payment to see what you owe, when it will be paid off, how much interest is left and the full payment schedule — plus a "what if I paid extra each month?" calculator. Loans synced from your bank as "balance only" use your bank\'s balance.',
+      'Loans: optionally have each payment\'s interest (and escrow) added to the loan automatically, so the loan balance goes down by the principal only and interest shows up in your spending.',
+    ],
+  },
+  {
     date: '2026-11-17',
     items: [
       'Ask AI: the assistant\'s behind-the-scenes reasoning is no longer shown — you just see the steps it\'s taking (now including "Working it out…") and then the answer.',

@@ -669,3 +669,9 @@
 }
 /* Long category names wrap under the name, not under the tree line. */
 .splitRow .colCategory { padding-left: 30px !important; text-indent: -16px; }
+
+/* A loan's automatic interest / escrow charge. */
+.autoBadge {
+  display: inline-block; background: var(--c-336699); color: var(--c-ffffff); font-size: 10px; font-weight: 700;
+  letter-spacing: 0.3px; border-radius: 2px; padding: 1px 4px; margin-right: 4px;
+}

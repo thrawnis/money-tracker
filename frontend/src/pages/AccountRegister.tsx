@@ -1,4 +1,5 @@
 import HoldingsPanel from '../components/HoldingsPanel';
+import LoanPanel from '../components/LoanPanel';
 import { Fragment, useEffect, useState, useCallback, useRef, useLayoutEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { usePageTitle } from '../hooks/usePageTitle';
@@ -1172,6 +1173,9 @@ export default function AccountRegister() {
       </td>
       <td>
         {tx.isVoided && <span className={styles.voidBadge} title="Voided — excluded from the balance">VOID</span>}
+        {tx.loanChargeKind && (
+          <span className={styles.autoBadge} title={`Added automatically for this loan payment (${tx.loanChargeKind}). It's kept in step with the payment; to change how it's worked out, edit the loan details.`}>AUTO</span>
+        )}
         {tx.scheduledTransactionId != null && (
           <span className={styles.recurringIcon} title="Created from a recurring schedule">↻</span>
         )}
@@ -1554,6 +1558,9 @@ export default function AccountRegister() {
       </div>
 
       {account?.type === 'Investment' && <HoldingsPanel accountId={account.id} />}
+      {account?.type === 'Loan' && (
+        <LoanPanel key={account.id} accountId={account.id} accountName={account.name} categories={categories} onChanged={() => void reloadLoadedPages()} />
+      )}
 
       {/* ── Filter panel ── */}
       {filterOpen && (

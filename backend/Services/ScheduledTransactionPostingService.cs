@@ -112,6 +112,8 @@ public class ScheduledTransactionPostingService(
                 }
             }
         }
+        // Bills that pay a loan get their automatic interest/escrow charges.
+        await scope.ServiceProvider.GetRequiredService<LoanService>().SyncAllAsync();
     }
 
     /// <summary>
@@ -166,6 +168,8 @@ public class ScheduledTransactionPostingService(
                 date = Advance(date, s);
             }
         }
+        // Bills that pay a loan get their automatic interest/escrow charges.
+        await scope.ServiceProvider.GetRequiredService<LoanService>().SyncAllAsync();
     }
 
     private static async Task CreateTransferPairAsync(AppDbContext db, ScheduledTransaction s, DateOnly date, CancellationToken ct)

@@ -67,6 +67,14 @@ public class Transaction
 
     // Present only when this transaction is split across multiple categories;
     // when non-empty, CategoryId is null and Splits.Sum(Amount) == Amount.
+    /// <summary>
+    /// Set on an interest or escrow charge the app added to a loan for a
+    /// payment (LoanService): the payment's transaction in the loan account.
+    /// Deleted with it. Kind: "interest" or "escrow".
+    /// </summary>
+    public int? LoanChargeForTransactionId { get; set; }
+    public string? LoanChargeKind { get; set; }
+
     public ICollection<TransactionSplit> Splits { get; set; } = [];
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
