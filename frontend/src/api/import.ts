@@ -19,6 +19,20 @@ export interface DuplicateRow {
   matchedCategory?: string | null;
   matchedStatus?: string;
   matchedVoided?: boolean;
+  /**
+   * strong: same bank/file transaction ID (always skipped).
+   * likely: same amount, within a few days, payee matches the original or current payee (unticked).
+   * plain: same date and amount only (ticked by default, flagged).
+   */
+  strength?: 'strong' | 'likely' | 'plain';
+  /** Why it was matched, in plain words. */
+  reason?: string;
+  matchedDate?: string;
+  matchedAmount?: number;
+  /** The existing transaction's payee text as it was first imported. */
+  matchedOriginalPayee?: string | null;
+  matchedImportedDate?: string | null;
+  matchedImportedFrom?: string | null;
 }
 
 export interface UnmatchedPayeeSuggestion {
@@ -62,6 +76,8 @@ export interface PreviewResult {
   error?: string;
   unmatchedPayees?: UnmatchedPayee[];
   draftId?: number;
+  /** Possible duplicates to tick by default (plain date+amount matches). */
+  defaultIncludeIds?: number[];
 }
 
 // accountId is required for a QIF file that has no embedded account section

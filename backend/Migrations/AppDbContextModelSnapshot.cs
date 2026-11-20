@@ -1592,6 +1592,28 @@ namespace MoneyTracker.Migrations
                     b.Property<DateOnly>("Date")
                         .HasColumnType("date");
 
+                    b.Property<string>("ImportExternalId")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("ImportSourceEncrypted")
+                        .HasColumnType("text");
+
+                    b.Property<decimal?>("ImportedAmount")
+                        .HasColumnType("numeric");
+
+                    b.Property<DateTime?>("ImportedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateOnly?>("ImportedDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("ImportedMemoEncrypted")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ImportedPayeeEncrypted")
+                        .HasColumnType("text");
+
                     b.Property<bool>("IsVoided")
                         .HasColumnType("boolean");
 
@@ -1628,8 +1650,6 @@ namespace MoneyTracker.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("AccountId");
-
                     b.HasIndex("CategoryId");
 
                     b.HasIndex("LoanChargeForTransactionId");
@@ -1637,6 +1657,8 @@ namespace MoneyTracker.Migrations
                     b.HasIndex("PayeeId");
 
                     b.HasIndex("ScheduledTransactionId");
+
+                    b.HasIndex("AccountId", "ImportExternalId");
 
                     b.ToTable("Transactions");
                 });

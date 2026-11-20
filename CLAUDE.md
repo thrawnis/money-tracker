@@ -61,6 +61,7 @@ Sensitive fields are encrypted with AES-256-GCM using a **per-user Data Encrypti
 - `Transaction.MemoEncrypted`, `Transaction.CheckNumberEncrypted`
 - `Payee.NameEncrypted`, `Category.NameEncrypted`
 - `Account.AccountNumberEncrypted`, `Account.NotesEncrypted`
+- `Transaction.ImportedPayeeEncrypted`, `Transaction.ImportedMemoEncrypted`, `Transaction.ImportSourceEncrypted` (as-imported originals; `ImportedDate`/`ImportedAmount`/`ImportExternalId` are plain)
 - `ApplicationUser.PaymentMethodsEncrypted`, `IouPerson.EmailEncrypted`
 - `AiConversation.TitleEncrypted`, `AiMessage.ContentEncrypted`, `AiProposal.PayloadEncrypted`, `AiProposal.ResultEncrypted`
 
@@ -94,6 +95,9 @@ The AI server is configured only in `.env` (`AI_PROVIDER`/`AI_BASE_URL`/`AI_API_
 
 ### Public IOU Payment Pages
 `/pay/:token` (frontend `Pay.tsx`, API `PayController`, `[AllowAnonymous]`) is the only signed-out data view. The token is the key: store only its SHA-256 hash (`IouShareLink`), honour expiry/revocation, and return only date, payee and remaining amount per open IOU plus the user's payment options (`IouPaymentPages`). Never add memos, notes, account details or other people's data to it.
+
+### Imports & Duplicates
+Every imported or bank-synced transaction keeps its as-imported details (`Transaction.Imported*`, set in `ImportController.RunImportAsync`). `ImportDuplicateMatcher` decides duplicates (strong: same external id; likely: amount + ±3 days + payee matches original or current; plain: date + amount) and is used by both the preview and the commit, so they always agree — change it there, not in either caller.
 
 ### Loans
 `LoanDetails` (per Loan account) drive the loan panel and automatic interest/escrow charges. `LoanService.SyncAsync` recomputes a loan's charges (transactions with `LoanChargeForTransactionId`, cascade-deleted with their payment) from scratch in date order; `AutoLoanChargesFilter` runs it after every successful write request and the bill posting service after posting, so new write paths don't need their own hook. Don't hand-maintain charge rows elsewhere.

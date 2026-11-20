@@ -700,3 +700,7 @@ p.hint { max-width: 110ch; }
     font-weight: 700;
   }
 }
+
+/* Duplicate match strength on the import review (see ImportDuplicateMatcher). */
+.dupBadgePlain { border-color: var(--c-c8d8e8); color: var(--c-336699); background: transparent; }
+.dupBadgeStrong { border-color: color-mix(in srgb, var(--c-27ae60) 55%, transparent); color: var(--c-1a7a40); }

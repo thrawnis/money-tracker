@@ -122,6 +122,17 @@ public class TransactionsController(
         scheduledTransactionId = tx.ScheduledTransactionId,
         // "interest" / "escrow": a charge the app adds to a loan for a payment (LoanService).
         loanChargeKind = tx.LoanChargeKind,
+        // What the file / bank said when it was imported (null for hand-entered ones).
+        imported              = tx.ImportedAt is null ? null : new
+        {
+            payee      = encryption.Decrypt(tx.ImportedPayeeEncrypted, dek),
+            memo       = encryption.Decrypt(tx.ImportedMemoEncrypted, dek),
+            date       = tx.ImportedDate,
+            amount     = tx.ImportedAmount,
+            source     = encryption.Decrypt(tx.ImportSourceEncrypted, dek),
+            externalId = tx.ImportExternalId,
+            at         = tx.ImportedAt,
+        },
         splits                = tx.Splits.Count == 0 ? null : tx.Splits.Select(s => new
         {
             id         = s.Id,

@@ -67,6 +67,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         {
             e.HasOne<Transaction>().WithMany().HasForeignKey(t => t.LoanChargeForTransactionId).OnDelete(DeleteBehavior.Cascade);
             e.Property(t => t.LoanChargeKind).HasMaxLength(16);
+            e.Property(t => t.ImportExternalId).HasMaxLength(200);
+            e.HasIndex(t => new { t.AccountId, t.ImportExternalId });
         });
         modelBuilder.Entity<IouShareLink>(e =>
         {

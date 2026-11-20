@@ -22,7 +22,8 @@ public class ImportController(
     AppDbContext db,
     IEncryptionService encryption,
     UserManager<ApplicationUser> userManager,
-    SimpleFinService simpleFin) : ControllerBase
+    SimpleFinService simpleFin,
+    ImportDuplicateMatcher duplicateMatcher) : ControllerBase
 {
     // A slow import (many DB round-trips per row) can outlast a client-side or
     // proxy timeout — the browser reports failure while the request keeps running
@@ -47,6 +48,10 @@ public class ImportController(
         public string? Memo { get; set; }
         public string? Amount { get; set; }
         public string? Status { get; set; }
+        // The bank's own id for the row, when the file has one (used to spot
+        // re-imports; see ImportDuplicateMatcher). Bank sync rows get theirs from the draft.
+        [CsvHelper.Configuration.Attributes.Name("ExternalId", "External ID", "Transaction ID", "TransactionId", "FITID", "Reference", "Reference Number")]
+        public string? ExternalId { get; set; }
 
         // QIF-only: populated from S/E/$ split lines. Never set for CSV rows
         // (CsvHelper only maps columns present in the file's header).
@@ -113,7 +118,7 @@ public class ImportController(
     // files must not drop the second one.
     private async Task<(IActionResult? Error, PreviewResponse? Response, List<CsvRow>? Rows)> BuildPreviewAsync(
         string userId, string fileName, byte[] fileBytes, int? accountId, bool rowsAreDistinct = false,
-        IReadOnlySet<int>? notDuplicates = null)
+        IReadOnlySet<int>? notDuplicates = null, IReadOnlyList<string>? rowExternalIds = null)
     {
         var ext = Path.GetExtension(fileName).ToLowerInvariant();
         if (ext is ".ofx" or ".qfx")
@@ -149,6 +154,8 @@ public class ImportController(
         }
 
         var duplicates = new List<object>();
+        // Plain (same date & amount only) matches: the review ticks these by default.
+        var defaultInclude = new List<int>();
         // Every row that would be imported, keyed by its position in the file,
         // so the review screen can list them and let the user untick some.
         var newRows = new List<object>();
@@ -245,17 +252,14 @@ public class ImportController(
                 continue;
             }
 
-            var existing = (await db.Transactions
-                .Include(t => t.Payee)
-                .Include(t => t.Splits)
-                .Where(t => t.AccountId == rowAccountId && t.Date == date && t.Amount == amount)
-                .OrderBy(t => t.Id)
-                .ToListAsync())
-                .FirstOrDefault(t => !claimedExistingDupIds.Contains(t.Id) && notDuplicates?.Contains(t.Id) != true);
+            var dup = await duplicateMatcher.FindAsync(rowAccountId, date, amount, row.Payee, RowExternalId(row, rowIndex, rowExternalIds), dek,
+                t => !claimedExistingDupIds.Contains(t.Id) && notDuplicates?.Contains(t.Id) != true);
+            var existing = dup?.Tx;
 
-            if (existing is not null)
+            if (dup is not null && existing is not null)
             {
                 claimedExistingDupIds.Add(existing.Id);
+                if (dup.Strength == ImportDuplicateMatcher.Plain) defaultInclude.Add(existing.Id);
                 var payeeName = existing.Payee is not null
                     ? encryption.Decrypt(existing.Payee.NameEncrypted, dek)
                     : row.Payee ?? "";
@@ -281,6 +285,15 @@ public class ImportController(
                     matchedCategory = existing.Splits.Count > 0 ? "Split" : CategoryLabel(existing.CategoryId),
                     matchedStatus = existing.Status.ToString(),
                     matchedVoided = existing.IsVoided,
+                    // strong | likely | plain, and why (see ImportDuplicateMatcher).
+                    strength = dup.Strength,
+                    reason = dup.Reason,
+                    // The existing transaction as it was first imported, if it was.
+                    matchedDate = existing.Date.ToString("yyyy-MM-dd"),
+                    matchedAmount = (double)existing.Amount,
+                    matchedOriginalPayee = encryption.Decrypt(existing.ImportedPayeeEncrypted, dek),
+                    matchedImportedDate = existing.ImportedDate?.ToString("yyyy-MM-dd"),
+                    matchedImportedFrom = encryption.Decrypt(existing.ImportSourceEncrypted, dek),
                 });
             }
             else
@@ -329,6 +342,7 @@ public class ImportController(
             TransferMatches = transferMatchCount,
             Warnings = warnings.Count > 0 ? warnings : null,
             UnmatchedPayees = unmatchedPayees.Values,
+            DefaultIncludeIds = defaultInclude,
         };
 
         return (null, response, rows);
@@ -346,6 +360,8 @@ public class ImportController(
         public List<string>? Warnings { get; set; }
         public object UnmatchedPayees { get; set; } = null!;
         public int? DraftId { get; set; }
+        /// <summary>Possible duplicates ticked by default (plain date+amount matches).</summary>
+        public List<int> DefaultIncludeIds { get; set; } = [];
     }
 
     // Raw payee strings with no exact existing-payee match and no mapping rule
@@ -387,6 +403,12 @@ public class ImportController(
         var wordsB = b.Split(separators, StringSplitOptions.RemoveEmptyEntries);
         return wordsA.Any(wa => wa.Length >= 3 && wordsB.Any(wb => string.Equals(wa, wb, StringComparison.OrdinalIgnoreCase)));
     }
+
+    /// <summary>The row's bank / file transaction id: the file's own column, else (bank sync) the draft's list.</summary>
+    private static string? RowExternalId(CsvRow row, int index, IReadOnlyList<string>? rowExternalIds) =>
+        !string.IsNullOrWhiteSpace(row.ExternalId) ? row.ExternalId.Trim()
+        : rowExternalIds is not null && index < rowExternalIds.Count && !string.IsNullOrWhiteSpace(rowExternalIds[index]) ? rowExternalIds[index]
+        : null;
 
     // ── Import ──
 
@@ -458,7 +480,9 @@ public class ImportController(
             var result = await RunImportAsync(fileName, fileBytes, includeDuplicateIds, accountId, userId,
                 payeeOverrides, rememberPayeeMappings, rowsAreDistinct: fromSync, excluded, skippedRows,
                 payeeNewNamesJson: payeeNewNames,
-                notDuplicates: tied, rowOutcomes: fromSync ? outcomes : null);
+                notDuplicates: tied, rowOutcomes: fromSync ? outcomes : null,
+                rowExternalIds: fromSync ? ImportDraftJson.ReadStrings(sourceDraft!.SimpleFinTxIdsJson) : null,
+                sourceLabel: fromSync ? "Bank sync" : fileName);
 
             // Each bank row is recorded by its SimpleFIN id against the register
             // transaction it became (or already was), so later syncs recognize it.
@@ -536,7 +560,9 @@ public class ImportController(
         List<(int Index, DateOnly Date, decimal Amount, string? Payee)>? skippedExcluded = null,
         IReadOnlySet<int>? notDuplicates = null,
         List<(int Index, Transaction Tx)>? rowOutcomes = null,
-        string? payeeNewNamesJson = null)
+        string? payeeNewNamesJson = null,
+        IReadOnlyList<string>? rowExternalIds = null,
+        string? sourceLabel = null)
     {
         var ext = Path.GetExtension(fileName).ToLowerInvariant();
         if (ext is ".ofx" or ".qfx")
@@ -750,18 +776,17 @@ public class ImportController(
                         continue;
                     }
 
-                    // Check for duplicate
-                    var existing = (await db.Transactions
-                        .Where(t => t.AccountId == rowAccountId && t.Date == date && t.Amount == amount)
-                        .OrderBy(t => t.Id)
-                        .ToListAsync())
-                        .FirstOrDefault(t => !addedThisRun.Contains(t) && !claimedExistingDupIds.Contains(t.Id)
-                            && notDuplicates?.Contains(t.Id) != true);
+                    // Check for a duplicate — the same rules as the preview (ImportDuplicateMatcher).
+                    var externalId = RowExternalId(row, rowIndex, rowExternalIds);
+                    var dup = await duplicateMatcher.FindAsync(rowAccountId, date, amount, row.Payee, externalId, dek,
+                        t => !addedThisRun.Contains(t) && !claimedExistingDupIds.Contains(t.Id) && notDuplicates?.Contains(t.Id) != true);
+                    var existing = dup?.Tx;
 
-                    if (existing is not null)
+                    if (dup is not null && existing is not null)
                     {
                         claimedExistingDupIds.Add(existing.Id);
-                        if (!includedIds.Contains(existing.Id))
+                        // Same bank id: it's that transaction, whatever was ticked.
+                        if (dup.Strength == ImportDuplicateMatcher.Strong || !includedIds.Contains(existing.Id))
                         {
                             // Already in the register: the row is accounted for by that transaction.
                             rowOutcomes?.Add((rowIndex, existing));
@@ -833,6 +858,14 @@ public class ImportController(
                             ? null
                             : encryption.Encrypt(row.Memo.Trim(), dek),
                         Status = status,
+                        // As imported, so a later import can recognise it even after it's edited here.
+                        ImportedPayeeEncrypted = string.IsNullOrWhiteSpace(row.Payee) ? null : encryption.Encrypt(row.Payee.Trim(), dek),
+                        ImportedMemoEncrypted = string.IsNullOrWhiteSpace(row.Memo) ? null : encryption.Encrypt(row.Memo.Trim(), dek),
+                        ImportedDate = date,
+                        ImportedAmount = amount,
+                        ImportExternalId = externalId is { Length: <= 200 } ? externalId : null,
+                        ImportSourceEncrypted = encryption.Encrypt(sourceLabel ?? fileName, dek),
+                        ImportedAt = DateTime.UtcNow,
                     };
 
                     if (splits is { Count: > 0 })
@@ -978,7 +1011,8 @@ public class ImportController(
         var fileBytes = Convert.FromBase64String(encryption.Decrypt(draft.FileContentEncrypted, user.EncryptedDataKey)!);
         var result = await BuildPreviewAsync(userId, draft.FileName, fileBytes, draft.AccountId,
             rowsAreDistinct: draft.SimpleFinAccountId is not null,
-            notDuplicates: draft.SimpleFinAccountId is int sfId ? await TiedTransactionIdsAsync(sfId) : null);
+            notDuplicates: draft.SimpleFinAccountId is int sfId ? await TiedTransactionIdsAsync(sfId) : null,
+            rowExternalIds: draft.SimpleFinAccountId is not null ? ImportDraftJson.ReadStrings(draft.SimpleFinTxIdsJson) : null);
         if (result.Error is not null) return result.Error;
 
         return Ok(new
@@ -986,8 +1020,9 @@ public class ImportController(
             draftId = draft.Id,
             accountId = draft.AccountId,
             fileName = draft.FileName,
+            // Not reviewed yet: the plain date+amount matches start ticked.
             includeDuplicateIds = string.IsNullOrWhiteSpace(draft.IncludeDuplicateIdsJson)
-                ? Array.Empty<int>()
+                ? result.Response!.DefaultIncludeIds.ToArray()
                 : JsonSerializer.Deserialize<int[]>(draft.IncludeDuplicateIdsJson),
             payeeOverrides = string.IsNullOrWhiteSpace(draft.PayeeOverridesJson)
                 ? new Dictionary<string, int>()
@@ -1266,6 +1301,7 @@ public class ImportController(
                     Memo        = JsonString(txEl, "memo"),
                     CheckNumber = JsonString(txEl, "checkNumber"),
                     Status      = JsonString(txEl, "status"),
+                    ExternalId  = JsonString(txEl, "externalId"),
                 };
 
                 if (txEl.TryGetProperty("splits", out var splitsEl) && splitsEl.ValueKind == JsonValueKind.Array && splitsEl.GetArrayLength() > 0)

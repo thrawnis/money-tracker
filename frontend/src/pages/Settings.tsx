@@ -768,7 +768,8 @@ function ImportTab() {
       if (res.error) { setError(res.error); setLoading(false); return; }
       setPreview(res);
       setSourceName(file.name);
-      setCheckedDups(new Set());
+      // Plain date+amount matches start ticked; likely ones unticked; strong ones are always skipped.
+      setCheckedDups(new Set(res.defaultIncludeIds ?? []));
       setExcludedRows(new Set());
       setFromBankSync(false);
       setPayeeChoices({});
@@ -1039,8 +1040,10 @@ function ImportTab() {
             <p className={styles.hint}>
               <strong>{selectedCount + checkedDups.size}</strong> of {newRows.length + dups.length} transactions selected.
               Untick any you don't want imported.
-              {dups.length > 0 && <> Rows marked <strong>⚠ Possible duplicate</strong> match a transaction already in the account
-                and are left unticked; use Compare to see the match, and tick one only if it's really a separate transaction.</>}
+              {dups.length > 0 && <> Rows that match a transaction already in the account are marked:{' '}
+                <strong>✓ Already imported</strong> (same bank transaction ID — always skipped),{' '}
+                <strong>⚠ Likely duplicate</strong> (same amount within a few days and the same payee, as it is now or as first imported — left unticked), or{' '}
+                <strong>Possible duplicate</strong> (same date and amount only — ticked, but check it). Use Compare to see the match.</>}
               {fromBankSync && <> Unticked bank transactions won't be offered by later syncs; you can restore them under Accounts → Bank Sync.</>}
             </p>
             <div style={{ maxHeight: 520, overflowY: 'auto', marginBottom: 12 }}>
@@ -1099,7 +1102,8 @@ function ImportTab() {
                     );
                   })() : (() => {
                     const d = item.d;
-                    const included = checkedDups.has(d.matchedTransactionId);
+                    const strong = d.strength === 'strong';
+                    const included = !strong && checkedDups.has(d.matchedTransactionId);
                     const open = comparing.has(d.matchedTransactionId);
                     return (
                     <Fragment key={`d${d.matchedTransactionId}`}>
@@ -1109,6 +1113,8 @@ function ImportTab() {
                             type="checkbox"
                             aria-label={`Import possible duplicate ${d.date} ${d.filePayee}`}
                             checked={included}
+                            disabled={strong}
+                            title={strong ? 'Already imported — this exact bank transaction is in the account' : undefined}
                             onChange={() => toggleDup(d.matchedTransactionId)}
                           />
                         </td>
@@ -1117,7 +1123,10 @@ function ImportTab() {
                         <td>
                           {d.filePayee}
                           <div className={styles.dupBadgeLine}>
-                            <span className={styles.dupBadge}>⚠ Possible duplicate</span>
+                            <span className={`${styles.dupBadge} ${d.strength === 'plain' ? styles.dupBadgePlain : ''} ${strong ? styles.dupBadgeStrong : ''}`}
+                              title={d.reason}>
+                              {strong ? '✓ Already imported' : d.strength === 'plain' ? 'Possible duplicate' : '⚠ Likely duplicate'}
+                            </span>
                             <button
                               type="button"
                               className={styles.btnLink}
@@ -1137,13 +1146,21 @@ function ImportTab() {
                           <td></td>
                           <td colSpan={newRows.some(x => x.account) && effectiveAccountId == null ? 6 : 5}>
                             <strong>Already in this account:</strong>{' '}
-                            {d.date} · {d.payee || '—'} · <span style={{ whiteSpace: 'nowrap' }}>{d.amount.toFixed(2)}</span>
+                            {d.matchedDate ?? d.date} · {d.payee || '—'} · <span style={{ whiteSpace: 'nowrap' }}>{(d.matchedAmount ?? d.amount).toFixed(2)}</span>
                             {' · '}{d.matchedCategory ?? 'Uncategorized'}
                             {' · '}{d.matchedStatus}{d.matchedVoided ? ' (void)' : ''}
                             {d.memo && <> · “{d.memo}”</>}
+                            {d.matchedOriginalPayee && (
+                              <div>
+                                <strong>First imported as:</strong> {d.matchedOriginalPayee}
+                                {d.matchedImportedDate && <> · {d.matchedImportedDate}</>}
+                                {d.matchedImportedFrom && <> · from {d.matchedImportedFrom}</>}
+                              </div>
+                            )}
                             <div className={styles.hint}>
-                              Same account, date and amount. Leave it unticked if this is the same transaction; tick it to import
-                              it as a separate one.
+                              {d.reason ? `${d.reason}.` : 'Same account, date and amount.'}{' '}
+                              {strong ? 'It will be skipped.'
+                                : 'Leave it unticked if this is the same transaction; tick it to import it as a separate one.'}
                             </div>
                           </td>
                         </tr>
@@ -1181,9 +1198,11 @@ function ImportTab() {
             <button
               className={styles.btnSecondary}
               onClick={async () => {
-                if (dups.length > 0 && !(await confirmDialog(`Import everything, including all ${dups.length} possible duplicate${dups.length === 1 ? '' : 's'}? `
-                  + 'Each one will be added as a separate transaction even though a matching one is already in the account.'))) return;
-                handleImport(dups.map(d => d.matchedTransactionId));
+                const importable = dups.filter(d => d.strength !== 'strong');
+                if (importable.length > 0 && !(await confirmDialog(`Import everything, including all ${importable.length} possible duplicate${importable.length === 1 ? '' : 's'}? `
+                  + 'Each one will be added as a separate transaction even though a matching one is already in the account. '
+                  + 'Transactions already imported with the same bank ID are still skipped.'))) return;
+                handleImport(importable.map(d => d.matchedTransactionId));
               }}
               disabled={loading}
             >

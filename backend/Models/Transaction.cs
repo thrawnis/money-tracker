@@ -73,6 +73,21 @@ public class Transaction
     /// Deleted with it. Kind: "interest" or "escrow".
     /// </summary>
     public int? LoanChargeForTransactionId { get; set; }
+
+    // ── As imported (file import or bank sync); null for transactions entered by hand ──
+    // What the file / bank said, kept so a later import can recognise this
+    // transaction even after its payee, memo, date or amount were changed here.
+    /// <summary>The raw payee text from the file or bank (encrypted).</summary>
+    public string? ImportedPayeeEncrypted { get; set; }
+    /// <summary>The raw memo / description from the file or bank (encrypted).</summary>
+    public string? ImportedMemoEncrypted { get; set; }
+    public DateOnly? ImportedDate { get; set; }
+    public decimal? ImportedAmount { get; set; }
+    /// <summary>The bank's or file's own transaction id (SimpleFIN id, FITID, …), when there is one.</summary>
+    public string? ImportExternalId { get; set; }
+    /// <summary>"Bank sync" or the file name (encrypted).</summary>
+    public string? ImportSourceEncrypted { get; set; }
+    public DateTime? ImportedAt { get; set; }
     public string? LoanChargeKind { get; set; }
 
     public ICollection<TransactionSplit> Splits { get; set; } = [];

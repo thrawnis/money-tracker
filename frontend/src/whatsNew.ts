@@ -17,6 +17,13 @@ export const WHATS_NEW_DAYS = 14;
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    date: '2026-11-20',
+    items: [
+      'Imports and bank sync now remember what the bank or file originally said about each transaction (payee text, memo, date, amount and its bank ID) — shown as "Imported as" when you open it.',
+      'Smarter duplicate checks when importing: transactions already imported with the same bank ID are skipped, likely duplicates are found even after you renamed the payee or changed the date, and each match tells you why it was flagged.',
+    ],
+  },
+  {
     date: '2026-11-18',
     items: [
       'Loans: add a loan\'s rate, term and payment to see what you owe, when it will be paid off, how much interest is left and the full payment schedule — plus a "what if I paid extra each month?" calculator. Loans synced from your bank as "balance only" use your bank\'s balance.',

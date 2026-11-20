@@ -199,6 +199,7 @@ builder.Services.AddScoped<AiTools>();
 builder.Services.AddScoped<AiProposals>();
 builder.Services.AddScoped<IouPaymentPages>();
 builder.Services.AddScoped<LoanService>();
+builder.Services.AddScoped<ImportDuplicateMatcher>();
 builder.Services.AddScoped<AiAssistant>();
 builder.Services.AddHttpClient(AiAssistant.HttpClientName, c => c.Timeout = TimeSpan.FromSeconds(180));
 builder.Services.AddSingleton<EmailSender>();

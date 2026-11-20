@@ -863,6 +863,15 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
           )}
         </p>
       )}
+      {initial?.imported && (
+        <p className={styles.addedNote} title="What the bank or file said when this was imported — kept so later imports can recognise it">
+          Imported as: <strong>{initial.imported.payee || '(no payee)'}</strong>
+          {initial.imported.date && <> · {initial.imported.date}</>}
+          {initial.imported.amount != null && <> · {initial.imported.amount.toFixed(2)}</>}
+          {initial.imported.memo && <> · “{initial.imported.memo}”</>}
+          {initial.imported.source && <> · from {initial.imported.source}</>}
+        </p>
+      )}
 
       {offerIouSplit && !initial?.id && !isTransfer && (
         <label className={styles.iouSplitOption}>

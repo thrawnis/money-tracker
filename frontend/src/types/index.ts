@@ -65,6 +65,11 @@ export interface Transaction {
   scheduledTransactionId?: number;
   /** "interest" / "escrow": a charge added automatically to a loan for a payment. */
   loanChargeKind?: 'interest' | 'escrow' | null;
+  /** What the file / bank said when it was imported (null for hand-entered transactions). */
+  imported?: {
+    payee?: string | null; memo?: string | null; date?: string | null; amount?: number | null;
+    source?: string | null; externalId?: string | null; at?: string | null;
+  } | null;
   // Present only when split across multiple categories; categoryId/category
   // are null/undefined in that case — the splits carry the breakdown.
   splits?: TransactionSplit[];
