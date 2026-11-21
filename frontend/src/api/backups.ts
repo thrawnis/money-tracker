@@ -9,6 +9,10 @@ export interface BackupInfo {
   sections: string[];
   counts: Record<string, number>;
   sizeBytes: number;
+  /** Everything included? */
+  full: boolean;
+  /** Every area: whether it's in this backup and what it holds. */
+  manifest: { id: string; label: string; included: boolean; detail: string | null }[];
 }
 export interface BackupsOverview {
   sections: BackupSectionInfo[];

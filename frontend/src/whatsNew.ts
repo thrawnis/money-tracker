@@ -19,6 +19,7 @@ export const WHATS_NEW: WhatsNewEntry[] = [
   {
     date: '2026-11-21',
     items: [
+      'Backups are now marked Full or Partial, and Details shows exactly what each one contains. Downloaded backups include a readable list of their contents too.',
       'Daily backups: everything in your Money Tracker account is backed up automatically every evening (just before the nightly bank sync) as an encrypted file, and the last 7 are kept. Settings → Backups & Restore lets you choose what\'s included, back up any time, and download a copy protected with your own password.',
       'Restore: put your whole account back to an earlier day, or just parts of it — one account (replacing it or as a copy), categories, payees, bills, IOUs, reports or settings. Your data is backed up again first, so a restore can always be undone.',
     ],

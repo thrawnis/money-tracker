@@ -52,6 +52,13 @@ public class BackupsController(
             backups = backups.List(user.Id).Select(b => new
             {
                 b.FileName, b.CreatedAt, b.Kind, b.Sections, b.Counts, b.SizeBytes,
+                full = BackupSections.All.All(b.Sections.Contains),
+                // The manifest: every area, whether it's in this backup, and what it holds.
+                manifest = BackupSections.All.Select(sec => new
+                {
+                    id = sec, label = BackupSections.Label(sec), included = b.Sections.Contains(sec),
+                    detail = b.Sections.Contains(sec) ? UserBackupService.Detail(sec, b.Counts) : null,
+                }),
             }),
             keep = UserBackupService.Keep,
             dailyAt = $"{DailyBackupService.Hour % 12}:{DailyBackupService.Minute:00} pm Pacific Time",

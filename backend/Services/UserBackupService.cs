@@ -194,12 +194,61 @@ public partial class UserBackupService(IConfiguration config, IWebHostEnvironmen
         var temp = Path.Combine(UserDir(user.Id), $".{Guid.NewGuid():N}.tmp.7z");
         try
         {
-            await SevenZip.CompressAsync(temp, EntryName, bytes, string.IsNullOrEmpty(password) ? null : password);
-            var check = await SevenZip.ExtractAsync(temp, EntryName, string.IsNullOrEmpty(password) ? null : password);
+            var pw = string.IsNullOrEmpty(password) ? null : password;
+            await SevenZip.CompressAsync(temp, EntryName, bytes, pw);
+            // A readable manifest alongside the data, so a downloaded file explains itself.
+            var snap = JsonSerializer.Deserialize<BackupSnapshot>(bytes, Json)!;
+            await SevenZip.CompressAsync(temp, "MANIFEST.txt", System.Text.Encoding.UTF8.GetBytes(Manifest(snap)), pw);
+            var check = await SevenZip.ExtractAsync(temp, EntryName, pw);
             if (!check.AsSpan().SequenceEqual(bytes)) throw new InvalidOperationException("The download copy didn't verify.");
             return await File.ReadAllBytesAsync(temp);
         }
         finally { if (File.Exists(temp)) File.Delete(temp); }
+    }
+}
+
+public partial class UserBackupService
+{
+    /// <summary>A plain-text description of a backup: when, what kind, full or partial, and what each area holds.</summary>
+    public static string Manifest(BackupSnapshot s)
+    {
+        var c = s.Counts();
+        var full = BackupSections.All.All(s.Sections.Contains);
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("Money Tracker backup");
+        sb.AppendLine($"Made:     {s.CreatedAt:yyyy-MM-dd HH:mm} UTC ({s.Kind})");
+        sb.AppendLine($"Contents: {(full ? "Full backup (everything)" : "Partial backup")}");
+        sb.AppendLine($"Format:   {EntryName}, version {s.Version}");
+        sb.AppendLine();
+        foreach (var sec in BackupSections.All)
+        {
+            var inc = s.Sections.Contains(sec);
+            sb.Append(inc ? "  [x] " : "  [ ] ").Append(BackupSections.Label(sec));
+            if (inc) sb.Append(" - ").Append(Detail(sec, c));
+            else sb.Append(" - not included");
+            sb.AppendLine();
+        }
+        sb.AppendLine();
+        sb.AppendLine("Restore it in Money Tracker: Settings > Backups & Restore.");
+        return sb.ToString();
+    }
+
+    /// <summary>What an included area holds, e.g. "6 accounts, 226 transactions".</summary>
+    public static string Detail(string section, IReadOnlyDictionary<string, int> c)
+    {
+        string N(string key, string one, string many) { var n = c.GetValueOrDefault(key); return $"{n:N0} {(n == 1 ? one : many)}"; }
+        return section switch
+        {
+            BackupSections.Accounts => string.Join(", ", new[] { N("accounts", "account", "accounts"), N("transactions", "transaction", "transactions"),
+                N("splits", "split", "splits"), N("loans", "loan", "loans"), N("valueHistory", "balance record", "balance records") }),
+            BackupSections.Categories => N("categories", "category", "categories"),
+            BackupSections.Payees => $"{N("payees", "payee", "payees")}, {N("rules", "mapping rule", "mapping rules")}",
+            BackupSections.Bills => N("bills", "bill", "bills"),
+            BackupSections.Ious => $"{N("iouPeople", "person", "people")}, {N("iouEntries", "IOU", "IOUs")}, {N("iouPayments", "payment", "payments")}",
+            BackupSections.Reports => N("reports", "saved report", "saved reports"),
+            BackupSections.Preferences => "settings, email digests, AI sharing, payment details",
+            _ => "",
+        };
     }
 }
 

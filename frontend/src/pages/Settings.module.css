@@ -704,3 +704,11 @@ p.hint { max-width: 110ch; }
 /* Duplicate match strength on the import review (see ImportDuplicateMatcher). */
 .dupBadgePlain { border-color: var(--c-c8d8e8); color: var(--c-336699); background: transparent; }
 .dupBadgeStrong { border-color: color-mix(in srgb, var(--c-27ae60) 55%, transparent); color: var(--c-1a7a40); }
+
+/* Backups & Restore: full / partial badge and the per-backup manifest. */
+.badgeFull, .badgePartial { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+.badgeFull { background: color-mix(in srgb, var(--c-27ae60) 18%, transparent); color: var(--c-1a7a40); }
+.badgePartial { background: color-mix(in srgb, var(--c-e6b800) 25%, transparent); color: var(--c-5c4400); }
+.manifest { list-style: none; margin: 2px 0; padding: 0; font-size: 13px; }
+.manifest li { margin: 2px 0; }
+.manifestOff { color: var(--c-999999); }

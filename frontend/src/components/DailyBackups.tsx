@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import {
   getBackups, saveBackupSettings, backUpNow, getBackupSummary, restoreBackup, downloadBackup,
   type BackupsOverview, type BackupInfo, type BackupSummary, type RestoreAccountChoice, type RestoreResult,
@@ -32,6 +32,7 @@ export default function DailyBackups() {
   const [notice, setNotice] = useState('');
   const [restoring, setRestoring] = useState<BackupInfo | null>(null);
   const [downloading, setDownloading] = useState<BackupInfo | null>(null);
+  const [open, setOpen] = useState<string | null>(null);   // backup whose manifest is shown
 
   const apply = (d: BackupsOverview) => { setData(d); setIncluded(d.sections.filter(s => s.included).map(s => s.id)); };
   const load = () => getBackups().then(apply).catch(() => setError('Failed to load your backups.'));
@@ -99,12 +100,18 @@ export default function DailyBackups() {
             <thead><tr><th>When</th><th>Kind</th><th>Contains</th><th>Size</th><th></th></tr></thead>
             <tbody>
               {data.backups.map(b => (
-                <tr key={b.fileName}>
+                <Fragment key={b.fileName}>
+                <tr>
                   <td data-label="When" style={{ whiteSpace: 'nowrap' }}>{when(b.createdAt)}</td>
                   <td data-label="Kind">{KIND[b.kind] ?? b.kind}</td>
                   <td data-label="Contains">
-                    {b.sections.length === data.sections.length ? 'Everything' : `${b.sections.length} of ${data.sections.length} areas`}
-                    {b.counts.transactions != null && <span className={styles.hint} style={{ margin: 0 }}> · {b.counts.accounts} accounts, {b.counts.transactions} transactions</span>}
+                    <span className={b.full ? styles.badgeFull : styles.badgePartial}
+                      title={b.full ? 'Everything in your account' : `Only ${b.manifest.filter(m => m.included).map(m => m.label).join(', ')}`}>
+                      {b.full ? 'Full' : 'Partial'}
+                    </span>
+                    {b.counts.transactions != null && <span className={styles.hint} style={{ margin: 0 }}> {b.counts.accounts} accounts, {b.counts.transactions} transactions</span>}
+                    {' '}<button className={styles.btnLink} aria-expanded={open === b.fileName}
+                      onClick={() => setOpen(open === b.fileName ? null : b.fileName)}>{open === b.fileName ? 'Hide' : 'Details'}</button>
                   </td>
                   <td data-label="Size">{size(b.sizeBytes)}</td>
                   <td style={{ whiteSpace: 'nowrap', textAlign: 'right' }}>
@@ -112,6 +119,21 @@ export default function DailyBackups() {
                     <button className={styles.btnSecondary} onClick={() => setDownloading(b)}>Download…</button>
                   </td>
                 </tr>
+                {open === b.fileName && (
+                  <tr>
+                    <td colSpan={5}>
+                      <ul className={styles.manifest} aria-label="What's in this backup">
+                        {b.manifest.map(m => (
+                          <li key={m.id} className={m.included ? undefined : styles.manifestOff}>
+                            <span aria-hidden="true">{m.included ? '✓' : '—'}</span> <strong>{m.label}</strong>
+                            {m.included ? <> — {m.detail}</> : <> — not included</>}
+                          </li>
+                        ))}
+                      </ul>
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               ))}
             </tbody>
           </table>
