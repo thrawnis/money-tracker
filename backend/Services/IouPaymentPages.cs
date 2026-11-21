@@ -204,22 +204,38 @@ public partial class IouPaymentPages(AppDbContext db, IEncryptionService encrypt
 
     public static string Money(decimal m) => m.ToString("C", Us);
 
+    /// <summary>
+    /// The plain-text request (email body, and the message copied to send by text):
+    /// each open item oldest to newest with its amount, any credit, then the total.
+    /// </summary>
+    public static string MessageText(string fromName, string personName, Owed owed, string url, DateTime expires)
+    {
+        var until = expires.ToString("MMMM d, yyyy", Us);
+        var text = new StringBuilder($"Hi {personName}, here's what you owe {fromName}:\n\n");
+        foreach (var i in owed.Items) text.Append($"{i.Date.ToString("MMM d, yyyy", Us)} — {i.Payee}: {Money(i.Amount)}\n");
+        var credit = owed.ItemsTotal - owed.Total;
+        if (credit > 0.004m) text.Append($"Less what {fromName} owes you or you've already paid: −{Money(credit)}\n");
+        text.Append($"Total: {Money(owed.Total)}\n\nSee the details and pay here (link works until {until}):\n{url}\n");
+        return text.ToString();
+    }
+
     /// <summary>The email with a person's link (no amounts in the subject).</summary>
     public static (string Subject, string Text, string Html) LinkEmail(string fromName, string personName, Owed owed, string url, DateTime expires)
     {
         var subject = $"{fromName} sent you a payment request";
         var until = expires.ToString("MMMM d, yyyy", Us);
-        var text = new StringBuilder($"Hi {personName},\n\n{fromName} shared what you owe them: {Money(owed.Total)}.\n\n");
-        foreach (var i in owed.Items) text.Append($"  • {i.Date.ToString("MMM d", Us)} — {i.Payee}: {Money(i.Amount)}\n");
-        text.Append($"\nSee the details and pay here (link works until {until}):\n{url}\n");
         static string e(string s) => WebUtility.HtmlEncode(s);
-        var rows = string.Concat(owed.Items.Select(i =>
-            $"<tr><td style=\"padding:4px 12px 4px 0;color:#555\">{e(i.Date.ToString("MMM d", Us))}</td><td style=\"padding:4px 12px 4px 0\">{e(i.Payee)}</td><td style=\"padding:4px 0;text-align:right\">{e(Money(i.Amount))}</td></tr>"));
+        static string Row(string date, string what, string amount, string style = "") =>
+            $"<tr><td style=\"padding:4px 12px 4px 0;color:#555;white-space:nowrap{style}\">{date}</td><td style=\"padding:4px 12px 4px 0{style}\">{what}</td><td style=\"padding:4px 0;text-align:right;white-space:nowrap{style}\">{amount}</td></tr>";
+        var rows = string.Concat(owed.Items.Select(i => Row(e(i.Date.ToString("MMM d, yyyy", Us)), e(i.Payee), e(Money(i.Amount)))));
+        var credit = owed.ItemsTotal - owed.Total;
+        if (credit > 0.004m) rows += Row("", e($"Less what {fromName} owes you or you've already paid"), e("−" + Money(credit)), ";color:#555");
+        rows += Row("", "<strong>Total</strong>", $"<strong>{e(Money(owed.Total))}</strong>", ";border-top:1px solid #ccc;padding-top:8px");
         var html = "<div style=\"font-family:-apple-system,Segoe UI,Arial,sans-serif;font-size:15px;color:#222;max-width:520px\">"
-            + $"<p>Hi {e(personName)},</p><p>{e(fromName)} shared what you owe them: <strong>{e(Money(owed.Total))}</strong>.</p>"
+            + $"<p>Hi {e(personName)}, here's what you owe {e(fromName)}:</p>"
             + $"<table style=\"border-collapse:collapse;font-size:14px\">{rows}</table>"
             + $"<p style=\"margin:20px 0\"><a href=\"{e(url)}\" style=\"background:#003366;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none;font-weight:600\">See details &amp; pay</a></p>"
             + $"<p style=\"color:#777;font-size:12px\">This private link works until {e(until)}. Sent with Money Tracker.</p></div>";
-        return (subject, text.ToString(), html);
+        return (subject, MessageText(fromName, personName, owed, url, expires), html);
     }
 }

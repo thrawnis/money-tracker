@@ -149,7 +149,7 @@ export interface IouSharing {
 export const getIouSharing = (): Promise<IouSharing> => api.get('/ious/sharing').then(r => r.data);
 export const savePaymentDetails = (d: PaymentDetails): Promise<PaymentDetails> =>
   api.put('/ious/payment-details', d).then(r => r.data);
-export const createPayLink = (personId: number): Promise<{ url: string; expiresAt: string }> =>
+export const createPayLink = (personId: number): Promise<{ url: string; expiresAt: string; message: string }> =>
   api.post(`/ious/people/${personId}/link`).then(r => r.data);
 export const emailPayLink = (personId: number): Promise<{ sentTo: string; expiresAt: string }> =>
   api.post(`/ious/people/${personId}/email-link`).then(r => r.data);

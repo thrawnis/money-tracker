@@ -13,7 +13,7 @@
 .allSquare { font-size: 16px; }
 .total {
   display: flex; align-items: baseline; justify-content: space-between; padding: 14px 16px; border-radius: 10px;
-  background: var(--c-e8f0f8); color: var(--c-003366); font-size: 15px;
+  margin-top: 12px; background: var(--c-e8f0f8); color: var(--c-003366); font-size: 15px;
 }
 .total strong { font-size: 28px; }
 .items { list-style: none; margin: 12px 0 0; padding: 0; }

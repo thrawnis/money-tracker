@@ -19,6 +19,7 @@ export const WHATS_NEW: WhatsNewEntry[] = [
   {
     date: '2026-11-21',
     items: [
+      'IOU payment requests — the page, the email, and the message copied by Copy pay link (ready to paste into a text) — now list each item oldest to newest with its amount, then the total at the bottom.',
       'Every search and type-to-search box now ignores upper/lower case and understands wildcards: * matches anything and ? matches one character (for example "amazon*" finds payees starting with Amazon, "*coffee*" anything containing coffee). Plain text without wildcards still finds names containing it.',
       'Backups are now marked Full or Partial, and Details shows exactly what each one contains. Downloaded backups include a readable list of their contents too.',
       'Daily backups: everything in your Money Tracker account is backed up automatically every evening (just before the nightly bank sync) as an encrypted file, and the last 7 are kept. Settings → Backups & Restore lets you choose what\'s included, back up any time, and download a copy protected with your own password.',

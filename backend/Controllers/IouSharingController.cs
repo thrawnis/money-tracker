@@ -86,7 +86,11 @@ public class IouSharingController(
             return BadRequest(new { message = "Add at least one way to pay you (Payment details) first." });
         var (token, expires) = await pages.CreateLinkAsync(user!, person!);
         await audit.LogAsync("IOU_LINK_CREATED", "IouPerson", id);
-        return Ok(new { url = pages.Url(token, Request), expiresAt = expires });
+        var url = pages.Url(token, Request);
+        // Ready to paste into a text: the itemized breakdown, total, and the link.
+        var owed = await pages.OwedAsync(user!, person!.Id);
+        var message = IouPaymentPages.MessageText(pages.FromName(user!), encryption.Decrypt(person.NameEncrypted, user!.EncryptedDataKey) ?? "there", owed, url, expires);
+        return Ok(new { url, expiresAt = expires, message });
     }
 
     /// <summary>Emails the person a new 30-day link with what they owe.</summary>

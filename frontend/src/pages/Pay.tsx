@@ -84,11 +84,6 @@ export default function Pay() {
           <p className={styles.allSquare}>You're all square — nothing is owed right now. 🎉</p>
         ) : (
           <>
-            <div className={styles.total}>
-              <span>Total</span>
-              <strong>{money(page.total)}</strong>
-            </div>
-
             <ul className={styles.items}>
               {page.items.map((i, k) => (
                 <li key={k}>
@@ -105,6 +100,11 @@ export default function Pay() {
                 </li>
               )}
             </ul>
+
+            <div className={styles.total}>
+              <span>Total</span>
+              <strong>{money(page.total)}</strong>
+            </div>
 
             <h2 className={styles.subtitle}>Pay {page.from}</h2>
             {page.options.length === 0 && <p className={styles.muted}>{page.from} hasn't added any payment details yet.</p>}

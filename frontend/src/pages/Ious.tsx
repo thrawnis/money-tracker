@@ -151,10 +151,11 @@ export default function Ious() {
     if (!person || needDetails()) return;
     setLinkBusy('copy'); setError(''); setNotice('');
     try {
-      const { url, expiresAt } = await createPayLink(person.id);
+      const { message, expiresAt } = await createPayLink(person.id);
       const until = fmtDate(expiresAt.slice(0, 10));
-      try { await navigator.clipboard.writeText(url); setNotice(`Payment link for ${person.name} copied — it works until ${until}.`); }
-      catch { await promptDialog(`Payment link for ${person.name} (works until ${until}):`, { title: 'Payment link', defaultValue: url, copyOnly: true }); }
+      // The itemized message with the link, ready to paste into a text or chat.
+      try { await navigator.clipboard.writeText(message); setNotice(`Payment request for ${person.name} copied — paste it into a text or message. The link works until ${until}.`); }
+      catch { await promptDialog(`Payment request for ${person.name} (link works until ${until}):`, { title: 'Payment request', defaultValue: message, copyOnly: true }); }
       loadSharing();
     } catch (err) { setError((err as ApiError)?.response?.data?.message ?? 'Failed to create the link.'); }
     finally { setLinkBusy(null); }
