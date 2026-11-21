@@ -39,7 +39,7 @@ export default function Pay() {
 
   useEffect(() => {
     let stale = false;
-    fetch(`${baseURL}/pay/${encodeURIComponent(token)}`, { credentials: 'omit', referrerPolicy: 'no-referrer' })
+    fetch(`${baseURL}/pay/${encodeURIComponent(token)}`, { credentials: 'same-origin', referrerPolicy: 'no-referrer' })
       .then(async r => {
         const body = await r.json().catch(() => null);
         if (stale) return;
