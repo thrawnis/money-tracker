@@ -100,6 +100,9 @@ public class SimpleFinDailyUpdateService(
             if (c.LastAutoUpdateDate == today) continue;
             if (c.LastAutoAttemptAt is DateTime last && DateTime.UtcNow - last < RetryAfter) continue;
 
+            // Today's backup comes first, so there's always one from just before the sync.
+            await DailyBackupService.EnsureTodayAsync(userScope.ServiceProvider, c.UserId);
+
             var conn = await userDb.SimpleFinConnections.FirstAsync(x => x.Id == c.Id, ct);
             conn.LastAutoAttemptAt = DateTime.UtcNow;
             await userDb.SaveChangesAsync(ct);

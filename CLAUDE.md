@@ -62,7 +62,7 @@ Sensitive fields are encrypted with AES-256-GCM using a **per-user Data Encrypti
 - `Payee.NameEncrypted`, `Category.NameEncrypted`
 - `Account.AccountNumberEncrypted`, `Account.NotesEncrypted`
 - `Transaction.ImportedPayeeEncrypted`, `Transaction.ImportedMemoEncrypted`, `Transaction.ImportSourceEncrypted` (as-imported originals; `ImportedDate`/`ImportedAmount`/`ImportExternalId` are plain)
-- `ApplicationUser.PaymentMethodsEncrypted`, `IouPerson.EmailEncrypted`
+- `ApplicationUser.PaymentMethodsEncrypted`, `IouPerson.EmailEncrypted`, `ApplicationUser.BackupKeyEncrypted` (the per-user 7z backup password)
 - `AiConversation.TitleEncrypted`, `AiMessage.ContentEncrypted`, `AiProposal.PayloadEncrypted`, `AiProposal.ResultEncrypted`
 
 Because payee and category names are encrypted, **DB-level unique constraints are impossible** for those fields — uniqueness is enforced by loading all records and comparing in memory after decryption.
@@ -98,6 +98,9 @@ The AI server is configured only in `.env` (`AI_PROVIDER`/`AI_BASE_URL`/`AI_API_
 
 ### Imports & Duplicates
 Every imported or bank-synced transaction keeps its as-imported details (`Transaction.Imported*`, set in `ImportController.RunImportAsync`). `ImportDuplicateMatcher` decides duplicates (strong: same external id; likely: amount + ±3 days + payee matches original or current; plain: date + amount) and is used by both the preview and the commit, so they always agree — change it there, not in either caller.
+
+### Backups & Restore
+Daily per-user backups (`DailyBackupService`, 7:45 pm Pacific, before the nightly sync) are verified AES-256 7z files of a plain-values `BackupSnapshot` (`BackupSnapshotBuilder`), stored by `UserBackupService` (7-Zip CLI; keep 7). `UserBackupRestore` applies a snapshot selectively inside ONE DB transaction, after a "before-restore" backup. **When adding a new kind of user data, add it to the snapshot and to the restore**, or backups silently won't cover it. Keep restores all-or-nothing and transfer pairs intact; the round-trip tests (backup → change → restore → compare) must stay exact.
 
 ### Loans
 `LoanDetails` (per Loan account) drive the loan panel and automatic interest/escrow charges. `LoanService.SyncAsync` recomputes a loan's charges (transactions with `LoanChargeForTransactionId`, cascade-deleted with their payment) from scratch in date order; `AutoLoanChargesFilter` runs it after every successful write request and the bill posting service after posting, so new write paths don't need their own hook. Don't hand-maintain charge rows elsewhere.

@@ -111,6 +111,8 @@ services:
       Receipt__Gemini__Model: ${GEMINI_MODEL:-gemini-1.5-flash}
     volumes:
       - ./data/account-backups:/app/data/account-backups
+      # Daily per-user backups (encrypted 7z), 7 kept per user
+      - ./data/user-backups:/app/data/user-backups
     ports:
       - "5012:8080"
     depends_on:

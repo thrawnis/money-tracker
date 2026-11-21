@@ -82,6 +82,16 @@ public class ApplicationUser : IdentityUser
     // { displayName, methods: [{ type, value, label }] }, encrypted with the DEK.
     public string? PaymentMethodsEncrypted { get; set; }
 
+    // ── Daily backups (UserBackupService) ──
+    /// <summary>The random password protecting this user's backup files (7z AES-256), encrypted with the DEK.</summary>
+    public string? BackupKeyEncrypted { get; set; }
+    /// <summary>Comma-separated backup sections left out of backups (null = back up everything).</summary>
+    public string? BackupExcludedSections { get; set; }
+    /// <summary>The day (Pacific Time) the daily backup last succeeded.</summary>
+    public DateOnly? LastDailyBackupOn { get; set; }
+    /// <summary>Why the last backup attempt failed (null after a success), shown in Settings → Backups.</summary>
+    public string? BackupLastError { get; set; }
+
     public bool VoidCategoriesMigrated { get; set; } = false;
 
     // Sibling to VoidCategoriesMigrated: the same "VOID ..." bank-export

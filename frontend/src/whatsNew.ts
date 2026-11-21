@@ -17,6 +17,13 @@ export const WHATS_NEW_DAYS = 14;
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    date: '2026-11-21',
+    items: [
+      'Daily backups: everything in your Money Tracker account is backed up automatically every evening (just before the nightly bank sync) as an encrypted file, and the last 7 are kept. Settings → Backups & Restore lets you choose what\'s included, back up any time, and download a copy protected with your own password.',
+      'Restore: put your whole account back to an earlier day, or just parts of it — one account (replacing it or as a copy), categories, payees, bills, IOUs, reports or settings. Your data is backed up again first, so a restore can always be undone.',
+    ],
+  },
+  {
     date: '2026-11-20',
     items: [
       'Imports and bank sync now remember what the bank or file originally said about each transaction (payee text, memo, date, amount and its bank ID) — shown as "Imported as" when you open it.',

@@ -28,12 +28,13 @@ import { getPayees } from '../api/payees';
 import ExportModal from '../components/ExportModal';
 import EmailDigestSettings from '../components/EmailDigestSettings';
 import AiSettings from '../components/AiSettings';
+import DailyBackups from '../components/DailyBackups';
 import ReauthModal from '../components/ReauthModal';
 import styles from './Settings.module.css';
 import { confirmDialog, promptDialog } from '../utils/dialogs';
 
-type Tab = 'preferences' | 'security' | 'ai' | 'export' | 'import' | 'backups' | 'audit';
-const TABS: Tab[] = ['preferences', 'security', 'ai', 'export', 'import', 'backups', 'audit'];
+type Tab = 'preferences' | 'security' | 'ai' | 'restore' | 'export' | 'import' | 'backups' | 'audit';
+const TABS: Tab[] = ['preferences', 'security', 'ai', 'restore', 'export', 'import', 'backups', 'audit'];
 
 // ── Change Password ──
 
@@ -1630,6 +1631,12 @@ export default function Settings() {
           AI Assistant
         </button>
         <button
+          className={`${styles.tab} ${tab === 'restore' ? styles.tabActive : ''}`}
+          onClick={() => setTab('restore')}
+        >
+          Backups &amp; Restore
+        </button>
+        <button
           className={`${styles.tab} ${tab === 'export' ? styles.tabActive : ''}`}
           onClick={() => setTab('export')}
         >
@@ -1645,7 +1652,7 @@ export default function Settings() {
           className={`${styles.tab} ${tab === 'backups' ? styles.tabActive : ''}`}
           onClick={() => setTab('backups')}
         >
-          Account Backups
+          Deleted Account Backups
         </button>
         <button
           className={`${styles.tab} ${tab === 'audit' ? styles.tabActive : ''}`}
@@ -1658,6 +1665,7 @@ export default function Settings() {
         {tab === 'preferences' && <PreferencesTab />}
         {tab === 'security' && <SecurityTab />}
         {tab === 'ai' && <AiSettings />}
+        {tab === 'restore' && <DailyBackups />}
         {tab === 'export' && <ExportTab />}
         {tab === 'import' && <ImportTab />}
         {tab === 'backups' && <BackupsTab />}

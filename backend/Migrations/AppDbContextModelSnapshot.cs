@@ -376,6 +376,15 @@ namespace MoneyTracker.Migrations
                     b.Property<bool>("AiShareTransactions")
                         .HasColumnType("boolean");
 
+                    b.Property<string>("BackupExcludedSections")
+                        .HasColumnType("text");
+
+                    b.Property<string>("BackupKeyEncrypted")
+                        .HasColumnType("text");
+
+                    b.Property<string>("BackupLastError")
+                        .HasColumnType("text");
+
                     b.Property<string>("ConcurrencyStamp")
                         .IsConcurrencyToken()
                         .HasColumnType("text");
@@ -424,6 +433,9 @@ namespace MoneyTracker.Migrations
                     b.Property<decimal>("LargeTxThreshold")
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
+
+                    b.Property<DateOnly?>("LastDailyBackupOn")
+                        .HasColumnType("date");
 
                     b.Property<bool>("LockoutEnabled")
                         .HasColumnType("boolean");

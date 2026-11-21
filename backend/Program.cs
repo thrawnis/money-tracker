@@ -200,6 +200,11 @@ builder.Services.AddScoped<AiProposals>();
 builder.Services.AddScoped<IouPaymentPages>();
 builder.Services.AddScoped<LoanService>();
 builder.Services.AddScoped<ImportDuplicateMatcher>();
+// Daily per-user backups (7z, AES-256) and restore.
+builder.Services.AddScoped<BackupSnapshotBuilder>();
+builder.Services.AddScoped<UserBackupService>();
+builder.Services.AddScoped<UserBackupRestore>();
+builder.Services.AddHostedService<DailyBackupService>();
 builder.Services.AddScoped<AiAssistant>();
 builder.Services.AddHttpClient(AiAssistant.HttpClientName, c => c.Timeout = TimeSpan.FromSeconds(180));
 builder.Services.AddSingleton<EmailSender>();

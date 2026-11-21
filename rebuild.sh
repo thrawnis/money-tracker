@@ -113,6 +113,7 @@ fi
 
 echo "==> Ensuring data directories exist"
 mkdir -p "$REPO_DIR/data/postgres" || { echo "ERROR: cannot create data/postgres"; exit 1; }
+mkdir -p "$REPO_DIR/data/user-backups" || { echo "ERROR: cannot create data/user-backups"; exit 1; }
 
 # -- Determine Ollama profile -------------------------------------------------
 # Read only the variables we need from .env using grep.
