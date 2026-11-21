@@ -14,6 +14,8 @@ const readDismissed = () => { try { return localStorage.getItem(STORAGE_KEY) ?? 
 export default function WhatsNewBanner() {
   const [dismissed, setDismissed] = useState(readDismissed);
   const [expanded, setExpanded] = useState(false);
+  // On phones the list starts hidden behind a one-line summary, so it doesn't fill the screen.
+  const [open, setOpen] = useState(() => { try { return !window.matchMedia('(max-width: 768px)').matches; } catch { return true; } });
   const entries = recentChanges();
   if (entries.length === 0 || entries[0].date <= dismissed) return null;
   const newest = entries[0].date;
@@ -27,21 +29,27 @@ export default function WhatsNewBanner() {
   const fresh = entries.filter(e => e.date > dismissed);
   const shown = expanded ? entries : fresh.slice(0, 1);
   const more = entries.length - shown.length;
+  const count = shown.reduce((n, e) => n + e.items.length, 0);
 
   return (
     <section className={styles.banner} aria-label="What's new">
       <div className={styles.head}>
         <span className={styles.title}>✨ What's New</span>
+        {!open && (
+          <button className={styles.summary} onClick={() => setOpen(true)} aria-expanded={false}>
+            {count} change{count === 1 ? '' : 's'} · <span className={styles.linkText}>Show</span>
+          </button>
+        )}
         <span className={styles.spacer} />
-        {more > 0 && (
+        {open && more > 0 && (
           <button className={styles.linkBtn} onClick={() => setExpanded(true)}>
             Show the last {WHATS_NEW_DAYS} days
           </button>
         )}
-        <Link className={styles.linkBtn} to="/whats-new">All changes</Link>
+        {open && <Link className={styles.linkBtn} to="/whats-new">All changes</Link>}
         <button className={styles.close} onClick={dismiss} aria-label="Dismiss What's New" title="Dismiss">×</button>
       </div>
-      <div className={expanded ? styles.scroll : undefined}>
+      {open && <div className={styles.scroll}>
         {shown.map(e => (
           <div key={e.date} className={styles.day}>
             <div className={styles.date}>{formatChangeDate(e.date)}</div>
@@ -50,7 +58,7 @@ export default function WhatsNewBanner() {
             </ul>
           </div>
         ))}
-      </div>
+      </div>}
     </section>
   );
 }

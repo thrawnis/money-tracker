@@ -133,12 +133,12 @@ export default function IouDialog({ people, entry, transaction, onSaved, onClose
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: 12 }}>
-            <div className={styles.field} style={{ flex: '0 0 150px' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', columnGap: 12 }}>
+            <div className={styles.field} style={{ flex: '0 0 170px' }}>
               <label className={styles.label} htmlFor="iou-date">Date</label>
               <input id="iou-date" type="date" className={styles.input} value={date} onChange={e => touch(setDate)(e.target.value)} required />
             </div>
-            <div className={styles.field} style={{ flex: 1 }}>
+            <div className={styles.field} style={{ flex: '1 1 180px' }}>
               <label className={styles.label} htmlFor="iou-desc">Description</label>
               <input id="iou-desc" className={styles.input} value={description} onChange={e => touch(setDescription)(e.target.value)} placeholder="e.g. Dinner at Nopa" />
             </div>
@@ -162,7 +162,7 @@ export default function IouDialog({ people, entry, transaction, onSaved, onClose
             <span className={styles.label}>{editing ? 'Person and amount' : 'People and amounts'}</span>
             {lines.map((l, i) => (
               <div key={l.key} style={{ display: 'flex', gap: 8, marginBottom: 6, alignItems: 'center' }}>
-                <div style={{ flex: 1 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
                   <PersonInput
                     people={people}
                     value={l.person}
@@ -171,7 +171,7 @@ export default function IouDialog({ people, entry, transaction, onSaved, onClose
                     ariaLabel={`Person ${i + 1}`}
                   />
                 </div>
-                <input className={styles.input} style={{ width: 110 }} inputMode="decimal" aria-label={`Amount ${i + 1}`}
+                <input className={styles.input} style={{ width: 96, flexShrink: 0 }} inputMode="decimal" aria-label={`Amount ${i + 1}`}
                   value={l.amount} onChange={e => setLine(l.key, { amount: e.target.value })} placeholder="0.00" />
                 {!editing && lines.length > 1 && (
                   <button type="button" className={styles.btnLink} aria-label={`Remove person ${i + 1}`}

@@ -370,4 +370,7 @@
   .sidebarHeading { padding: 0 10px 4px; }
 
   .listItem, .savedItemBtn { padding: 6px 10px; }
+  /* Report types fill the row; saved reports (if any) sit beside them. */
+  .sidebarSection:first-child { flex: 1 0 auto; }
+  .sidebarSection:last-child { border-right: none; }
 }

@@ -258,7 +258,7 @@ Money other people owe the user, and money the user owes them.
 
 ## What's New
 
-- A **What's New** banner at the top of every page lists recent functional changes (new features and changed behavior, not visual tweaks), written in plain language and grouped by the date they were added; days with no changes are skipped. Collapsed, it shows the newest day; "Show the last 14 days" expands it. Dismissing it (×) hides it in that browser until a newer entry is added.
+- A **What's New** banner at the top of every page lists recent functional changes (new features and changed behavior, not visual tweaks), written in plain language and grouped by the date they were added; days with no changes are skipped. On phones (≤768px) it starts as one line — "✨ What's New · N changes · Show" — so it doesn't fill the screen. Collapsed, it shows the newest day; "Show the last 14 days" expands it. Dismissing it (×) hides it in that browser until a newer entry is added.
 - The **What's New page** (`/whats-new`, linked from the banner and the sidebar footer) keeps the whole history back to the start: the last 14 days first, then older changes grouped by month. Nothing is removed as it ages.
 - Entries live in `frontend/src/whatsNew.ts`; every user-noticeable change adds one.
 

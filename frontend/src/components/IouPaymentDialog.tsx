@@ -108,16 +108,16 @@ export default function IouPaymentDialog({ people, openEntries, payment, personI
             </select>
           </div>
 
-          <div style={{ display: 'flex', gap: 12 }}>
-            <div className={styles.field} style={{ flex: 1 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', columnGap: 12 }}>
+            <div className={styles.field} style={{ flex: '1 1 150px' }}>
               <label className={styles.label} htmlFor="pay-date">Date</label>
               <input id="pay-date" type="date" className={styles.input} value={date} onChange={e => touch(setDate)(e.target.value)} required />
             </div>
-            <div className={styles.field} style={{ flex: 1 }}>
+            <div className={styles.field} style={{ flex: '1 1 90px' }}>
               <label className={styles.label} htmlFor="pay-amount">Amount</label>
               <input id="pay-amount" className={styles.input} inputMode="decimal" value={amount} onChange={e => touch(setAmount)(e.target.value)} placeholder="0.00" />
             </div>
-            <div className={styles.field} style={{ flex: 1 }}>
+            <div className={styles.field} style={{ flex: '1 1 130px' }}>
               <label className={styles.label} htmlFor="pay-method">Method</label>
               <select id="pay-method" className={styles.select} value={method} onChange={e => touch(setMethod)(e.target.value as IouMethod)}>
                 {IOU_METHODS.map(m => <option key={m} value={m}>{methodLabel(m)}</option>)}

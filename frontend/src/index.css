@@ -79,6 +79,11 @@ a {
   :where(select, textarea, input:not([type=checkbox]):not([type=radio])) {
     max-width: 100%;
   }
+  /* 16px text doesn't fit the 26–28px fixed heights some forms use on desktop;
+     min-height wins over height, so fields grow instead of clipping the text. */
+  :where(select, input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color])) {
+    min-height: 34px;
+  }
 }
 @keyframes shimmer {
   0%   { background-position: -400px 0; }

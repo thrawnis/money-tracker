@@ -48,7 +48,7 @@
 .totals {
   display: flex;
   flex-wrap: wrap;
-  gap: 28px;
+  gap: 8px 28px;
   margin-bottom: 12px;
   font-size: 15px;
 }
@@ -116,7 +116,9 @@
 @media (max-width: 768px) {
   .page { padding: 16px 12px; }
   .personActions { margin-left: 0; }
+  .narrowHide { display: none; }
 }
+.summaryScroll { overflow-x: auto; }
 
 /* "I've sent it" notices from payment pages. */
 .paidNotice {

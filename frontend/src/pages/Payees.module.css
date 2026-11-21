@@ -204,6 +204,7 @@
   .colWide { display: none; }
   .mobileSub { display: block; font-size: 11px; color: var(--c-777777); margin-top: 2px; }
   .rowActions { grid-template-columns: 1fr; }
+  .hint { display: none; }
   .inlineEdit { flex-wrap: wrap; }
 }
 

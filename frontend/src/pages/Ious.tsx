@@ -277,9 +277,9 @@ export default function Ious() {
         {data.summary.length === 0 ? (
           <p className={styles.muted}>All square — nobody owes anything right now.</p>
         ) : (
-          <table className={styles.table}>
+          <div className={styles.summaryScroll}><table className={styles.table}>
             <thead>
-              <tr><th>Person</th><th className={styles.right}>Balance</th><th>Open IOUs</th><th>Oldest open</th></tr>
+              <tr><th>Person</th><th className={styles.right}>Balance</th><th className={styles.narrowHide}>Open IOUs</th><th>Oldest open</th></tr>
             </thead>
             <tbody>
               {data.summary.map(p => (
@@ -290,12 +290,12 @@ export default function Ious() {
                     {p.balance > 0 ? '+' : '−'}{money(Math.abs(p.balance))}
                     <span className={styles.balanceWord}>{p.balance > 0 ? 'owes you' : 'you owe'}</span>
                   </td>
-                  <td>{p.openCount}</td>
+                  <td className={styles.narrowHide}>{p.openCount}</td>
                   <td>{p.oldestOpen ? fmtDate(p.oldestOpen) : '—'}</td>
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
       </section>
 
