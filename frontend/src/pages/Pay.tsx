@@ -66,7 +66,7 @@ export default function Pay() {
     setSent('sending');
     try {
       const r = await fetch(`${baseURL}/pay/${encodeURIComponent(token)}/sent`, {
-        method: 'POST', credentials: 'omit', referrerPolicy: 'no-referrer',
+        method: 'POST', credentials: 'same-origin', referrerPolicy: 'no-referrer',
         headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ method: chosen || 'other' }),
       });
       setSent(r.ok ? 'yes' : 'no');
