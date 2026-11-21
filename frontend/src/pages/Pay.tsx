@@ -43,10 +43,16 @@ export default function Pay() {
       .then(async r => {
         const body = await r.json().catch(() => null);
         if (stale) return;
-        if (!r.ok) setError(body?.message ?? (r.status === 429 ? 'Too many requests — try again in a minute.' : 'This page couldn\'t be loaded.'));
+        if (!r.ok) setError(body?.message ?? (r.status === 429 ? 'Too many requests — try again in a minute.' : `This page couldn't be loaded (error ${r.status}).`));
+        else if (!body || !Array.isArray(body.items) || !Array.isArray(body.options))
+          // Reached something, but not the payment details (e.g. a proxy answering for the server).
+          setError(`This page couldn't be loaded: the server sent an unexpected reply (${r.headers.get('content-type') ?? 'no content type'}).`);
         else { setPage(body as PayPage); setChosen((body as PayPage).options[0]?.type ?? ''); }
       })
-      .catch(() => { if (!stale) setError('This page couldn\'t be loaded. Check your connection and try again.'); });
+      .catch((err: unknown) => {
+        // The request never got an answer: offline, or blocked by the browser (an ad or content blocker, for example).
+        if (!stale) setError(`This page couldn't be loaded — the request was blocked or couldn't reach the server (${err instanceof Error ? err.message : String(err)}). Check your connection, or try turning off an ad/content blocker for this site.`);
+      });
     return () => { stale = true; };
   }, [token]);
 
