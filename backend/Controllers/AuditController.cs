@@ -1,3 +1,4 @@
+using MoneyTracker.Services;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -54,9 +55,13 @@ public class AuditController(AppDbContext db) : ControllerBase
             query = query.Where(l => l.Timestamp <= to.Value);
 
         if (!string.IsNullOrWhiteSpace(search))
+        {
+            // Case-insensitive, with * and ? wildcards (WildcardPattern rules).
+            var like = WildcardPattern.ToILike(search.Trim());
             query = query.Where(l =>
-                (l.Details != null && l.Details.Contains(search)) ||
-                (l.UserEmail != null && l.UserEmail.Contains(search)));
+                (l.Details != null && EF.Functions.ILike(l.Details, like, @"\")) ||
+                (l.UserEmail != null && EF.Functions.ILike(l.UserEmail, like, @"\")));
+        }
 
         var total = await query.CountAsync();
 

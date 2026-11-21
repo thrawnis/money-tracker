@@ -1,5 +1,6 @@
 import { useState, type KeyboardEvent, type RefObject } from 'react';
 import styles from './TransactionForm.module.css';
+import { wildcardMatcher } from '../utils/wildcard';
 
 /**
  * Text box with type-ahead suggestions from a list of {id, label} items
@@ -23,8 +24,9 @@ export default function NameAutocomplete({
   const [highlight, setHighlight] = useState(-1);
 
   const updateSuggestions = (val: string) => {
+    const m = wildcardMatcher(val);
     if (val.length >= 1) {
-      const filtered = items.filter(c => c.label.toLowerCase().includes(val.toLowerCase()));
+      const filtered = items.filter(c => m(c.label));
       setSuggestions(filtered.slice(0, 10));
       setShow(true);
       setHighlight(-1);

@@ -174,8 +174,8 @@ public class AiTools(AppDbContext db, IEncryptionService encryption, AiProposals
         : DateOnly.TryParseExact(s, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var d) ? d
         : throw new ArgumentException($"\"{k}\" must be a date like 2026-01-31.");
 
-    private static bool Has(string? haystack, string? needle) =>
-        needle is null || (haystack ?? "").Contains(needle, StringComparison.OrdinalIgnoreCase);
+    // Case-insensitive; * and ? wildcards work as in the app's search boxes.
+    private static bool Has(string? haystack, string? needle) => WildcardPattern.IsMatch(haystack, needle);
 
     // ── Lookups ──────────────────────────────────────────────────────────────
 

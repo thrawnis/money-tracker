@@ -45,4 +45,21 @@ public static class WildcardPattern
         try { return rx.IsMatch(value ?? ""); }
         catch (RegexMatchTimeoutException) { return false; }
     }
+
+    /// <summary>
+    /// The same semantics as a SQL ILIKE pattern, for filters the database runs
+    /// (plain-text columns): no wildcard → contains; with * or ? → whole value.
+    /// LIKE's own % _ and the escape character are matched literally.
+    /// </summary>
+    public static string ToILike(string pattern)
+    {
+        var esc = pattern.Replace(@"\", @"\\").Replace("%", @"\%").Replace("_", @"\_");
+        bool hasWildcard = pattern.Contains('*') || pattern.Contains('?');
+        esc = esc.Replace('*', '%').Replace('?', '_');
+        return hasWildcard ? esc : "%" + esc + "%";
+    }
+
+    /// <summary>In-memory match of a user pattern against a value (null pattern = everything).</summary>
+    public static bool IsMatch(string? value, string? pattern) =>
+        string.IsNullOrWhiteSpace(pattern) || Matches(Build(pattern.Trim()), value);
 }

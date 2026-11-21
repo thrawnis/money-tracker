@@ -14,6 +14,7 @@ import { getPayees, createPayee } from '../api/payees';
 import type { ScheduledTransaction, Account, Category, Payee, FrequencyUnit } from '../types';
 import styles from './BillsReminders.module.css';
 import { confirmDialog } from '../utils/dialogs';
+import { matchesWildcard } from '../utils/wildcard';
 
 const FREQUENCY_UNITS: FrequencyUnit[] = ['Days', 'Weeks', 'Months', 'Years'];
 
@@ -212,7 +213,7 @@ export default function BillsReminders() {
   const handleCategoryInput = (val: string) => {
     setForm(f => ({ ...f, categoryInput: val, categoryId: undefined }));
     if (val.length >= 1) {
-      const sug = allCategories.filter(c => c.label.toLowerCase().includes(val.toLowerCase())).slice(0, 10);
+      const sug = allCategories.filter(c => matchesWildcard(c.label, val)).slice(0, 10);
       setCategorySuggestions(sug);
       setShowCatSugg(true);
     } else {
@@ -278,7 +279,7 @@ export default function BillsReminders() {
   const handlePayeeInput = (val: string) => {
     setForm(f => ({ ...f, payeeInput: val, payeeId: undefined }));
     if (val.length >= 1) {
-      const sug = payees.filter(p => p.name.toLowerCase().includes(val.toLowerCase())).slice(0, 8);
+      const sug = payees.filter(p => matchesWildcard(p.name, val)).slice(0, 8);
       setPayeeSuggestions(sug);
       setShowSugg(true);
     } else {

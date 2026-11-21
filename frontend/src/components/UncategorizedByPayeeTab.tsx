@@ -8,6 +8,7 @@ import { flattenCategories } from '../utils/categories';
 import type { Category } from '../types';
 import styles from '../pages/Settings.module.css';
 import { confirmDialog } from '../utils/dialogs';
+import { matchesWildcard } from '../utils/wildcard';
 
 type ApiError = { response?: { data?: { message?: string } } };
 
@@ -62,7 +63,7 @@ export default function UncategorizedByPayeeTab() {
 
   // A→Z by payee name, ignoring case, numbers in natural order; "(No payee)" last.
   const visible = (groups ?? [])
-    .filter(g => groupName(g).toLowerCase().includes(filter.trim().toLowerCase()))
+    .filter(g => matchesWildcard(groupName(g), filter))
     .sort((a, b) => Number(a.payeeName === null) - Number(b.payeeName === null)
       || (a.payeeName ?? '').localeCompare(b.payeeName ?? '', undefined, { sensitivity: 'base', numeric: true }));
   const selectedGroups = (groups ?? []).filter(g => selected.has(groupKey(g)));

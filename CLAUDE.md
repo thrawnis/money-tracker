@@ -88,6 +88,7 @@ All names (accounts, payees, categories, institutions) must be **case-insensitiv
 - **Unsaved changes**: use the `useUnsavedChanges(isDirty)` hook on any page with a form. It uses `useBlocker` for in-app navigation and `beforeunload` for browser-level navigation
 - **Dialogs**: never use the browser's `confirm()` / `prompt()` / `alert()`. Use the themed `confirmDialog` / `promptDialog` / `alertDialog` from `src/utils/dialogs.ts` (promise-based: `if (!(await confirmDialog('Delete …?'))) return;`), rendered by `DialogHost` in `App.tsx`. The only browser dialog left is the tab-close/refresh warning (`beforeunload`), which browsers don't allow to be replaced
 - **Destructive actions**: always require a `confirmDialog` before deleting or deactivating anything
+- **Search/filter boxes**: match with `utils/wildcard.ts` (frontend) or `WildcardPattern` (server) — case-insensitive, `*`/`?` wildcards — never a bare `includes`/`Contains`
 - **Page titles**: always call `usePageTitle('Money Tracker')` — do not use page-specific titles
 
 ### AI Assistant

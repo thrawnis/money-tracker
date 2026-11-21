@@ -9,6 +9,7 @@ import styles from './TransactionForm.module.css';
 import CategoryAutocomplete from './CategoryAutocomplete';
 import { flattenCategories } from '../utils/categories';
 import { confirmDialog } from '../utils/dialogs';
+import { matchesWildcard } from '../utils/wildcard';
 
 export interface SplitInput {
   categoryId?: number;
@@ -355,7 +356,7 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
     setPayeeId(undefined);
     setPayeeHighlight(-1);
     if (val.length >= 1) {
-      const filtered = payees.filter(p => p.name.toLowerCase().includes(val.toLowerCase()));
+      const filtered = payees.filter(p => matchesWildcard(p.name, val));
       setPayeeSuggestions(filtered.slice(0, 8));
       setShowPayeeSuggestions(true);
     } else {
@@ -680,7 +681,7 @@ export default function TransactionForm({ accountId: _accountId, accounts, initi
                 onKeyDown={handlePayeeKeyDown}
                 onFocus={() => {
                   if (payeeInput.length < 1) return;
-                  const filtered = payees.filter(p => p.name.toLowerCase().includes(payeeInput.toLowerCase()));
+                  const filtered = payees.filter(p => matchesWildcard(p.name, payeeInput));
                   setPayeeSuggestions(filtered.slice(0, 8));
                   setShowPayeeSuggestions(true);
                 }}

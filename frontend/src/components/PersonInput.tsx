@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import styles from './TransactionForm.module.css';
+import { matchesWildcard } from '../utils/wildcard';
 
 export type PersonValue = { personId?: number; newName?: string };
 
@@ -26,7 +27,7 @@ export default function PersonInput({ people, value, onChange, placeholder, auto
 
   const options = useMemo(() => {
     const q = (text ?? '').trim().toLowerCase();
-    const matches = people.filter(p => !q || p.name.toLowerCase().includes(q)).slice(0, 8);
+    const matches = people.filter(p => matchesWildcard(p.name, q)).slice(0, 8);
     const exact = people.some(p => p.name.toLowerCase() === q);
     return { matches, offerNew: q.length > 0 && !exact };
   }, [people, text]);

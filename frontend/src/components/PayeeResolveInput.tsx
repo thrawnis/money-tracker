@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import type { Payee } from '../types';
 import styles from './TransactionForm.module.css';
+import { matchesWildcard } from '../utils/wildcard';
 
 /** How one raw payee name from an import file is resolved. */
 export type PayeeChoice =
@@ -45,7 +46,7 @@ export default function PayeeResolveInput({ rawText, payees, suggestions, value,
       for (const s of suggestions) opts.push({ kind: 'existing', payee: s });
       return opts;
     }
-    const matches = payees.filter(p => p.name.toLowerCase().includes(q.toLowerCase())).slice(0, 8);
+    const matches = payees.filter(p => matchesWildcard(p.name, q)).slice(0, 8);
     for (const p of matches) opts.push({ kind: 'existing', payee: p });
     if (!payees.some(p => p.name.toLowerCase() === q.toLowerCase())) opts.push({ kind: 'new', name: q });
     return opts;
