@@ -115,7 +115,7 @@ public partial class IouPaymentPages(AppDbContext db, IEncryptionService encrypt
         return d.Methods.Select(m => m.Type switch
         {
             "paypal" => new PayOption("paypal", "PayPal", $"paypal.me/{m.Value}", $"https://paypal.me/{m.Value}/{amt}USD", null, "Opens PayPal with the amount filled in."),
-            "venmo" => new PayOption("venmo", "Venmo", $"@{m.Value}", $"https://venmo.com/{m.Value}?txn=pay&amount={amt}&note={n}", null, "Opens Venmo with the amount filled in."),
+            "venmo" => new PayOption("venmo", "Venmo", $"@{m.Value}", $"https://venmo.com/?txn=pay&recipients={Uri.EscapeDataString(m.Value)}&amount={amt}&note={n}", null, "Opens Venmo with the amount filled in."),
             "cashapp" => new PayOption("cashapp", "Cash App", $"${m.Value}", $"https://cash.app/${m.Value}/{amt}", null, "Opens Cash App with the amount filled in."),
             "zelle" => new PayOption("zelle", "Zelle", m.Value, null, m.Value, "Send it in your bank's app using Zelle to this email or phone."),
             "applecash" => new PayOption("applecash", "Apple Cash", m.Value, null, m.Value, "Send it with Apple Cash in Messages or Wallet to this number or email."),

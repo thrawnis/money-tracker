@@ -19,6 +19,7 @@ export const WHATS_NEW: WhatsNewEntry[] = [
   {
     date: '2026-11-21',
     items: [
+      'The Venmo button on IOU payment pages now opens Venmo ready to pay you, with the amount and note filled in.',
       'IOU payment requests — the page, the email, and the message copied by Copy pay link (ready to paste into a text) — now list each item oldest to newest with its amount, then the total at the bottom.',
       'Every search and type-to-search box now ignores upper/lower case and understands wildcards: * matches anything and ? matches one character (for example "amazon*" finds payees starting with Amazon, "*coffee*" anything containing coffee). Plain text without wildcards still finds names containing it.',
       'Backups are now marked Full or Partial, and Details shows exactly what each one contains. Downloaded backups include a readable list of their contents too.',
