@@ -139,7 +139,6 @@ export interface PaymentDetails { displayName?: string | null; methods: PaymentM
 
 export interface IouSharing {
   details: PaymentDetails;
-  canEmail: boolean;
   /** Live links per person. */
   links: { personId: number; count: number; expiresAt: string }[];
   /** "I've sent it" from payment pages, not yet dismissed. */
@@ -149,10 +148,8 @@ export interface IouSharing {
 export const getIouSharing = (): Promise<IouSharing> => api.get('/ious/sharing').then(r => r.data);
 export const savePaymentDetails = (d: PaymentDetails): Promise<PaymentDetails> =>
   api.put('/ious/payment-details', d).then(r => r.data);
-export const createPayLink = (personId: number): Promise<{ url: string; expiresAt: string; message: string }> =>
+export const createPayLink = (personId: number): Promise<{ url: string; expiresAt: string; message: string; subject: string }> =>
   api.post(`/ious/people/${personId}/link`).then(r => r.data);
-export const emailPayLink = (personId: number): Promise<{ sentTo: string; expiresAt: string }> =>
-  api.post(`/ious/people/${personId}/email-link`).then(r => r.data);
 export const revokePayLinks = (personId: number): Promise<{ revoked: number }> =>
   api.delete(`/ious/people/${personId}/links`).then(r => r.data);
 export const dismissPaidNotice = (id: number) => api.post(`/ious/notices/${id}/dismiss`);

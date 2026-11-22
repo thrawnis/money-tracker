@@ -24,13 +24,12 @@ public class IouSharingController(
     UserManager<ApplicationUser> userManager,
     IEncryptionService encryption,
     IouPaymentPages pages,
-    EmailSender email,
     IAuditService audit) : ControllerBase
 {
     private async Task<ApplicationUser?> CurrentUserAsync() =>
         User.FindFirstValue(ClaimTypes.NameIdentifier) is string id ? await userManager.FindByIdAsync(id) : null;
 
-    /// <summary>Payment details, whether email can be sent, each person's live links, and unread "I've sent it" notices.</summary>
+    /// <summary>Payment details, each person's live links, and unread "I've sent it" notices.</summary>
     [HttpGet("sharing")]
     public async Task<IActionResult> Overview()
     {
@@ -46,7 +45,6 @@ public class IouSharingController(
         return Ok(new
         {
             details = pages.GetDetails(user),
-            canEmail = email.IsConfigured,
             links,
             notices = notices.Select(n => new
             {
@@ -89,35 +87,10 @@ public class IouSharingController(
         var url = pages.Url(token, Request);
         // Ready to paste into a text: the itemized breakdown, total, and the link.
         var owed = await pages.OwedAsync(user!, person!.Id);
-        var message = IouPaymentPages.MessageText(pages.FromName(user!), encryption.Decrypt(person.NameEncrypted, user!.EncryptedDataKey) ?? "there", owed, url, expires);
-        return Ok(new { url, expiresAt = expires, message });
-    }
-
-    /// <summary>Emails the person a new 30-day link with what they owe.</summary>
-    [HttpPost("people/{id:int}/email-link")]
-    public async Task<IActionResult> EmailLink(int id, CancellationToken ct)
-    {
-        var (user, person, error) = await PersonAsync(id);
-        if (error is not null) return error;
-        var dek = user!.EncryptedDataKey;
-        var to = encryption.Decrypt(person!.EmailEncrypted, dek);
-        if (string.IsNullOrWhiteSpace(to)) return BadRequest(new { message = "Add an email address for this person first." });
-        if (!email.IsConfigured) return BadRequest(new { message = "Email isn't set up on the server. Copy the link instead." });
-        if (pages.GetDetails(user).Methods.Count == 0)
-            return BadRequest(new { message = "Add at least one way to pay you (Payment details) first." });
-        var owed = await pages.OwedAsync(user, person.Id);
-        if (owed.Total <= 0) return BadRequest(new { message = "They don't owe you anything right now." });
-
-        var (token, expires) = await pages.CreateLinkAsync(user, person);
-        var name = encryption.Decrypt(person.NameEncrypted, dek) ?? "there";
-        var (subject, text, html) = IouPaymentPages.LinkEmail(pages.FromName(user), name, owed, pages.Url(token, Request), expires);
-        try { await email.SendAsync(to, subject, text, html, ct); }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            return StatusCode(502, new { message = "The email couldn't be sent. Check the server's email settings, or copy the link instead." });
-        }
-        await audit.LogAsync("IOU_LINK_EMAILED", "IouPerson", id);
-        return Ok(new { sentTo = to, expiresAt = expires });
+        var from = pages.FromName(user!);
+        var message = IouPaymentPages.MessageText(from, encryption.Decrypt(person.NameEncrypted, user!.EncryptedDataKey) ?? "there", owed, url, expires);
+        // The app never sends IOU emails itself: the page opens the user's own email app with this subject and message.
+        return Ok(new { url, expiresAt = expires, message, subject = $"Payment request from {from}" });
     }
 
     /// <summary>Turns off every link for the person.</summary>

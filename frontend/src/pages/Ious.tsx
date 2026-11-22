@@ -9,7 +9,7 @@ import IouDialog from '../components/IouDialog';
 import IouPaymentDialog from '../components/IouPaymentDialog';
 import PaymentDetailsModal from '../components/PaymentDetailsModal';
 import {
-  getIouSharing, createPayLink, emailPayLink, revokePayLinks, dismissPaidNotice, type IouSharing,
+  getIouSharing, createPayLink, revokePayLinks, dismissPaidNotice, type IouSharing,
 } from '../api/ious';
 import styles from './Ious.module.css';
 import IouPersonDialog from '../components/IouPersonDialog';
@@ -160,16 +160,18 @@ export default function Ious() {
     finally { setLinkBusy(null); }
   };
 
+  // Money Tracker never sends these emails: it opens your own email app with
+  // their address, a subject and the itemized message (with the link) filled in.
   const emailPayLinkTo = async (p: IouPerson) => {
     if (!p.email || needDetails()) return;
-    if (!(await confirmDialog(`Email ${p.name} (${p.email}) what they owe you (${money(p.balance)}), item by item, with a link to pay you?`,
-      { title: 'Email payment request', confirmLabel: 'Send' }))) return;
     setLinkBusy(`email:${p.id}`); setError(''); setNotice('');
     try {
-      const r = await emailPayLink(p.id);
-      setNotice(`Sent to ${r.sentTo}. The link works until ${fmtDate(r.expiresAt.slice(0, 10))}.`);
+      const { message, subject, expiresAt } = await createPayLink(p.id);
+      const body = message.replace(/\r?\n/g, '\r\n');
+      window.location.href = `mailto:${encodeURIComponent(p.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      setNotice(`Opening an email to ${p.name} in your email app. The link works until ${fmtDate(expiresAt.slice(0, 10))}.`);
       loadSharing();
-    } catch (err) { setError((err as ApiError)?.response?.data?.message ?? 'Failed to send the email.'); }
+    } catch (err) { setError((err as ApiError)?.response?.data?.message ?? 'Failed to create the link.'); }
     finally { setLinkBusy(null); }
   };
 
@@ -235,9 +237,8 @@ export default function Ious() {
     const busy = linkBusy !== null;
     const noOwe = `${p.name} doesn't owe you anything right now`;
     const emailTip = !owes ? noOwe
-      : sharing && !sharing.canEmail ? 'Email isn\'t set up on the server'
       : !p.email ? `No email address for ${p.name} — add one with Edit`
-      : `Email ${p.email} what they owe, with the payment link`;
+      : `Write an email to ${p.email} in your email app, with what they owe and the payment link`;
     return (
       <span className={styles.iconRow}>
         <button type="button" className={styles.iconBtn} disabled={!owes || busy} onClick={() => void copyPayLink(p, 'url')}
@@ -248,7 +249,7 @@ export default function Ious() {
           title={owes ? 'Copy a text message with what they owe and the link' : noOwe} aria-label={`Copy text message for ${p.name}`}>
           {linkBusy === `message:${p.id}` ? '…' : <Icon d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />}
         </button>
-        <button type="button" className={styles.iconBtn} disabled={!owes || !p.email || busy || (sharing != null && !sharing.canEmail)}
+        <button type="button" className={styles.iconBtn} disabled={!owes || !p.email || busy}
           onClick={() => void emailPayLinkTo(p)} title={emailTip} aria-label={`Email payment request to ${p.name}`}>
           {linkBusy === `email:${p.id}` ? '…' : <Icon d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM22 6l-10 7L2 6" />}
         </button>
