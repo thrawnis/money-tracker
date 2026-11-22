@@ -162,6 +162,21 @@ export default function Ious() {
 
   // Money Tracker never sends these emails: it opens your own email app with
   // their address, a subject and the itemized message (with the link) filled in.
+  // Opens the device's messaging app (sms:) with the itemized message and link;
+  // there's no phone number on file, so you pick the recipient there.
+  const textPayLinkTo = async (p: IouPerson) => {
+    if (needDetails()) return;
+    setLinkBusy(`sms:${p.id}`); setError(''); setNotice('');
+    try {
+      const { message, expiresAt } = await createPayLink(p.id);
+      // "sms:?&body=" is understood by both iOS and Android.
+      window.location.href = `sms:?&body=${encodeURIComponent(message)}`;
+      setNotice(`Opening a text to ${p.name} in your messaging app — choose them as the recipient. The link works until ${fmtDate(expiresAt.slice(0, 10))}. (On a computer without a messaging app, use Copy message instead.)`);
+      loadSharing();
+    } catch (err) { setError((err as ApiError)?.response?.data?.message ?? 'Failed to create the link.'); }
+    finally { setLinkBusy(null); }
+  };
+
   const emailPayLinkTo = async (p: IouPerson) => {
     if (!p.email || needDetails()) return;
     setLinkBusy(`email:${p.id}`); setError(''); setNotice('');
@@ -231,7 +246,7 @@ export default function Ious() {
   const inSummary = new Set(data.summary.map(p => p.id));
   const everyone = [...data.summary, ...data.people.filter(p => !inSummary.has(p.id)).map(p => ({ ...p, balance: 0, openCount: 0, oldestOpen: null }))];
 
-  // Per-person buttons: copy link, copy text message, email, edit.
+  // Per-person buttons: copy link, copy message, text, email, edit.
   const personIcons = (p: IouPerson) => {
     const owes = p.balance > 0;
     const busy = linkBusy !== null;
@@ -247,7 +262,12 @@ export default function Ious() {
         </button>
         <button type="button" className={styles.iconBtn} disabled={!owes || busy} onClick={() => void copyPayLink(p, 'message')}
           title={owes ? 'Copy a text message with what they owe and the link' : noOwe} aria-label={`Copy text message for ${p.name}`}>
-          {linkBusy === `message:${p.id}` ? '…' : <Icon d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />}
+          {linkBusy === `message:${p.id}` ? '…' : <Icon d="M9 3h6v3H9zM8 4.5H6a1 1 0 0 0-1 1V20a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V5.5a1 1 0 0 0-1-1h-2M8.5 11h7M8.5 14.5h7M8.5 18h4" />}
+        </button>
+        <button type="button" className={styles.iconBtn} disabled={!owes || busy} onClick={() => void textPayLinkTo(p)}
+          title={owes ? `Text ${p.name}: opens your messaging app with what they owe and the link (pick them as the recipient)` : noOwe}
+          aria-label={`Text payment request to ${p.name}`}>
+          {linkBusy === `sms:${p.id}` ? '…' : <Icon d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />}
         </button>
         <button type="button" className={styles.iconBtn} disabled={!owes || !p.email || busy}
           onClick={() => void emailPayLinkTo(p)} title={emailTip} aria-label={`Email payment request to ${p.name}`}>

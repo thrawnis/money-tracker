@@ -139,7 +139,7 @@
 .iconBtn:disabled { opacity: 0.35; cursor: not-allowed; }
 .srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 @media (max-width: 768px) {
-  .iconRow { gap: 3px; }
-  .iconBtn { width: 30px; height: 30px; }
+  .iconRow { gap: 2px; }
+  .iconBtn { width: 28px; height: 30px; }
   .balanceWord { display: block; }
 }
