@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { usePageTitle } from '../hooks/usePageTitle';
 import {
-  getIous, deleteIou, deleteIouPayment, exportIous, updateIouPerson, deleteIouPerson, methodLabel,
+  getIous, deleteIou, deleteIouPayment, exportIous, type IouPerson, methodLabel,
   type IouEntry, type IouLinkedTransaction, type IouPage, type IouPayment,
 } from '../api/ious';
 import IouDialog from '../components/IouDialog';
@@ -12,6 +12,7 @@ import {
   getIouSharing, createPayLink, emailPayLink, revokePayLinks, dismissPaidNotice, type IouSharing,
 } from '../api/ious';
 import styles from './Ious.module.css';
+import IouPersonDialog from '../components/IouPersonDialog';
 import { confirmDialog, promptDialog } from '../utils/dialogs';
 
 type ApiError = { response?: { data?: { message?: string } } };
@@ -20,6 +21,14 @@ const money = (n: number) => n.toLocaleString('en-US', { style: 'currency', curr
 const fmtDate = (d: string) =>
   new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 const shortDate = (d: string) => new Date(d + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+/** A small stroke icon (24×24 path data). */
+function Icon({ d }: { d: string }) {
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+      strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={d} /></svg>
+  );
+}
 
 type Row =
   | { kind: 'iou'; date: string; id: number; e: IouEntry }
@@ -69,7 +78,8 @@ export default function Ious() {
   // Payment pages: your payment details, live links, "I've sent it" notices.
   const [sharing, setSharing] = useState<IouSharing | null>(null);
   const [showDetails, setShowDetails] = useState(false);
-  const [linkBusy, setLinkBusy] = useState<'copy' | 'email' | 'revoke' | null>(null);
+  const [linkBusy, setLinkBusy] = useState<string | null>(null);
+  const [editPerson, setEditPerson] = useState<IouPerson | null>(null);
   const loadSharing = useCallback(() => { getIouSharing().then(setSharing).catch(() => {}); }, []);
   useEffect(() => { loadSharing(); }, [loadSharing]);
 
@@ -121,23 +131,6 @@ export default function Ious() {
     try { await deleteIouPayment(p.id); load(); } catch { setError('Failed to delete that payment.'); }
   };
 
-  const renamePerson = async () => {
-    if (!person) return;
-    const name = (await promptDialog('Rename this person:', { title: 'Rename', defaultValue: person.name, confirmLabel: 'Save' }))?.trim();
-    if (!name || name === person.name) return;
-    try { await updateIouPerson(person.id, name, person.notes ?? undefined); load(); }
-    catch (err) { setError((err as ApiError)?.response?.data?.message ?? 'Failed to rename.'); }
-  };
-
-  const setEmail = async () => {
-    if (!person) return;
-    const email = await promptDialog(`Email address for ${person.name} (for sending payment links):`,
-      { title: 'Email address', defaultValue: person.email ?? '', placeholder: 'name@example.com', confirmLabel: 'Save' });
-    if (email == null || email.trim() === (person.email ?? '')) return;
-    try { await updateIouPerson(person.id, person.name, person.notes ?? undefined, email.trim()); load(); }
-    catch (err) { setError((err as ApiError)?.response?.data?.message ?? 'Failed to save the email address.'); }
-  };
-
   const linkFor = (id: number) => sharing?.links.find(l => l.personId === id);
   const needDetails = () => {
     if (sharing && sharing.details.methods.length > 0) return false;
@@ -146,29 +139,34 @@ export default function Ious() {
     return true;
   };
 
-  // A private 30-day link to a page showing what they owe and how to pay you.
-  const copyPayLink = async () => {
-    if (!person || needDetails()) return;
-    setLinkBusy('copy'); setError(''); setNotice('');
+  // A private 30-day link to a page showing what they owe and how to pay you:
+  // copied on its own, or as an itemized message (ready for a text) ending with it.
+  const copyPayLink = async (p: IouPerson, what: 'url' | 'message') => {
+    if (needDetails()) return;
+    setLinkBusy(`${what}:${p.id}`); setError(''); setNotice('');
     try {
-      const { message, expiresAt } = await createPayLink(person.id);
+      const { url, message, expiresAt } = await createPayLink(p.id);
       const until = fmtDate(expiresAt.slice(0, 10));
-      // The itemized message with the link, ready to paste into a text or chat.
-      try { await navigator.clipboard.writeText(message); setNotice(`Payment request for ${person.name} copied — paste it into a text or message. The link works until ${until}.`); }
-      catch { await promptDialog(`Payment request for ${person.name} (link works until ${until}):`, { title: 'Payment request', defaultValue: message, copyOnly: true }); }
+      const text = what === 'url' ? url : message;
+      const label = what === 'url' ? `Payment link for ${p.name}` : `Payment request for ${p.name}`;
+      try {
+        await navigator.clipboard.writeText(text);
+        setNotice(what === 'url'
+          ? `${label} copied. It works until ${until}.`
+          : `${label} copied — paste it into a text or message. The link works until ${until}.`);
+      } catch { await promptDialog(`${label} (link works until ${until}):`, { title: what === 'url' ? 'Payment link' : 'Payment request', defaultValue: text, copyOnly: true }); }
       loadSharing();
     } catch (err) { setError((err as ApiError)?.response?.data?.message ?? 'Failed to create the link.'); }
     finally { setLinkBusy(null); }
   };
 
-  const emailPayLinkTo = async () => {
-    if (!person || needDetails()) return;
-    if (!person.email) { await setEmail(); return; }
-    if (!(await confirmDialog(`Email ${person.name} (${person.email}) a link to see what they owe you (${money(person.balance)}) and pay you?`,
-      { title: 'Email payment link', confirmLabel: 'Send' }))) return;
-    setLinkBusy('email'); setError(''); setNotice('');
+  const emailPayLinkTo = async (p: IouPerson) => {
+    if (!p.email || needDetails()) return;
+    if (!(await confirmDialog(`Email ${p.name} (${p.email}) what they owe you (${money(p.balance)}), item by item, with a link to pay you?`,
+      { title: 'Email payment request', confirmLabel: 'Send' }))) return;
+    setLinkBusy(`email:${p.id}`); setError(''); setNotice('');
     try {
-      const r = await emailPayLink(person.id);
+      const r = await emailPayLink(p.id);
       setNotice(`Sent to ${r.sentTo}. The link works until ${fmtDate(r.expiresAt.slice(0, 10))}.`);
       loadSharing();
     } catch (err) { setError((err as ApiError)?.response?.data?.message ?? 'Failed to send the email.'); }
@@ -186,12 +184,6 @@ export default function Ious() {
 
   const dismissNotice = async (id: number) => {
     try { await dismissPaidNotice(id); loadSharing(); } catch { setError('Failed to dismiss.'); }
-  };
-
-  const removePerson = async () => {
-    if (!person) return;
-    if (!(await confirmDialog(`Delete ${person.name} and all of their IOUs and payments? This can't be undone.`))) return;
-    try { await deleteIouPerson(person.id); setPersonId(''); } catch { setError('Failed to delete that person.'); }
   };
 
   // A ready-to-send message listing what's outstanding with one person.
@@ -232,6 +224,40 @@ export default function Ious() {
   };
 
   const openEntries = data.entries.filter(e => e.paidOffDate == null);
+
+  // Everyone, with balances first (the summary's order), then people who are all square.
+  const inSummary = new Set(data.summary.map(p => p.id));
+  const everyone = [...data.summary, ...data.people.filter(p => !inSummary.has(p.id)).map(p => ({ ...p, balance: 0, openCount: 0, oldestOpen: null }))];
+
+  // Per-person buttons: copy link, copy text message, email, edit.
+  const personIcons = (p: IouPerson) => {
+    const owes = p.balance > 0;
+    const busy = linkBusy !== null;
+    const noOwe = `${p.name} doesn't owe you anything right now`;
+    const emailTip = !owes ? noOwe
+      : sharing && !sharing.canEmail ? 'Email isn\'t set up on the server'
+      : !p.email ? `No email address for ${p.name} — add one with Edit`
+      : `Email ${p.email} what they owe, with the payment link`;
+    return (
+      <span className={styles.iconRow}>
+        <button type="button" className={styles.iconBtn} disabled={!owes || busy} onClick={() => void copyPayLink(p, 'url')}
+          title={owes ? 'Copy payment link' : noOwe} aria-label={`Copy payment link for ${p.name}`}>
+          {linkBusy === `url:${p.id}` ? '…' : <Icon d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7" />}
+        </button>
+        <button type="button" className={styles.iconBtn} disabled={!owes || busy} onClick={() => void copyPayLink(p, 'message')}
+          title={owes ? 'Copy a text message with what they owe and the link' : noOwe} aria-label={`Copy text message for ${p.name}`}>
+          {linkBusy === `message:${p.id}` ? '…' : <Icon d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />}
+        </button>
+        <button type="button" className={styles.iconBtn} disabled={!owes || !p.email || busy || (sharing != null && !sharing.canEmail)}
+          onClick={() => void emailPayLinkTo(p)} title={emailTip} aria-label={`Email payment request to ${p.name}`}>
+          {linkBusy === `email:${p.id}` ? '…' : <Icon d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM22 6l-10 7L2 6" />}
+        </button>
+        <button type="button" className={styles.iconBtn} onClick={() => setEditPerson(p)} title={`Edit or delete ${p.name}`} aria-label={`Edit ${p.name}`}>
+          <Icon d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
+        </button>
+      </span>
+    );
+  };
 
   return (
     <div className={styles.page}>
@@ -274,24 +300,25 @@ export default function Ious() {
               {data.totals.owedToMe + data.totals.iOwe >= 0 ? '+' : '−'}{money(Math.abs(data.totals.owedToMe + data.totals.iOwe))}
             </strong></div>
         </div>
-        {data.summary.length === 0 ? (
-          <p className={styles.muted}>All square — nobody owes anything right now.</p>
+        {everyone.length === 0 ? (
+          <p className={styles.muted}>No people yet — add someone with + New IOU.</p>
         ) : (
           <div className={styles.summaryScroll}><table className={styles.table}>
             <thead>
-              <tr><th>Person</th><th className={styles.right}>Balance</th><th className={styles.narrowHide}>Open IOUs</th><th>Oldest open</th></tr>
+              <tr><th>Person</th><th className={styles.right}>Balance</th><th className={styles.narrowHide}>Open IOUs</th><th className={styles.narrowHide}>Oldest open</th><th><span className={styles.srOnly}>Actions</span></th></tr>
             </thead>
             <tbody>
-              {data.summary.map(p => (
+              {everyone.map(p => (
                 <tr key={p.id} className={`${styles.clickable} ${p.id === personId ? styles.selected : ''}`}
                   onClick={() => setPersonId(p.id === personId ? '' : p.id)} title="Show only this person">
                   <td>{p.name}</td>
-                  <td className={`${styles.right} ${p.balance > 0 ? styles.pos : styles.neg}`}>
-                    {p.balance > 0 ? '+' : '−'}{money(Math.abs(p.balance))}
-                    <span className={styles.balanceWord}>{p.balance > 0 ? 'owes you' : 'you owe'}</span>
+                  <td className={`${styles.right} ${p.balance > 0 ? styles.pos : p.balance < 0 ? styles.neg : styles.muted}`}>
+                    {p.balance === 0 ? 'All square' : <>{p.balance > 0 ? '+' : '−'}{money(Math.abs(p.balance))}
+                      <span className={styles.balanceWord}>{p.balance > 0 ? 'owes you' : 'you owe'}</span></>}
                   </td>
-                  <td className={styles.narrowHide}>{p.openCount}</td>
-                  <td>{p.oldestOpen ? fmtDate(p.oldestOpen) : '—'}</td>
+                  <td className={styles.narrowHide}>{p.openCount || '—'}</td>
+                  <td className={styles.narrowHide}>{p.oldestOpen ? fmtDate(p.oldestOpen) : '—'}</td>
+                  <td className={styles.iconCell} onClick={e => e.stopPropagation()}>{personIcons(p)}</td>
                 </tr>
               ))}
             </tbody>
@@ -314,25 +341,12 @@ export default function Ious() {
         {person && (
           <span className={styles.personActions}>
             {person.balance !== 0 && <button className={styles.btnSecondary} onClick={copyRequest}>Copy request</button>}
-            {person.balance > 0 && <>
-              <button className={styles.btnSecondary} onClick={() => void copyPayLink()} disabled={linkBusy !== null}
-                title="A private page showing what they owe and how to pay you (works for 30 days)">
-                {linkBusy === 'copy' ? 'Creating…' : 'Copy pay link'}
-              </button>
-              <button className={styles.btnSecondary} onClick={() => void emailPayLinkTo()} disabled={linkBusy !== null || (sharing != null && !sharing.canEmail)}
-                title={sharing && !sharing.canEmail ? 'Email isn\'t set up on the server' : person.email ? `Email the link to ${person.email}` : 'Add their email address first'}>
-                {linkBusy === 'email' ? 'Sending…' : 'Email pay link'}
-              </button>
-            </>}
             {linkFor(person.id) && (
               <span className={styles.muted}>
                 Link active until {fmtDate(linkFor(person.id)!.expiresAt.slice(0, 10))}{' '}
                 <button className={styles.btnLinkDanger} onClick={() => void revokeLinks()} disabled={linkBusy !== null}>Turn off</button>
               </span>
             )}
-            <button className={styles.btnLink} onClick={() => void setEmail()}>{person.email ? `Email: ${person.email}` : 'Add email'}</button>
-            <button className={styles.btnLink} onClick={renamePerson}>Rename</button>
-            <button className={styles.btnLinkDanger} onClick={removePerson}>Delete person</button>
           </span>
         )}
       </div>
@@ -437,6 +451,14 @@ export default function Ious() {
           onSaved={() => closeDialog(true)}
           onClose={() => closeDialog(false)}
         />
+      )}
+      {editPerson && (
+        <IouPersonDialog person={editPerson} onClose={() => setEditPerson(null)}
+          onDone={what => {
+            setEditPerson(null);
+            if (what === 'deleted') { setNotice(`${editPerson.name} was deleted.`); if (personId === editPerson.id) setPersonId(''); }
+            load(); loadSharing();
+          }} />
       )}
     </div>
   );

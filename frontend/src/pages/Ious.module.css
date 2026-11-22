@@ -126,3 +126,20 @@
   border-radius: 6px; background: color-mix(in srgb, var(--c-27ae60) 12%, transparent);
   border: 1px solid color-mix(in srgb, var(--c-27ae60) 40%, transparent); font-size: 14px;
 }
+
+/* Per-person icon buttons on the balances table. */
+.iconCell { width: 1%; white-space: nowrap; cursor: default; }
+.iconRow { display: inline-flex; gap: 4px; }
+.iconBtn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; padding: 0; border-radius: 6px; cursor: pointer;
+  background: var(--c-ffffff); border: 1px solid var(--c-d8dee3); color: var(--c-336699);
+}
+.iconBtn:hover:not(:disabled) { background: var(--c-e8f0f8); border-color: var(--c-336699); }
+.iconBtn:disabled { opacity: 0.35; cursor: not-allowed; }
+.srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+@media (max-width: 768px) {
+  .iconRow { gap: 3px; }
+  .iconBtn { width: 30px; height: 30px; }
+  .balanceWord { display: block; }
+}

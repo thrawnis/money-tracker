@@ -17,6 +17,12 @@ export const WHATS_NEW_DAYS = 14;
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    date: '2026-11-22',
+    items: [
+      'IOUs: each person now has quick buttons — copy their payment link, copy a ready-to-text message with what they owe and the link, email it to them (when they have an email address), and edit. Edit lets you change their name, email and notes, or delete them. People who are all square are listed too.',
+    ],
+  },
+  {
     date: '2026-11-21',
     items: [
       'Phones: the What\'s New box now starts as a single line (tap Show to read it), and several screens fit small screens better — the IOU forms, the IOUs summary and the report date pickers.',
