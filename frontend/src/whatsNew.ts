@@ -19,7 +19,7 @@ export const WHATS_NEW: WhatsNewEntry[] = [
   {
     date: '2026-11-22',
     items: [
-      'IOUs: each person now has quick buttons — copy their payment link, copy a message with what they owe and the link, text it (opens your phone's messaging app with the message filled in — you pick them as the recipient), email it (opens your own email app with their address, a subject and the message already filled in — Money Tracker no longer sends these emails itself), and edit. Edit lets you change their name, email and notes, or delete them. People who are all square are listed too.',
+      'IOUs: each person now has quick buttons — copy their payment link, copy a message with what they owe and the link, text it (opens your phone\'s messaging app with the message filled in — you pick them as the recipient), email it (opens your own email app with their address, a subject and the message already filled in — Money Tracker no longer sends these emails itself), and edit. Edit lets you change their name, email and notes, or delete them. People who are all square are listed too.',
     ],
   },
   {
