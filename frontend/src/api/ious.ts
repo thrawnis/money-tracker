@@ -148,7 +148,7 @@ export interface IouSharing {
 export const getIouSharing = (): Promise<IouSharing> => api.get('/ious/sharing').then(r => r.data);
 export const savePaymentDetails = (d: PaymentDetails): Promise<PaymentDetails> =>
   api.put('/ious/payment-details', d).then(r => r.data);
-export const createPayLink = (personId: number): Promise<{ url: string; expiresAt: string; message: string; subject: string }> =>
+export const createPayLink = (personId: number): Promise<{ url: string; expiresAt: string; message: string; html: string; subject: string }> =>
   api.post(`/ious/people/${personId}/link`).then(r => r.data);
 export const revokePayLinks = (personId: number): Promise<{ revoked: number }> =>
   api.delete(`/ious/people/${personId}/links`).then(r => r.data);

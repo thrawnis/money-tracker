@@ -211,11 +211,54 @@ public partial class IouPaymentPages(AppDbContext db, IEncryptionService encrypt
     public static string MessageText(string fromName, string personName, Owed owed, string url, DateTime expires)
     {
         var until = expires.ToString("MMMM d, yyyy", Us);
-        var text = new StringBuilder($"Hi {personName}, here's what you owe {fromName}:\n\n");
-        foreach (var i in owed.Items) text.Append($"{i.Date.ToString("MMM d, yyyy", Us)} — {i.Payee}: {Money(i.Amount)}\n");
         var credit = owed.ItemsTotal - owed.Total;
-        if (credit > 0.004m) text.Append($"Less what {fromName} owes you or you've already paid: −{Money(credit)}\n");
-        text.Append($"Total: {Money(owed.Total)}\n\nSee the details and pay here (link works until {until}):\n{url}\n");
+        // Rows padded into columns (date, what, amount right-aligned) — lines up in
+        // fixed-width fonts and still reads cleanly in proportional ones.
+        var rows = owed.Items.Select(i => (Date: i.Date.ToString("MMM d, yyyy", Us), What: Clip(i.Payee, 28), Amount: Money(i.Amount))).ToList();
+        if (credit > 0.004m) rows.Add(("", "Less paid / owed to you", "−" + Money(credit)));
+        var dateW = Math.Max(4, rows.Max(r => (int?)r.Date.Length) ?? 0);
+        var whatW = Math.Max(5, rows.Max(r => (int?)r.What.Length) ?? 0);
+        var amtW = Math.Max(Money(owed.Total).Length, rows.Max(r => (int?)r.Amount.Length) ?? 0);
+
+        var text = new StringBuilder($"Hi {personName}, here's what you owe {fromName}:\n\n");
+        foreach (var r in rows) text.Append($"{r.Date.PadRight(dateW)}  {r.What.PadRight(whatW)}  {r.Amount.PadLeft(amtW)}\n");
+        // A short divider and a plain total line read cleanly in any font (padding
+        // only lines up in fixed-width ones, and most phones aren't).
+        text.Append("──────────\n");
+        text.Append($"Total: {Money(owed.Total)}\n\n");
+        // The link alone on its own line, so mail and messaging apps turn it into a link.
+        text.Append($"See the details and pay here (link works until {until}):\n\n{url}\n");
         return text.ToString();
     }
+
+    /// <summary>
+    /// The same request as formatted HTML — a table and a clickable link — for
+    /// pasting into an email (the page puts it on the clipboard alongside the text).
+    /// </summary>
+    public static string MessageHtml(string fromName, string personName, Owed owed, string url, DateTime expires)
+    {
+        static string e(string s) => WebUtility.HtmlEncode(s);
+        var until = expires.ToString("MMMM d, yyyy", Us);
+        const string td = "padding:6px 14px 6px 0;border-bottom:1px solid #e3e8ee";
+        var rows = new StringBuilder();
+        foreach (var i in owed.Items)
+            rows.Append($"<tr><td style=\"{td};color:#555;white-space:nowrap\">{e(i.Date.ToString("MMM d, yyyy", Us))}</td>"
+                + $"<td style=\"{td}\">{e(i.Payee)}</td><td style=\"{td};padding-right:0;text-align:right;white-space:nowrap\">{e(Money(i.Amount))}</td></tr>");
+        var credit = owed.ItemsTotal - owed.Total;
+        if (credit > 0.004m)
+            rows.Append($"<tr><td style=\"{td}\"></td><td style=\"{td};color:#555\">Less what {e(fromName)} owes you or you've already paid</td>"
+                + $"<td style=\"{td};padding-right:0;text-align:right;white-space:nowrap;color:#555\">−{e(Money(credit))}</td></tr>");
+        rows.Append("<tr><td style=\"padding:8px 14px 0 0;font-weight:700\" colspan=\"2\">Total</td>"
+            + $"<td style=\"padding:8px 0 0;text-align:right;font-weight:700;white-space:nowrap\">{e(Money(owed.Total))}</td></tr>");
+        return "<div style=\"font-family:-apple-system,Segoe UI,Arial,sans-serif;font-size:15px;color:#222\">"
+            + $"<p>Hi {e(personName)}, here's what you owe {e(fromName)}:</p>"
+            + "<table style=\"border-collapse:collapse;font-size:14px;margin:4px 0 14px\">"
+            + "<thead><tr><th style=\"text-align:left;padding:0 14px 6px 0;border-bottom:2px solid #c5d4e0;color:#336699\">Date</th>"
+            + "<th style=\"text-align:left;padding:0 14px 6px 0;border-bottom:2px solid #c5d4e0;color:#336699\">What</th>"
+            + "<th style=\"text-align:right;padding:0 0 6px;border-bottom:2px solid #c5d4e0;color:#336699\">Amount</th></tr></thead>"
+            + $"<tbody>{rows}</tbody></table>"
+            + $"<p><a href=\"{e(url)}\" style=\"color:#003366;font-weight:600\">See the details and pay here</a> (link works until {e(until)}).</p></div>";
+    }
+
+    private static string Clip(string s, int max) => s.Length <= max ? s : s[..(max - 1)] + "…";
 }

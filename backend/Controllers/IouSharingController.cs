@@ -88,9 +88,11 @@ public class IouSharingController(
         // Ready to paste into a text: the itemized breakdown, total, and the link.
         var owed = await pages.OwedAsync(user!, person!.Id);
         var from = pages.FromName(user!);
-        var message = IouPaymentPages.MessageText(from, encryption.Decrypt(person.NameEncrypted, user!.EncryptedDataKey) ?? "there", owed, url, expires);
+        var to = encryption.Decrypt(person.NameEncrypted, user!.EncryptedDataKey) ?? "there";
+        var message = IouPaymentPages.MessageText(from, to, owed, url, expires);
+        var html = IouPaymentPages.MessageHtml(from, to, owed, url, expires);
         // The app never sends IOU emails itself: the page opens the user's own email app with this subject and message.
-        return Ok(new { url, expiresAt = expires, message, subject = $"Payment request from {from}" });
+        return Ok(new { url, expiresAt = expires, message, html, subject = $"Payment request from {from}" });
     }
 
     /// <summary>Turns off every link for the person.</summary>

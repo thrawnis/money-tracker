@@ -139,29 +139,48 @@ export default function Ious() {
     return true;
   };
 
+  // Puts text — and, where the browser allows, a formatted HTML version — on the
+  // clipboard. The write starts straight away (still inside the click, which
+  // Safari requires) and is filled in once the content arrives.
+  const copyRich = (pending: Promise<{ text: string; html?: string }>): Promise<boolean> => {
+    const plainOnly = () => pending.then(r => navigator.clipboard.writeText(r.text)).then(() => true, () => false);
+    try {
+      if (typeof ClipboardItem !== 'undefined' && navigator.clipboard?.write) {
+        const parts: Record<string, Promise<Blob>> = {
+          'text/plain': pending.then(r => new Blob([r.text], { type: 'text/plain' })),
+        };
+        parts['text/html'] = pending.then(r => new Blob([r.html ?? r.text], { type: 'text/html' }));
+        return navigator.clipboard.write([new ClipboardItem(parts)]).then(() => true, plainOnly);
+      }
+    } catch { /* fall back to plain text */ }
+    return plainOnly();
+  };
+
   // A private 30-day link to a page showing what they owe and how to pay you:
-  // copied on its own, or as an itemized message (ready for a text) ending with it.
+  // copied on its own, or as an itemized message (a table + clickable link when
+  // pasted into an email, plain text in a text message) ending with it.
   const copyPayLink = async (p: IouPerson, what: 'url' | 'message') => {
     if (needDetails()) return;
     setLinkBusy(`${what}:${p.id}`); setError(''); setNotice('');
+    const pending = createPayLink(p.id);
+    const copied = copyRich(pending.then(r => what === 'url'
+      ? { text: r.url, html: `<a href="${r.url}">${r.url}</a>` }
+      : { text: r.message, html: r.html }));
     try {
-      const { url, message, expiresAt } = await createPayLink(p.id);
+      const { url, message, expiresAt } = await pending;
       const until = fmtDate(expiresAt.slice(0, 10));
       const text = what === 'url' ? url : message;
       const label = what === 'url' ? `Payment link for ${p.name}` : `Payment request for ${p.name}`;
-      try {
-        await navigator.clipboard.writeText(text);
+      if (await copied) {
         setNotice(what === 'url'
           ? `${label} copied. It works until ${until}.`
-          : `${label} copied — paste it into a text or message. The link works until ${until}.`);
-      } catch { await promptDialog(`${label} (link works until ${until}):`, { title: what === 'url' ? 'Payment link' : 'Payment request', defaultValue: text, copyOnly: true }); }
+          : `${label} copied — paste it into a text, chat or email (emails get a formatted table). The link works until ${until}.`);
+      } else await promptDialog(`${label} (link works until ${until}):`, { title: what === 'url' ? 'Payment link' : 'Payment request', defaultValue: text, copyOnly: true });
       loadSharing();
     } catch (err) { setError((err as ApiError)?.response?.data?.message ?? 'Failed to create the link.'); }
     finally { setLinkBusy(null); }
   };
 
-  // Money Tracker never sends these emails: it opens your own email app with
-  // their address, a subject and the itemized message (with the link) filled in.
   // Opens the device's messaging app (sms:) with the itemized message and link;
   // there's no phone number on file, so you pick the recipient there.
   const textPayLinkTo = async (p: IouPerson) => {
@@ -177,14 +196,23 @@ export default function Ious() {
     finally { setLinkBusy(null); }
   };
 
+  // Money Tracker never sends these emails: it opens your own email app with
+  // their address, a subject and the itemized message (with the link) filled in,
+  // and puts the formatted version (table + clickable link) on the clipboard.
   const emailPayLinkTo = async (p: IouPerson) => {
     if (!p.email || needDetails()) return;
     setLinkBusy(`email:${p.id}`); setError(''); setNotice('');
+    const pending = createPayLink(p.id);
+    const copied = copyRich(pending.then(r => ({ text: r.message, html: r.html })));
     try {
-      const { message, subject, expiresAt } = await createPayLink(p.id);
+      const { message, subject, expiresAt } = await pending;
+      const rich = await copied;
       const body = message.replace(/\r?\n/g, '\r\n');
       window.location.href = `mailto:${encodeURIComponent(p.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-      setNotice(`Opening an email to ${p.name} in your email app. The link works until ${fmtDate(expiresAt.slice(0, 10))}.`);
+      const until = fmtDate(expiresAt.slice(0, 10));
+      setNotice(rich
+        ? `Opening an email to ${p.name} in your email app. A formatted version (a table with a clickable link) is also on your clipboard — select the message text and paste over it if you'd like that instead. The link works until ${until}.`
+        : `Opening an email to ${p.name} in your email app. The link works until ${until}.`);
       loadSharing();
     } catch (err) { setError((err as ApiError)?.response?.data?.message ?? 'Failed to create the link.'); }
     finally { setLinkBusy(null); }
