@@ -45,6 +45,26 @@ public class AuthController(
     // How long a just-rotated refresh token stays acceptable, so two tabs
     // refreshing concurrently don't sign each other out. See Refresh().
     private static readonly TimeSpan RefreshReuseGrace = TimeSpan.FromSeconds(60);
+
+    /// <summary>
+    /// Ends a token on purpose (theft detected, sign out everywhere, password
+    /// change). Its RevokedAt is backdated past RefreshReuseGrace, which exists
+    /// only for tabs racing on a just-rotated token — otherwise a device could
+    /// keep refreshing for up to a minute after being signed out.
+    /// </summary>
+    /// <summary>
+    /// Tokens that could still get a session: live ones, and ones rotated within
+    /// the grace window (which Refresh would still honour). Deliberate sign-outs
+    /// must end both.
+    /// </summary>
+    private static System.Linq.Expressions.Expression<Func<RefreshToken, bool>> StillUsable =>
+        r => !r.IsRevoked || r.RevokedAt > DateTime.UtcNow - RefreshReuseGrace;
+
+    private static void RevokeOutright(RefreshToken t)
+    {
+        t.IsRevoked = true;
+        t.RevokedAt = DateTime.UtcNow - RefreshReuseGrace - TimeSpan.FromMinutes(1);
+    }
     // ── Registration ────────────────────────────────────────────────────────
 
     [HttpPost("register")]
@@ -692,15 +712,17 @@ public class AuthController(
             if (revokedAgo > RefreshReuseGrace)
             {
                 // Outside the grace window this is a replay of a token that was
-                // already spent — the classic signal that a refresh token
-                // leaked. Drop the entire family so the real user and the
-                // holder of the stolen copy both have to sign in again.
-                var family = db.RefreshTokens.Where(r => r.UserId == stored.UserId && !r.IsRevoked);
-                await family.ForEachAsync(t => { t.IsRevoked = true; t.RevokedAt = DateTime.UtcNow; });
+                // already spent: either it leaked, or this device never got the
+                // reply that replaced it (phone locked mid-request, dropped
+                // connection). Either way, end that one sign-in — its whole
+                // family, so a thief and the device it came from both lose it —
+                // but leave the user's other devices signed in.
+                var family = db.RefreshTokens.Where(r => r.UserId == stored.UserId && r.FamilyId == stored.FamilyId).Where(StillUsable);
+                await family.ForEachAsync(RevokeOutright);
                 await db.SaveChangesAsync();
 
                 await audit.LogAsync("REFRESH_TOKEN_REUSE", "User", null,
-                    new { userId = stored.UserId, message = "Revoked token replayed; all sessions signed out." });
+                    new { userId = stored.UserId, message = "Revoked token replayed; that device's session was signed out (other devices unaffected)." });
 
                 Response.Cookies.Delete("refreshToken");
                 return Unauthorized("Refresh token is invalid or expired.");
@@ -744,6 +766,7 @@ public class AuthController(
             UserId    = stored.User.Id,
             Token     = newRefresh,
             ExpiresAt = newExpiry,
+            FamilyId  = stored.FamilyId,   // same device, same sign-in
         });
 
         // Rotation adds a row every time a tab regains focus, and nothing else
@@ -781,8 +804,8 @@ public class AuthController(
         // change should not leave any pre-change session alive, and singling
         // out the current one would mean trusting a cookie that was issued
         // under the old credentials.
-        var tokens = db.RefreshTokens.Where(r => r.UserId == userId && !r.IsRevoked);
-        await tokens.ForEachAsync(t => { t.IsRevoked = true; t.RevokedAt = DateTime.UtcNow; });
+        var tokens = db.RefreshTokens.Where(r => r.UserId == userId).Where(StillUsable);
+        await tokens.ForEachAsync(RevokeOutright);
         await db.SaveChangesAsync();
 
         await audit.LogAsync("PASSWORD_CHANGE");
@@ -800,8 +823,8 @@ public class AuthController(
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId is not null)
         {
-            var tokens = db.RefreshTokens.Where(r => r.UserId == userId && !r.IsRevoked);
-            await tokens.ForEachAsync(t => { t.IsRevoked = true; t.RevokedAt = DateTime.UtcNow; });
+            var tokens = db.RefreshTokens.Where(r => r.UserId == userId).Where(StillUsable);
+            await tokens.ForEachAsync(RevokeOutright);
             await db.SaveChangesAsync();
         }
 
@@ -830,8 +853,7 @@ public class AuthController(
                 .FirstOrDefaultAsync(r => r.Token == tokenValue && r.UserId == userId && !r.IsRevoked);
             if (current is not null)
             {
-                current.IsRevoked = true;
-                current.RevokedAt = DateTime.UtcNow;
+                RevokeOutright(current);
                 await db.SaveChangesAsync();
             }
         }
@@ -901,6 +923,7 @@ public class AuthController(
             UserId    = user.Id,
             Token     = refreshToken,
             ExpiresAt = refreshExpiry.Value,
+            FamilyId  = Guid.NewGuid().ToString(),   // a new sign-in starts its own family
         });
         await db.SaveChangesAsync();
 

@@ -1245,6 +1245,11 @@ namespace MoneyTracker.Migrations
                     b.Property<DateTime>("ExpiresAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("FamilyId")
+                        .IsRequired()
+                        .HasMaxLength(36)
+                        .HasColumnType("character varying(36)");
+
                     b.Property<bool>("IsRevoked")
                         .HasColumnType("boolean");
 

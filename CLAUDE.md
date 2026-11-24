@@ -53,7 +53,7 @@ docker compose up
 ### Authentication Flow
 1. `POST /auth/login` → password check → if MFA enrolled, returns `{ requiresMfa, userId, methods: { passkey, totp } }` → client calls `/auth/passkey/login/*` (default) or `/auth/mfa/totp/verify`; if not enrolled, `{ requiresMfaSetup }` → first-time setup offers a passkey (recommended) or TOTP. Passwordless: `/auth/passkey/signin/begin|complete` signs in with a passkey alone (no allow-list; the credential identifies the user)
 2. Tokens issued via `IssueTokensAsync`: JWT access token + refresh token stored in DB, set as httpOnly cookie. Email verification: when SMTP is configured (and `Auth:RequireEmailVerification` isn't false), an account whose `EmailConfirmed` is false gets `{ requiresEmailVerification, email }` instead of tokens and a 6-digit code by email; `/auth/email/verify` (then `IssueTokensAsync`) finishes the sign-in, `/auth/email/resend` resends. Refresh refuses unverified accounts. The frontend routes every sign-in result through `utils/finishSignIn.ts`
-3. Silent refresh on app load and tab focus (`AuthContext`)
+3. Silent refresh on app load and tab focus (`AuthContext`). Refresh tokens rotate per use and belong to a per-sign-in family (`FamilyId`): a replayed spent token (outside the 60s grace) revokes only its family, so other devices stay signed in; deliberate sign-outs use `RevokeOutright`/`StillUsable` so the grace window can't revive them
 4. Demo user (`demo@example.com`) skips MFA when `DEMO_MODE=true`
 
 ### Field-Level Encryption

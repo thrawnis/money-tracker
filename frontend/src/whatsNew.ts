@@ -17,6 +17,12 @@ export const WHATS_NEW_DAYS = 14;
 
 export const WHATS_NEW: WhatsNewEntry[] = [
   {
+    date: '2026-11-24',
+    items: [
+      'Staying signed in on several devices is more reliable: if one device (say, a phone that lost its connection mid-refresh) needs to sign in again, your other devices are no longer signed out with it. Signing out — or signing out of all sessions — now takes effect immediately everywhere it should.',
+    ],
+  },
+  {
     date: '2026-11-22',
     items: [
       'IOU messages look tidier: items in neat rows with the total underneath and the link on its own line so it\'s clickable. Copy message and Email also copy a formatted version — a proper table with a clickable link — that you can paste into an email.',
